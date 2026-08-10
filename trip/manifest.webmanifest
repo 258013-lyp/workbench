@@ -1,0 +1,19 @@
+{
+  "name": "出差规划助手 · 轻应用",
+  "short_name": "出差规划",
+  "description": "批量导入客户、智能生成行程与预算、打钩跟进拜访进度",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f8ff",
+  "theme_color": "#1e5eff",
+  "categories": ["productivity", "travel", "utilities"],
+  "icons": [
+    {"src": "icon-192.png",        "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512.png",        "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icon-512-maskable.png","sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
