@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工作台合集</title>
+<style>
+  :root{--bg:#0f1220;--card:#1a1f33;--fg:#e8ecf6;--muted:#9aa3bd;--accent:#7c9cff}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:48px 20px}
+  h1{font-size:28px;margin:0 0 6px}
+  p.sub{color:var(--muted);margin:0 0 32px}
+  .grid{display:grid;gap:16px;width:min(720px,100%);grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  a.card{display:block;background:var(--card);border:1px solid #2a3150;border-radius:14px;padding:22px 20px;text-decoration:none;color:var(--fg);transition:.15s}
+  a.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  a.card h2{margin:0 0 8px;font-size:18px}
+  a.card span{color:var(--muted);font-size:14px}
+  footer{margin-top:36px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+  <h1>我的工作台合集</h1>
+  <p class="sub">GitHub Pages 长期托管 · 链接固定不被回收</p>
+  <div class="grid">
+    <a class="card" href="doudou/"><h2>豆豆小屋</h2><span>拼豆工作台</span></a>
+    <a class="card" href="trip/"><h2>出差规划</h2><span>多客户行程编排</span></a>
+    <a class="card" href="wfyy/index.html"><h2>晚风予言</h2><span>治愈系创作工作台</span></a>
+  </div>
+  <footer>由 WorkBuddy 部署 · 258013-lyp/workbench</footer>
+</body>
+</html>
