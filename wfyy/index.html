@@ -1914,8 +1914,6 @@ async function autoPushHotJson(opts){
     if(!c || !c.token || !c.repo){ return fail('未配置云同步，无法自动更新热点库'); }
     const owner = c.repo.split('/')[0], repo = c.repo.split('/')[1];
     if(!owner || !repo) return fail('仓库格式应为 owner/repo');
-    const path = 'data/hot.json';
-    const apiPath = '/repos/'+owner+'/'+repo+'/contents/'+encPath(path);
     /* 用当前云同步凭据（保证与 ghFetch 一致） */
     cloud.token = c.token; cloud.repo = c.repo;
     /* 1) 现有精选骨架（tag 不为「实时」的稳定内容） */
@@ -1937,9 +1935,21 @@ async function autoPushHotJson(opts){
     const seen2 = new Set(); const merged = [];
     base.concat(fresh).forEach(it=>{ const k=(it&&it.title)||''; if(!k || seen2.has(k)) return; seen2.add(k); merged.push(it); });
     const payload = { updatedAt: todayStr(), note:'晚风予言 · 每日自动更新热点库（GitHub raw 托管）', items: merged.slice(0,40) };
-    /* 4) 推回仓库（取 sha 后 PUT，复用云同步 PAT） */
-    let sha; try{ const r=await ghFetch(apiPath,'GET'); if(r&&r.sha) sha=r.sha; }catch(e){}
-    const res = await ghFetch(apiPath,'PUT', { message:'chore(hot): 每日自动更新热点库 '+payload.updatedAt, content: b64encode(JSON.stringify(payload,null,2)), sha: sha||undefined });
+    /* 4) 推回仓库（取 sha 后 PUT，复用云同步 PAT）。
+       同时写 data/hot.json（仓根，raw 容错首源）与 wfyy/hot.json（Pages 同域 ./hot.json），
+       让 GitHub Pages 版也每天自动换新，与出差/拼豆托管一致。 */
+    const pushPaths = ['data/hot.json','wfyy/hot.json'];
+    const content = b64encode(JSON.stringify(payload,null,2));
+    let okCount = 0;
+    for(const p of pushPaths){
+      const ap = '/repos/'+owner+'/'+repo+'/contents/'+encPath(p);
+      let sha; try{ const r=await ghFetch(ap,'GET'); if(r&&r.sha) sha=r.sha; }catch(e){}
+      try{
+        await ghFetch(ap,'PUT', { message:'chore(hot): 每日自动更新热点库 '+payload.updatedAt, content, sha: sha||undefined });
+        okCount++;
+      }catch(e){ console.warn('[autoPushHot] 推送 '+p+' 失败：', e&&e.message); }
+    }
+    if(okCount===0) return fail('热点库推送失败（所有路径写入失败）');
     if(!silent) flashToast('已更新热点库（'+merged.length+' 条）并推送到仓库');
     return true;
   }catch(e){ return fail('自动更新热点库失败：'+(e&&e.message||e)); }
@@ -1989,14 +1999,14 @@ function openCloudModal(){
     </div>
     <div class="cloud-divider"></div>
     <div class="cloud-toggle">
-      <span>每天自动更新热点库（打开即把当日热点推回仓库 <code>data/hot.json</code>）</span>
+      <span>每天自动更新热点库（打开即把当日热点同时推回 <code>data/hot.json</code> 与 <code>wfyy/hot.json</code>，Pages 版也天天换新）</span>
       <label class="switch"><input type="checkbox" id="hotAutoOn" ${hotPushCfg().enabled!==false?'checked':''} onchange="hotAutoToggle()"><span class="slider"></span></label>
     </div>
     <div class="cloud-actions">
       <button class="btn btn-soft" id="hotUpdateNow" onclick="hotUpdateNow()">立即更新热点库</button>
     </div>
     <div class="cloud-help">
-      <b>每天自动更新：</b>复用上方云同步令牌（对该仓库有写权限），每天首次打开时，把「治愈系精选骨架 + 当日实时热榜钩子」推回 <code>data/hot.json</code>。之后点「刷新」读到的就是当天版热点，仓库真正天天换新。实时源偶尔失败时只更新精选骨架，绝不报错、绝不丢内容。可随时点「立即更新热点库」手动触发。
+      <b>每天自动更新：</b>复用上方云同步令牌（对该仓库有写权限），每天首次打开时，把「治愈系精选骨架 + 当日实时热榜钩子」同时推回 <code>data/hot.json</code> 与 <code>wfyy/hot.json</code>。前者是 raw 容错首源，后者是 GitHub Pages 同域快照，从此 Pages 版也天天换新，与出差/拼豆托管一致。实时源偶尔失败时只更新精选骨架，绝不报错、绝不丢内容。可随时点「立即更新热点库」手动触发。
     </div>
     <div id="cloudStatus" class="cloud-status">${c.lastSync?('上次同步：'+c.lastSync):'尚未同步'}</div>
     <div class="cloud-help">
