@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>晚风予言 · 创作工作台</title>
 <style>
   :root{
@@ -499,6 +501,12 @@ function TAG_SEED(){
 }
 const PLAT_MAP={weibo:'微博',douyin:'抖音',zhihu:'知乎',baidu:'百度',hot:'热榜',toutiao:'头条',bilibili:'B站',xiaohongshu:'小红书'};
 /* 多源热榜：任一可用即成功，避免单一免费接口失效导致全局刷新失败 */
+/* Agent Reach 同款：jina Reader 作为 CORS 友好的取数通道，专读平台热榜页（微博/知乎/B站等），
+   自带 Access-Control-Allow-Origin，浏览器直连即可；文本返回经 extractHotWords 提取。 */
+const JINA_PROXIES=[
+  u=>'https://r.jina.ai/'+u,
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent('https://r.jina.ai/'+u),
+];
 const LIVE_SOURCES=[
   { name:'vvhan', url:'https://api.vvhan.com/api/hotlist/all', parse:d=>{
       const src=(d&&d.data)||{};
@@ -567,12 +575,6 @@ const CORS_PROXIES=[
   u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u),           // 稳定、带 CORS
   u=>'https://cors.eu.org/'+u,                                                    // 前缀代理
 ];
-/* Agent Reach 同款：jina Reader 作为 CORS 友好的取数通道，专读平台热榜页（微博/知乎/B站等），
-   自带 Access-Control-Allow-Origin，浏览器直连即可；文本返回经 extractHotWords 提取。 */
-const JINA_PROXIES=[
-  u=>'https://r.jina.ai/'+u,
-  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent('https://r.jina.ai/'+u),
-];
 async function fetchVia(url, opts){
   const textExtract=(opts&&opts.textExtract)||null;
   const proxies=(opts&&opts.proxies)||CORS_PROXIES;
@@ -635,7 +637,8 @@ async function fetchHotJson(){
 }
 /* 刷新链路（客户端实时拉取 · 无 PAT）：
    ① 精选库（GitHub/同域托管）：稳定首选，作为永不断的内容兜底；
-   ② 实时热榜（第三方聚合 + CORS 代理链）：每刷都尝试，拉到即与精选库合并（最佳努力，失败不影响①）；
+   ② 实时热榜：融合「第三方聚合 API（vvhan/oioweb/pearktrue）+ Agent Reach 同款 jina Reader 直读
+      微博/知乎/B站热榜页」双路，每刷都尝试，拉到即与精选库合并（最佳努力，失败不影响①）；
    ③ 两者皆空才抛错，由离线种子接管。这样「实时热榜偶尔连不上」再也不会导致整页空白/联网失败。 */
 async function fetchLiveTrending(){
   const errs=[];
@@ -970,7 +973,7 @@ function renderIdeas(){
       </div>
       ${i.source?`<div class="item-sub">来源：${esc(i.source)}</div>`:''}
       <div class="item-meta">
-        ${i.planDate?`<span class="chip chip-date" style="${overdue?'background:var(--red-soft);color:var(--red)':''}">${overdue?'⚠ 逾期 '+i.planDate:i.planDate}</span>`:'<span class="chip chip-date">未排期</span>'}
+        ${i.planDate?`<span class="chip chip-date" style="${overdue?'background:var(--red-soft);color:var(--red)':''}">${overdue?'⚠ 逾期 '+esc(i.planDate):esc(i.planDate)}</span>`:'<span class="chip chip-date">未排期</span>'}
         ${(i.tags||[]).map(t=>`<span class="chip chip-tag">#${esc(t)}</span>`).join('')}
       </div>
       <div class="item-actions">
@@ -1623,7 +1626,7 @@ function platMetricsHTML(plats, data){
   if(!plats||!plats.length) return '<div class="item-sub" style="color:var(--ink2)">勾选上方发布平台后，这里会出现各平台的专属数据输入框（抖音含分享/完播率，B站含投币/弹幕，小红书含曝光/涨粉…）</div>';
   return plats.map(p=>{
     const def=PLAT_METRICS[p]||[]; const m=(data&&data.metrics&&data.metrics[p])||{};
-    const fields=def.map(([k,name])=>`<div class="field"><label>${name}</label><input data-p="${p}" data-k="${k}" type="number" inputmode="numeric" value="${m[k]!=null?m[k]:''}"></div>`).join('');
+    const fields=def.map(([k,name])=>`<div class="field"><label>${name}</label><input data-p="${p}" data-k="${k}" type="number" inputmode="numeric" value="${m[k]!=null?esc(m[k]):''}"></div>`).join('');
     return `<div class="plat-metric-card"><div class="pmc-head">📊 ${p}<button type="button" class="mini pmc-copy" onclick="copyPlatMetrics('${p}')" title="把本平台数据复制到其他已勾选平台（仅复制共有字段）">⧉ 复制到其他</button></div><div class="row2">${fields}</div></div>`;
   }).join('');
 }
@@ -1675,7 +1678,7 @@ function openWorkModal(id){
     <div class="field"><label>文案 / 简介</label><textarea id="f_text" placeholder="一句文案或视频旁白…">${w?esc(w.text):''}</textarea></div>
     <div class="row2">
       <div class="field"><label>形式</label><select id="f_form"><option value="视频" ${w&&w.form==='视频'?'selected':''}>视频</option><option value="图文" ${w&&w.form==='图文'?'selected':''}>图文</option></select></div>
-      <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${w?w.date:todayStr()}"></div>
+      <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${w?esc(w.date):todayStr()}"></div>
     </div>
     <div class="row2">
       <div class="field"><label>时长（视频）</label><input id="f_dur" value="${w?esc(w.duration):''}" placeholder="如 1:05"></div>
@@ -1684,7 +1687,7 @@ function openWorkModal(id){
     <div class="field"><label>发布平台（多选）</label><div class="checks" id="f_plats">${platChecks(w?w.platforms:PLATFORMS)}</div><div class="item-sub" style="margin-top:2px;color:var(--ink2)">默认全平台同步发布，可按需取消勾选</div></div>
     <div class="field" style="margin-top:4px"><label>各平台数据（分别填写，体现各平台差异）</label></div>
     <div id="platMetrics">${platMetricsHTML(w?w.platforms:PLATFORMS, {metrics:draft})}</div>
-    <div class="field"><label>主题标签（用逗号分隔，用于查重）</label><input id="f_tags" value="${w?(w.tags||[]).join(', '):''}" placeholder="如：古诗, 豁达, 苏轼" oninput="liveDupCheck()"></div>
+    <div class="field"><label>主题标签（用逗号分隔，用于查重）</label><input id="f_tags" value="${w?esc((w.tags||[]).join(', ')):''}" placeholder="如：古诗, 豁达, 苏轼" oninput="liveDupCheck()"></div>
     <div class="tag-suggest-box" id="tagSuggest"></div>
     <div class="item-sub" style="color:var(--ink2);margin-top:4px">📌 数据按平台分别记录于上方「各平台数据」；顶部 KPI 与播放 Top5 会自动汇总各平台。</div>
     <div class="modal-actions">
@@ -1821,6 +1824,8 @@ function saveCloud(){ try{ localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)
 function b64encode(s){ return btoa(unescape(encodeURIComponent(s))); }
 function b64decode(s){ return decodeURIComponent(escape(atob((s||'').replace(/\s/g,'')))); }
 function encPath(p){ return (p||'').split('/').map(encodeURIComponent).join('/'); }
+/* 安全 JSON 解析：统一抛清晰错误，避免裸 JSON.parse 暴露 InvalidCharacterError 等底层异常 */
+function safeJSONParse(s, label){ try{ return JSON.parse(s); }catch(e){ throw new Error((label||'数据')+'解析失败（可能已损坏或格式不对）'); } }
 function nowHM(){ return new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
 
 async function ghFetch(path, method, body){
@@ -1897,7 +1902,7 @@ async function cloudPull(){
   try{
     const r=await ghFetch(url,'GET');
     if(!r || !r.content){ cloud.lastSync=nowHM(); saveCloud(); setCloudStatus('云端暂无数据，已上传本机','warn'); await cloudPush(); return; }
-    const data=JSON.parse(b64decode(r.content));
+    const data=safeJSONParse(b64decode(r.content), '云端数据');
     syncing=true;
     state=normalizeState(data);
     save();
@@ -2071,7 +2076,7 @@ function importJSON(e){
   const reader=new FileReader();
   reader.onload=()=>{
     try{
-      const data=JSON.parse(reader.result);
+      const data=safeJSONParse(reader.result, '导入文件');
       if(!data || typeof data!=='object' || (!Array.isArray(data.works) && !Array.isArray(data.ideas))) throw new Error('格式不对');
       state=normalizeState(data);
       save(); renderAll();
