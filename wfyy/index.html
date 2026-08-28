@@ -497,7 +497,7 @@ function TAG_SEED(){
   Object.keys(TAG_BASE).forEach(p=>{ Object.keys(TAG_BASE[p]).forEach(c=>{ (TAG_BASE[p][c]||[]).forEach(t=>{ out.push({plat:p,col:c,tag:t}); }); }); });
   return out;
 }
-const PLAT_MAP={weibo:'微博',douyin:'抖音',zhihu:'知乎',baidu:'百度',hot:'热榜',toutiao:'头条'};
+const PLAT_MAP={weibo:'微博',douyin:'抖音',zhihu:'知乎',baidu:'百度',hot:'热榜',toutiao:'头条',bilibili:'B站',xiaohongshu:'小红书'};
 /* 多源热榜：任一可用即成功，避免单一免费接口失效导致全局刷新失败 */
 const LIVE_SOURCES=[
   { name:'vvhan', url:'https://api.vvhan.com/api/hotlist/all', parse:d=>{
@@ -515,6 +515,11 @@ const LIVE_SOURCES=[
       if(Array.isArray(arr)&&arr.length) return arr.map(x=>({t:x.title||x.word||x.name,plat:'热榜'})).filter(x=>x.t&&x.t.length>1);
       return parseGeneric(d);
   }},
+  /* —— Agent Reach 同款取数：经 jina Reader 直读平台热榜页（自带 CORS，浏览器可直连），
+     文本经 extractHotWords 提取候选话题；任一失败自动回落到上方聚合源与离线种子 —— */
+  { name:'weibo-hot', url:'https://weibo.com/ajax/side/hotSearch', plat:'微博', proxies:JINA_PROXIES, textExtract:t=>extractHotWords(t,'微博') },
+  { name:'zhihu-hot', url:'https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit=50', plat:'知乎', proxies:JINA_PROXIES, textExtract:t=>extractHotWords(t,'知乎') },
+  { name:'bili-hot',  url:'https://www.bilibili.com/v/popular/all', plat:'B站', proxies:JINA_PROXIES, textExtract:t=>extractHotWords(t,'B站') },
 ];
 /* 通用热榜解析：遍历 JSON 提取常见标题字段，兼容未知格式接口 */
 function parseGeneric(d){
@@ -537,6 +542,23 @@ function parseGeneric(d){
   }
   walk(d); return items;
 }
+/* 从 jina Reader 返回的 Markdown/纯文本中提取候选热点词（防御式）：
+   只保留含中文、长度 2–30、非 URL/非 JSON 碎片的短行，作为实时时效钩子。 */
+function extractHotWords(text, plat){
+  if(!text||typeof text!=='string') return [];
+  const items=[]; const seen=new Set();
+  const lines=text.split(/\r?\n/);
+  for(const raw of lines){
+    const line=raw.replace(/^[\s#>\-\*\d\.\[\]\(\)\|"`'·]+/,'').trim();
+    if(!line||line.length<2||line.length>30) continue;
+    if(/https?:|www\.|\.json|undefined|null|error|errno|code":|"message"/i.test(line)) continue;
+    if(!/[一-龥]/.test(line)) continue;                       // 必须含中文，排除纯英文/乱码
+    const key=line.slice(0,16);
+    if(!seen.has(key)){ seen.add(key); items.push({t:line,plat:plat||'热榜'}); }
+    if(items.length>=30) break;
+  }
+  return items;
+}
 /* CORS 代理链：浏览器直连免费接口常被同源策略拦截（对方无 Access-Control-Allow-Origin），
    故每个源依次尝试「直连 → 多个公共 CORS 代理」；任一成功即返回。代理只中转数据不改内容。 */
 const CORS_PROXIES=[
@@ -545,16 +567,31 @@ const CORS_PROXIES=[
   u=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u),           // 稳定、带 CORS
   u=>'https://cors.eu.org/'+u,                                                    // 前缀代理
 ];
-async function fetchVia(url){
+/* Agent Reach 同款：jina Reader 作为 CORS 友好的取数通道，专读平台热榜页（微博/知乎/B站等），
+   自带 Access-Control-Allow-Origin，浏览器直连即可；文本返回经 extractHotWords 提取。 */
+const JINA_PROXIES=[
+  u=>'https://r.jina.ai/'+u,
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent('https://r.jina.ai/'+u),
+];
+async function fetchVia(url, opts){
+  const textExtract=(opts&&opts.textExtract)||null;
+  const proxies=(opts&&opts.proxies)||CORS_PROXIES;
   let lastErr;
-  for(const wrap of CORS_PROXIES){
+  for(const wrap of proxies){
     const target=wrap(url);
     try{
       const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),8000);
       const r=await fetch(target,{signal:ctrl.signal,mode:'cors'});
       if(to)clearTimeout(to);
       if(!r.ok) throw new Error('HTTP '+r.status);
-      const d=await r.json();
+      let d;
+      try{ d=await r.json(); }
+      catch(e){
+        /* JSON 解析失败 → 尝试把响应文本当作平台热榜页内容提取（Agent Reach 同款） */
+        const txt=await r.text();
+        if(typeof textExtract==='function'){ const ex=textExtract(txt); if(ex&&ex.length) return ex; }
+        throw new Error('非 JSON 且无可提取文本');
+      }
       return d;
     }catch(e){ lastErr=e; console.warn('[live] 通道失败', target.slice(0,64), e&&e.message); }
   }
@@ -604,8 +641,8 @@ async function fetchLiveTrending(){
   const errs=[];
   for(const src of LIVE_SOURCES){
     try{
-      const d=await fetchVia(src.url);
-      const items=src.parse(d);
+      const d=await fetchVia(src.url, {proxies:src.proxies, textExtract:src.textExtract});
+      const items=(typeof src.parse==='function') ? src.parse(d) : (Array.isArray(d)?d:[]);
       if(items&&items.length) return items;
       errs.push(src.name+':空数据');
     }catch(e){ errs.push(src.name+':'+(e&&e.message||e)); }
