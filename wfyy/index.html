@@ -1488,9 +1488,9 @@ function publishFromMaterial(id){
   editing={type:'work',id:null, draft:{}};
   const html=`
     <h3>素材 → 发布为作品</h3>
-    ${state.activeCol?`<div class="banner" style="margin-bottom:10px">🎯 本轮发布合集：${colOf(state.activeCol).name} · 将全平台同步发布</div>`:''}
+    <div class="banner" style="margin-bottom:10px">📎 已按素材自动匹配：合集「<b>${colOf(m.collection).name}</b>」· 标签 · 文案来源（可直接保存，下拉可改合集）</div>
     <div class="warn-box" id="dupWarn"></div>
-    <div class="field"><label>所属合集</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(state.activeCol||m.collection)}</select></div>
+    <div class="field"><label>所属合集（已按素材自动匹配）</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(m.collection||state.activeCol||COLLECTIONS[0].key)}</select></div>
     <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：一蓑烟雨任平生 · 苏轼的豁达" oninput="liveDupCheck()"></div>
     <div class="src-prev">📎 素材来源：原文「<b>${esc(m.content)}</b>」${m.author?` · 出处「<b>${esc(m.author)}</b>」`:''}${m.type?` · 类型「${esc(m.type)}」`:''}</div>
     <div class="field"><label>文案 / 简介（已带入素材原文与出处，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…">${esc((m.content||'')+(m.author?'\n（出处：'+m.author+'）':''))}</textarea></div>
@@ -1966,9 +1966,9 @@ function publishFromIdea(id){
   editing={type:'work',id:null, draft:{}};
   const html=`
     <h3>从灵感发布为作品</h3>
-    ${state.activeCol?`<div class="banner" style="margin-bottom:10px">🎯 本轮发布合集：${colOf(state.activeCol).name} · 将全平台同步发布</div>`:''}
+    <div class="banner" style="margin-bottom:10px">📎 已按灵感自动匹配：合集「<b>${colOf(it.collection).name}</b>」· 标签 · 文案来源（可直接保存，下拉可改合集）</div>
     <div class="warn-box" id="dupWarn"></div>
-    <div class="field"><label>所属合集</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(state.activeCol||it.collection)}</select></div>
+    <div class="field"><label>所属合集（已按灵感自动匹配）</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(it.collection||state.activeCol||COLLECTIONS[0].key)}</select></div>
     <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：深夜的城市灯火，也是一种陪伴" oninput="liveDupCheck()"></div>
     <div class="src-prev">💡 灵感来源：<b>${esc(it.content)}</b>${it.source?` · 来源「<b>${esc(it.source)}</b>」`:''}</div>
     <div class="field"><label>文案 / 简介（已带入灵感内容，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…">${esc(it.content)}</textarea></div>
