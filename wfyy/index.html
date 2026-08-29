@@ -171,6 +171,11 @@
   .hot-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .hot-title-main{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px}
   .hot-note{font-size:12px;color:var(--ink2);margin:6px 0 10px}
+  .hot-tracks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+  .hot-track{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink2);background:#f3f5fb;border:1px solid #e2e6f2;border-radius:999px;padding:3px 9px;line-height:1.4}
+  .hot-track b{color:var(--c);font-weight:700}
+  .hot-track i{font-style:normal;opacity:.85}
+  .hot-focus-intro{font-size:12.5px;color:var(--ink);background:var(--primary-soft);border:1px solid #dfe3f5;border-radius:10px;padding:7px 10px;margin:0 0 8px;line-height:1.5}
   .hot-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .hot-card{flex:0 0 auto;width:230px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
@@ -472,11 +477,11 @@
 const STORE_KEY = 'wb_wfyy_v1';
 const CLOUD_KEY = 'wb_wfyy_cloud_v1';
 const COLLECTIONS = [
-  {key:'碎语', name:'晚风碎语', desc:'人生感悟/成长治愈/日常思考', color:'#7C8FE0'},
-  {key:'心事', name:'晚风心事', desc:'情感共鸣/心动遗憾/情绪疏解', color:'#E08CA8'},
-  {key:'诗笺', name:'晚风诗笺', desc:'古诗词/古韵佳句/古典文案', color:'#6BAE8F'},
-  {key:'映言', name:'晚风映言', desc:'经典影视台词/荧幕金句', color:'#D99A5B'},
-  {key:'留声', name:'晚风留声', desc:'音乐分享/治愈歌单/歌词文案', color:'#9B7FD0'},
+  {key:'碎语', name:'晚风碎语', desc:'人生感悟/成长治愈/日常思考', color:'#7C8FE0', intro:'晚风捎来成长的答案，在平凡日常里拾获细碎光亮。'},
+  {key:'心事', name:'晚风心事', desc:'情感共鸣/心动遗憾/情绪疏解', color:'#E08CA8', intro:'藏着所有未说出口的心动与怅然。'},
+  {key:'诗笺', name:'晚风诗笺', desc:'古诗词', color:'#6BAE8F', intro:'一句诗词一段故事，共赏千年古韵。'},
+  {key:'映言', name:'晚风映言', desc:'经典影视台词/荧幕金句', color:'#D99A5B', intro:'重温银幕经典，在故事里看见自己。'},
+  {key:'留声', name:'晚风留声', desc:'音乐分享', color:'#9B7FD0', intro:'旋律随晚风漫过耳边，每首歌都藏着一段人生。'},
 ];
 const PLATFORMS = ['抖音','小红书','视频号','B站','快手'];
 /* 各平台独立数据指标：键名不同体现平台差异（通用键 plays/likes/comments/favs 跨平台同名便于汇总） */
@@ -736,20 +741,38 @@ function hotHitsMyTags(h){
 const HOT_FETCHED = '2026-08-25';
 function HOT_SEED(){
   return [
-    {id:'seed1', title:'「好不好给我个拥抱」刷屏抖音', col:'心事', angle:'城市夜景+这句文案，拍成年人深夜的柔软：不用大道理，一个拥抱就够。', tags:['孤独','深夜','治愈'], source:'抖音情绪热点'},
-    {id:'seed2', title:'全抖音都在问难题 · 人生无解题', col:'碎语', angle:'抛出走心难题「如果能回到过去，你最想回到哪一年？」引导评论区互动。', tags:['成长','思考','互动'], source:'抖音热点'},
-    {id:'seed3', title:'《中国诗词大会》第十季收官 · 诗词是共鸣点', col:'诗笺', angle:'「诗词不是考点，是精神刚需」——用一句诗接住年轻人的内耗。', tags:['诗词大会','国风','治愈'], source:'文化热点'},
-    {id:'seed4', title:'流行歌里化用古诗词（纳兰/苏轼）', col:'诗笺', angle:'耳机里的当代诗歌：许嵩化用「当时只道是寻常」，把古诗写进青春。', tags:['古诗','歌词','国风'], source:'音乐×诗词'},
-    {id:'seed5', title:'热播剧《主角》「在我自己的生活里，我就是主角」', col:'映言', angle:'平凡人也能活成自己的主角——给每个在生活里硬扛的人。', tags:['主角','励志','影视'], source:'热播剧《主角》'},
-    {id:'seed6', title:'「别怕走弯路，走了弯路才证明你在往前走」', col:'映言', angle:'《去有风的地方》金句 + 2026进度条过半，用一句台词开启下半年。', tags:['下半年','成长','台词'], source:'微博话题'},
-    {id:'seed7', title:'「下半年从这句台词开始」全网接龙', col:'碎语', angle:'年中回望：年初的小愿望实现了吗？给自己的下半句。', tags:['年中','治愈','思考'], source:'微博话题'},
-    {id:'seed8', title:'《莲花楼》「不爱一个人了，也不是需要自责的事」', col:'心事', angle:'释然系金句：爱情是流动的，变淡放下再平常不过。', tags:['释然','情感','台词'], source:'影视金句'},
-    {id:'seed9', title:'「写诗治好了我的精神内耗」年轻人原创诗词热', col:'诗笺', angle:'写下来，就是和自己的情绪和解——号召粉丝写下今日一句。', tags:['内耗','诗词','治愈'], source:'小红书趋势'},
-    {id:'seed10', title:'反焦虑治愈系：「人生不是比谁跑得快」', col:'碎语', angle:'松弛感/反鸡汤：不用急着优秀，真实的你就很好。', tags:['反焦虑','松弛','治愈'], source:'短视频爆款'},
-    {id:'seed11', title:'「我的2026遗憾清单：不完美才是生活本身」', col:'心事', angle:'坦然晒遗憾：原来接受不完美，才能好好前行。', tags:['遗憾','治愈','真实'], source:'爆款选题'},
-    {id:'seed12', title:'「放下手机3小时，在书店读完一本书太治愈」', col:'碎语', angle:'慢下来的生活：远离喧嚣，摘抄一句触动自己的句子。', tags:['慢生活','阅读','治愈'], source:'爆款选题'},
-    {id:'seed13', title:'「给5年后的自己拍视频信」走心互动', col:'碎语', angle:'时间胶囊：对当下迷茫说句话，引导粉丝也给未来留句话。', tags:['未来','互动','治愈'], source:'爆款选题'},
-    {id:'seed14', title:'治愈歌单成情绪避难所（助眠/深夜/雨天）', col:'留声', angle:'歌单是当代人的情绪出口：做一期「深夜一个人听」歌单。', tags:['歌单','治愈','音乐'], source:'音乐趋势'},
+    {id:'seed1', title:'「慢下来，也是一种本事」', col:'碎语', angle:'把"慢"做成反焦虑主张：不用急着优秀，真实的你就很好。', tags:['慢生活','松弛'], source:'账号选题库'},
+    {id:'seed2', title:'「允许自己偶尔不开心」', col:'碎语', angle:'情绪不必时刻正面，偶尔丧一下也被允许，自愈系共鸣。', tags:['自愈','情绪'], source:'账号选题库'},
+    {id:'seed3', title:'「好好吃饭，是成年人最后的体面」', col:'碎语', angle:'一人食治愈系：一碗热饭接住疲惫的自己。', tags:['一人食','治愈'], source:'账号选题库'},
+    {id:'seed4', title:'「平凡日子里的光」', col:'碎语', angle:'拍清晨的豆浆、傍晚的散步，普通日子也有温柔。', tags:['生活','日常'], source:'账号选题库'},
+    {id:'seed5', title:'「靠自己，最踏实」', col:'碎语', angle:'普通人的踏实主义：把小事做好就是本事。', tags:['励志','成长'], source:'账号选题库'},
+    {id:'seed6', title:'「普通人的高光时刻」', col:'碎语', angle:'不是只有成功才值得记录，认真生活的瞬间都闪着光。', tags:['高光','日常'], source:'账号选题库'},
+    {id:'seed7', title:'「把日子过轻·极简生活」', col:'碎语', angle:'断舍离主题：少一点物欲，多一点自在。', tags:['极简','慢生活'], source:'账号选题库'},
+
+    {id:'seed8', title:'「成年人的崩溃，都是静音的」', col:'心事', angle:'深夜emo共鸣：成年人的体面，是哭完继续走。', tags:['情绪','孤独'], source:'账号选题库'},
+    {id:'seed9', title:'「情绪稳定，是最顶级的修养」', col:'心事', angle:'不内耗的活法：把情绪调成静音再处理。', tags:['情绪稳定','释然'], source:'账号选题库'},
+    {id:'seed10', title:'「父母在，人生尚有来处」', col:'心事', angle:'亲情向：趁来得及，多给家里打个电话。', tags:['家','亲情'], source:'账号选题库'},
+    {id:'seed11', title:'「中年夫妻的沉默浪漫」', col:'心事', angle:'最深的爱是沉默的陪伴，柴米油盐里的浪漫。', tags:['夫妻','陪伴'], source:'账号选题库'},
+    {id:'seed12', title:'「未说出口的那句晚安」', col:'心事', angle:'有些话放在心里就成了永远的遗憾，拍"想说却没说出口的话"征集。', tags:['遗憾','心动'], source:'账号选题库'},
+    {id:'seed13', title:'「不爱一个人了，也不是需要自责的事」', col:'心事', angle:'释然系：爱情是流动的，变淡放下再平常不过。', tags:['释然','情感'], source:'账号选题库'},
+
+    {id:'seed14', title:'「古诗里的治愈瞬间·苏轼」', col:'诗笺', angle:'用一句诗接住年轻人的逆境与内耗，豁达主题。', tags:['苏轼','豁达'], source:'账号选题库'},
+    {id:'seed15', title:'「把古诗唱成歌·国风翻唱」', col:'诗笺', angle:'古诗新唱：让千年诗句住进当代旋律。', tags:['国风','古诗'], source:'账号选题库'},
+    {id:'seed16', title:'「当时只道是寻常·纳兰词」', col:'诗笺', angle:'纳兰的怅然最戳人，拍"那些以为是寻常的告别"。', tags:['纳兰','诗词'], source:'账号选题库'},
+    {id:'seed17', title:'「行到水穷处，坐看云起时」', col:'诗笺', angle:'王维的从容：走到尽头也别有风景，给焦虑的人一剂温柔。', tags:['王维','从容'], source:'账号选题库'},
+    {id:'seed18', title:'「把古诗写进朋友圈」', col:'诗笺', angle:'诗词文案模板：一句诗就是一天的心情签名。', tags:['古诗','文案'], source:'账号选题库'},
+
+    {id:'seed19', title:'「《阿甘正传》生活就像一盒巧克力」', col:'映言', angle:'你永远不知道下一颗是什么味道，给硬扛的人一句温柔。', tags:['经典','治愈'], source:'账号选题库'},
+    {id:'seed20', title:'「《海上钢琴师》我们笑着说再见」', col:'映言', angle:'有些告别没有理由，拍"最难忘的一次再见"引共鸣。', tags:['台词','经典'], source:'账号选题库'},
+    {id:'seed21', title:'「《情书》你好吗？我很好」', col:'映言', angle:'暗恋的终极浪漫：把思念藏进一句问候。', tags:['台词','暗恋'], source:'账号选题库'},
+    {id:'seed22', title:'「《请回答1988》最温柔的台词」', col:'映言', angle:'邻里与青春的金句合集，怀旧向必爆。', tags:['名场面','怀旧'], source:'账号选题库'},
+    {id:'seed23', title:'「那些年我们追过的电影台词」', col:'映言', angle:'影视混剪模板：用台词串起一代人的记忆。', tags:['影视','混剪'], source:'账号选题库'},
+
+    {id:'seed24', title:'「深夜电台·陪你度过睡不着」', col:'留声', angle:'声音陪伴：做一期"深夜一个人听"电台。', tags:['电台','陪伴'], source:'账号选题库'},
+    {id:'seed25', title:'「晚安，今天辛苦了·语音陪伴」', col:'留声', angle:'睡前语音：用一句晚安接住疲惫的一天。', tags:['晚安','治愈'], source:'账号选题库'},
+    {id:'seed26', title:'「雨声白噪音·专注与睡眠」', col:'留声', angle:'白噪音歌单：雨声里找回安静的自己。', tags:['雨声','助眠'], source:'账号选题库'},
+    {id:'seed27', title:'「分享一首适合雨天的歌」', col:'留声', angle:'音乐分享模板：用一首歌讲一段故事。', tags:['歌单','音乐'], source:'账号选题库'},
+    {id:'seed28', title:'「翻书声 ASMR·助眠」', col:'留声', angle:'环境音治愈：翻书声陪你慢慢睡去。', tags:['白噪音','助眠'], source:'账号选题库'},
   ];
 }
 
@@ -1071,12 +1094,16 @@ function renderHotTopics(){
       <button class="mini" style="margin-top:8px" onclick="hotToIdea(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>转灵感</button>
     </div>`;
   });
+  const trackStrip = COLLECTIONS.map(c=>`<span class="hot-track" style="--c:${c.color}"><b>${esc(c.name)}</b><i>${esc(c.desc)}</i></span>`).join('');
+  const focusIntro = state.activeCol ? `<div class="hot-focus-intro">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)}</div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
       <div class="hot-title-main">🔥 热点选题 · 精选库 + 实时热榜</div>
       <button class="btn btn-soft" id="hotRefresh" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px">↻ 刷新</button>
     </div>
     <div class="hot-note">${note}</div>
+    ${focusIntro}
+    <div class="hot-tracks">${trackStrip}</div>
     <div class="hot-scroll">${cards}</div>
   </div>`;
 }
