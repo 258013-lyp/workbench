@@ -194,6 +194,7 @@
   .hot-card{flex:0 0 auto;width:230px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .hot-live{font-size:10px;font-weight:700;color:#fff;background:var(--red);border-radius:10px;padding:2px 7px}
+  .hot-ref{font-size:10px;font-weight:700;color:#7a8194;background:#eef0f5;border:1px solid #dfe3ee;border-radius:10px;padding:2px 7px}
   .hot-title{font-size:14px;font-weight:700;line-height:1.35}
   .hot-angle{font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5}
   .hot-hit{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#fff0e6;color:#b5532e;font-size:11px;font-weight:600;vertical-align:middle}
@@ -553,6 +554,55 @@ const COLLECTIONS = [
   {key:'映言', name:'晚风映言', desc:'经典影视台词/荧幕金句', color:'#D99A5B', intro:'重温银幕经典，在故事里看见自己。'},
   {key:'留声', name:'晚风留声', desc:'音乐分享', color:'#9B7FD0', intro:'旋律随晚风漫过耳边，每首歌都藏着一段人生。'},
 ];
+/* —— 各栏目赛道词库（严格对应上方 desc 赛道 + 简介，用于把实时热词精确归入栏目、并生成对口选题）—— */
+const COL_TRACKS = {
+  碎语: { kw:['人生感悟','成长治愈','日常思考','成长','治愈','生活','日常','感悟','松弛','慢生活','正能量','自我成长','小确幸','清醒','人间清醒','平凡','好好生活','努力','踏实'] },
+  心事: { kw:['情感共鸣','心动遗憾','情绪疏解','情感','心动','遗憾','释然','emo','孤独','思念','情绪','暗恋','失恋','温柔','心里话','暧昧','分手','喜欢'] },
+  诗笺: { kw:['古诗词','诗词','古诗','唐诗','宋词','诗经','飞花令','国风','古韵','苏轼','李白','纳兰','王维','李清照','杜甫','元曲','诗句','词人'] },
+  映言: { kw:['经典影视台词','荧幕金句','电影台词','影视','台词','名场面','电影','二刷','经典','混剪','综艺','角色','影片','导演'] },
+  留声: { kw:['音乐分享','歌单','单曲循环','歌词','老歌','怀旧','治愈系音乐','宝藏歌曲','耳机','现场','翻唱','BGM','演唱会','听歌','旋律'] },
+};
+/* —— 各栏目选题句式模板（{{kw}} 会被实时热词替换；严格贴合栏目赛道与简介语气）—— */
+const COL_TOPIC_TPL = {
+  碎语: [
+    '「{{kw}}」里的人生课：慢一点，也没关系',
+    '在「{{kw}}」中，拾到日常的光',
+    '关于「{{kw}}」，写给正在长大的你',
+    '「{{kw}}」教会我的事：把日子过轻',
+  ],
+  心事: [
+    '「{{kw}}」上热搜，想起那个没说出口的人',
+    '「{{kw}}」那天，心动成了遗憾',
+    'emo 时刻的「{{kw}}」，需要被轻轻接住',
+    '「{{kw}}」让我释然：爱过就很了不起',
+  ],
+  诗笺: [
+    '读「{{kw}}」，忽然懂了古诗里的那句',
+    '「{{kw}}」时节，用一句诗词写心情',
+    '把「{{kw}}」读成一首千年的诗',
+    '「{{kw}}」里，藏着谁的诗意',
+  ],
+  映言: [
+    '「{{kw}}」刷屏，想起电影里那句台词',
+    '「{{kw}}」让人二刷的，是那句金句',
+    '银幕里的「{{kw}}」：角色替我说的话',
+    '「{{kw}}」名场面，台词杀我又一次',
+  ],
+  留声: [
+    '「{{kw}}」单曲循环：这首歌里有一段人生',
+    '深夜听「{{kw}}」，耳机里的整个世界',
+    '用「{{kw}}」写一首歌的歌词',
+    '「{{kw}}」歌单：把情绪交给旋律',
+  ],
+};
+/* 各栏目选题切入点（文案方向，贴合简介语气） */
+const COL_ANGLE = {
+  碎语: '晚风捎来成长的答案，在平凡日常里拾获细碎光亮。',
+  心事: '藏着所有未说出口的心动与怅然。',
+  诗笺: '一句诗词一段故事，共赏千年古韵。',
+  映言: '重温银幕经典，在故事里看见自己。',
+  留声: '旋律随晚风漫过耳边，每首歌都藏着一段人生。',
+};
 const PLATFORMS = ['抖音','小红书','视频号','B站','快手'];
 /* 各平台独立数据指标：键名不同体现平台差异（通用键 plays/likes/comments/favs 跨平台同名便于汇总） */
 const PLAT_METRICS = {
@@ -663,7 +713,7 @@ async function fetchVia(url, opts){
   for(const wrap of proxies){
     const target=wrap(url);
     try{
-      const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),8000);
+      const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),5000);
       const r=await fetch(target,{signal:ctrl.signal,mode:'cors'});
       if(to)clearTimeout(to);
       if(!r.ok) throw new Error('HTTP '+r.status);
@@ -685,7 +735,7 @@ async function fetchVia(url, opts){
    并兼容同域部署的 ./hot.json；任一可用即成功，避免单一免费接口/代理失效导致全局刷新失败。 */
 const HOT_JSON_OWNER='258013-lyp', HOT_JSON_REPO='workbench', HOT_JSON_PATH='data/hot.json';
 async function fetchJsonSafe(url, token){
-  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),8000);
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),5000);
   const headers={}; if(token) headers['Authorization']='Bearer '+token;
   try{
     const r=await fetch(url,{signal:ctrl.signal,headers});
@@ -733,17 +783,36 @@ async function fetchLiveTrending(){
   }
   const e=new Error('实时热榜源全部失败'); e.errs=errs; throw e;
 }
+/* 单源带超时包装：超时即 reject，配合 Promise.any 实现「先到先得、不卡长等待」 */
+function withTimeout(p, ms){ return new Promise((res,rej)=>{ const t=setTimeout(()=>rej(new Error('timeout')), ms); p.then(v=>{clearTimeout(t);res(v);}, e=>{clearTimeout(t);rej(e);}); }); }
+async function fetchOneLive(src){
+  const d=await fetchVia(src.url, {proxies:(src.proxies||[u=>u]), textExtract:src.textExtract});
+  const items=(typeof src.parse==='function') ? src.parse(d) : (Array.isArray(d)?d:[]);
+  if(items&&items.length) return items;
+  throw new Error(src.name+':空数据');
+}
+/* 国内聚合源直连竞速（vvhan/oioweb/pearktrue 均为国内域名、自带 CORS，最快；海外 jina 代理作兜底、超时更短） */
+async function fetchLiveTrendingFast(){
+  const cn = LIVE_SOURCES.filter(s=>!s.proxies);    // 国内直连源
+  const jina = LIVE_SOURCES.filter(s=>s.proxies);   // 海外代理源（兜底）
+  const racers = cn.map(s=> withTimeout(fetchOneLive(s), 5000))
+                .concat(jina.map(s=> withTimeout(fetchOneLive(s), 4000)));
+  try{ const items = await Promise.any(racers); if(items&&items.length) return items; }
+  catch(e){ /* 全部源失败 */ }
+  throw new Error('实时热榜源全部失败');
+}
 async function fetchLiveItems(){
   if(typeof navigator!=='undefined' && navigator.onLine===false){ const e=new Error('设备未联网'); e.offline=true; throw e; }
-  /* ① 精选库：稳定兜底，永不断 */
-  let curated=[];
-  try{ curated=await fetchHotJson(); }catch(e){ console.warn('[live] 托管热点库暂不可用：', e&&e.message); }
-  /* ② 实时热榜：每刷尝试，拉到即合并（最佳努力） */
+  /* ① 实时热榜：国内源竞速，先到先得（联网为主 · 时效优先） */
   let live=[];
-  try{ live=await fetchLiveTrending(); }catch(e){ console.warn('[live] 实时热榜暂不可用：', (e&&e.errs)||e&&e.message); }
-  /* 合并：精选库优先（高质量治愈系框架），实时热榜补充时效钩子 */
-  const merged=safeArr(curated).slice(0,14).concat((Array.isArray(live)?live:[]).filter(x=>x&&typeof x==='object').slice(0,8));
-  if(!merged.length){ const e=new Error('精选库与实时热榜均不可用'); e.bothFail=true; throw e; }
+  try{ live=await fetchLiveTrendingFast(); }catch(e){ console.warn('[live] 实时热榜暂不可用：', e&&e.message); }
+  /* ② 托管精选库：稳定治愈系框架补充（海外慢，短超时，失败不影响①） */
+  let curated=[];
+  try{ const ci=await withTimeout(fetchHotJson(), 5000); curated=ci; }catch(e){ console.warn('[live] 托管热点库暂不可用：', e&&e.message); }
+  const merged = (Array.isArray(live)?live:[]).filter(x=>x&&typeof x==='object'&&(x.t||x.title)).slice(0,12)
+                  .map(x=>({t:String(x.t!=null?x.t:(x.title||'')).slice(0,80), plat:String(x.plat||'').slice(0,12), col:x.col?String(x.col).slice(0,12):null, angle:x.angle!=null?String(x.angle).slice(0,120):null, tag:x.tag!=null?String(x.tag).slice(0,12):null}))
+                  .concat(safeArr(curated).slice(0,6).map(x=>({t:String((x&&(x.t||x.title))||'').slice(0,80), plat:String((x&&x.plat)||'精选').slice(0,12), col:(x&&x.col)?String(x.col).slice(0,12):null})));
+  if(!merged.length){ const e=new Error('实时热榜与精选库均不可用'); e.bothFail=true; throw e; }
   return merged;
 }
 function hotToTag(word){ const t=(word||'').replace(/[，。、！？!?；;：:""''（）()【】\[\]·\s]/g,'').slice(0,12); return t; }
@@ -1171,19 +1240,26 @@ function renderHotTopics(){
   if(!box) return;
   let list = state.hotTopics || [];
   if(state.activeCol) list = list.filter(h=>h.col===state.activeCol);
+  const liveList = safeArr(state.hotTopics).filter(h=>h.live && h.fetchedAt);
+  const newest = liveList.length ? Math.max.apply(null, liveList.map(h=>h.fetchedAt)) : 0;
+  const agoMin = newest ? Math.max(0, Math.round((Date.now()-newest)/60000)) : -1;
+  const timeTxt = agoMin<0 ? '' : (agoMin===0 ? '刚刚' : (agoMin+' 分钟前'));
   const live = list.find(h=>h.live);
   const note = state.activeCol
-    ? ('📂 当前只看「'+colOf(state.activeCol).name+'」栏目 · '+(live?('已实时更新（'+new Date(live.fetchedAt).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'）'):'托管精选库'))
-    : (live?('已实时更新 · 精选库 + 实时热榜（'+new Date(live.fetchedAt).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'）'):('托管精选库（打开时自动从 GitHub/同域更新，也可点「刷新」）'));
+    ? ('📂 只看「'+colOf(state.activeCol).name+'」· '+(newest?('联网实时 · 更新于 '+timeTxt):'联网为主，点「刷新」拉实时热点'))
+    : (newest?('联网实时 · 更新于 '+timeTxt+'（实时热榜 + 各栏目赛道选题）'):('联网为主：点「刷新」拉实时热点；本地选题仅作离线参考'));
   let cards='';
   if(!list.length){
     cards='<div class="empty" style="flex:1 0 100%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><div>'+(state.activeCol?'「'+esc(colOf(state.activeCol).name)+'」栏目暂无热点选题，点「刷新」拉实时热点，或点上方栏目取消聚焦看全部':'还没有热点选题，点「刷新」拉取实时热点')+'</div></div>';
   } else {
-    list.slice(0,12).forEach((h,idx)=>{
+    list.slice(0,16).forEach((h,idx)=>{
       const c=colOf(h.col);
       const oi=state.hotTopics.indexOf(h);
+      const badge = h.generated ? '<span class="hot-live">实时选题</span>'
+                  : (h.source==='账号选题库' ? '<span class="hot-ref">参考·离线</span>'
+                  : (h.live ? '<span class="hot-live">实时</span>' : ''));
       cards+=`<div class="hot-card">
-        <div class="hot-top"><span class="col-tag" style="background:${c.color}">${c.name}</span>${h.live?'<span class="hot-live">实时</span>':''}${hotHitsMyTags(h)?'<span class="hot-hit">✍️ 命中你的文案</span>':''}</div>
+        <div class="hot-top"><span class="col-tag" style="background:${c.color}">${c.name}</span>${badge}${hotHitsMyTags(h)?'<span class="hot-hit">✍️ 命中你的文案</span>':''}</div>
         <div class="hot-title">${esc(h.title)}</div>
         <div class="hot-angle">💡 ${esc(h.angle)}</div>
         <button class="mini" style="margin-top:8px" onclick="hotToIdea(${oi})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>转灵感</button>
@@ -1194,7 +1270,8 @@ function renderHotTopics(){
   const focusIntro = state.activeCol ? `<div class="hot-focus-intro" style="cursor:pointer" onclick="clearActiveCol()" title="点击取消聚焦，看全部栏目">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)} <span style="float:right;opacity:.65;font-weight:600">✕ 取消</span></div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
-      <div class="hot-title-main">🔥 热点选题 · 精选库 + 实时热榜</div>
+      <div class="hot-title-main">🔥 热点选题 · 联网实时 + 各栏目赛道</div>
+      ${state.activeCol?'<button class="btn btn-soft" onclick="refreshColTopics(\''+state.activeCol+'\')" style="min-height:36px;padding:6px 12px">↻ 本栏换一批</button>':''}
       <button class="btn btn-soft" id="hotRefresh" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px">↻ 刷新</button>
     </div>
     <div class="hot-note">${note}</div>
@@ -1209,14 +1286,26 @@ function hotToIdea(idx){
   state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
   flashToast('已转入灵感库（'+colOf(h.col).name+'）');
 }
-function guessCol(text){
+/* 强指示词：命中即大幅加权，确保「苏轼→诗笺」「失恋→心事」「歌词→留声」等明确归类不被平局带偏 */
+const COL_STRONG = {
+  碎语:['慢生活','成长治愈','自我成长','小确幸','松弛感','人间清醒','好好生活'],
+  心事:['失恋','暗恋','心动','遗憾','释然','emo','孤独','思念','暧昧','分手'],
+  诗笺:['苏轼','李白','杜甫','纳兰','王维','李清照','诗词','古诗','唐诗','宋词','诗经','飞花令','国风','元曲','词人','诗句'],
+  映言:['台词','名场面','电影台词','影视','综艺','二刷','影片','导演'],
+  留声:['歌词','歌单','单曲循环','演唱会','旋律','翻唱','现场','BGM'],
+};
+/* 基于栏目赛道词库打分归类：命中赛道关键词越多越匹配；强指示词额外加权；无命中回退「碎语」（通用） */
+function classifyCol(text){
   const t=text||'';
-  if(/诗|词|古|文言|李白|杜甫|苏轼|纳兰|唐诗|宋词|诗经|乐府|飞花令/.test(t)) return '诗笺';
-  if(/歌|音乐|歌词|单曲|专辑|演唱会|旋律|听歌|歌单|乐队/.test(t)) return '留声';
-  if(/剧|电影|台词|影|主演|导演|荧幕|影视|角色|综艺/.test(t)) return '映言';
-  if(/爱|恋|分手|遗憾|心动|思念|孤独|拥抱|治愈|情绪|内耗|焦虑|释然|温柔/.test(t)) return '心事';
-  return '碎语';
+  let best='碎语', bestScore=0;
+  Object.keys(COL_TRACKS).forEach(col=>{
+    let s=0; COL_TRACKS[col].kw.forEach(k=>{ if(t.indexOf(k)!==-1) s += (k.length>=3?2:1); });
+    if(COL_STRONG[col] && COL_STRONG[col].some(k=>t.indexOf(k)!==-1)) s += 6;
+    if(s>bestScore){ bestScore=s; best=col; }
+  });
+  return {col:best, score:bestScore};
 }
+function guessCol(text){ return classifyCol(text).col; }
 function refreshHotTopics(){
   const btn=document.getElementById('hotRefresh');
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
@@ -1251,6 +1340,7 @@ function applyLiveItems(items){
   if(!clean.length){ if(!silentLive) flashToast('暂未拉到有效实时热点'); return; }
   items=clean;
   const now=Date.now();
+  LAST_LIVE_ITEMS = items.slice();
   const mapped=items.map((it,i)=>{
     const col=it.col || guessCol(it.t);
     return {
@@ -1261,16 +1351,51 @@ function applyLiveItems(items){
       source:'热点库·'+(it.plat||''), live:true, fetchedAt:now
     };
   });
-  state.hotTopics=mapped.concat(safeArr(state.hotTopics).filter(h=>!h.live && h.title)).slice(0,30);
+  /* 用实时热词 × 各栏目赛道，生成严格对口的选题（联网为主 · 每刷新鲜） */
+  let generated=[];
+  COLLECTIONS.forEach(c=>{ generated = generated.concat(genColTopics(c.key, items, 6, colTopicRot)); });
+  /* live 优先：本轮实时（raw+生成）替换旧 live；本地种子仅作离线参考兜底，置于末尾 */
+  const localRef = safeArr(state.hotTopics).filter(h=> !h.live && !h.generated && h.title);
+  state.hotTopics = mapped.concat(generated).concat(localRef).slice(0,64);
   /* 标签池：优先用热点自带 tag，否则从标题提炼 */
   syncTagPoolFromHot(items.map(it=> it.tag || it.t), now);
   save(); renderHotTopics(); recomputeSelfHit(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
-  if(!silentLive) flashToast('已更新 '+mapped.length+' 条实时热点');
+  if(!silentLive) flashToast('已更新 '+mapped.length+' 条实时热点 + '+generated.length+' 条栏目选题');
 }
 function btnReset(){
   const btn=document.getElementById('hotRefresh');
   if(btn){ btn.disabled=false; btn.textContent='↻ 刷新'; }
   return false;
+}
+/* 用实时热词填充某栏句式模板，生成严格对口的栏目选题（live+generated 标记） */
+function genColTopics(colKey, liveItems, maxN, rot){
+  const tpl = COL_TOPIC_TPL[colKey]||[]; const angle = COL_ANGLE[colKey]||'';
+  const c = colOf(colKey);
+  const trends = (liveItems||[]).map(x=>(x&&(x.t||x.title))||'').filter(Boolean).slice(0,24);
+  if(!tpl.length || !trends.length) return [];
+  const out=[]; const now=Date.now(); const off=(rot||0); let ti=off;
+  for(const kw of trends){
+    const tt=String(kw).replace(/^[#\s]+/,'').slice(0,16);
+    if(!tt) continue;
+    const title = tpl[ti % tpl.length].replace(/\{\{kw\}\}/g, tt);
+    out.push({
+      id:'gen'+now+'_'+colKey+'_'+out.length, title:title, angle:angle,
+      col:colKey, tags:[c.name.replace('晚风','')], source:'实时选题·'+c.name,
+      live:true, generated:true, fetchedAt:now, fromKw:tt
+    });
+    ti++;
+    if(out.length>=maxN) break;
+  }
+  return out;
+}
+/* 聚焦某栏时「↻ 本栏换一批」：复用最近实时热词，按偏移生成不同句式的该栏选题 */
+function refreshColTopics(colKey){
+  colTopicRot = (colTopicRot+1) % 101;
+  const src = LAST_LIVE_ITEMS.length ? LAST_LIVE_ITEMS : safeArr(state.hotTopics).filter(h=>h.live && !h.generated).map(h=>({t:h.title}));
+  const gen = genColTopics(colKey, src, 6, colTopicRot);
+  state.hotTopics = safeArr(state.hotTopics).filter(h=> !(h.generated && h.col===colKey)).concat(gen);
+  save(); renderHotTopics();
+  flashToast('已换一批「'+colOf(colKey).name+'」选题');
 }
 function liveHotFail(){
   btnReset();
@@ -1278,6 +1403,10 @@ function liveHotFail(){
   if(!silentLive) flashToast('联网失败，已保留离线热点库');
 }
 let silentLive=false;
+/* 最近一次拉到的实时热词（供「本栏换一批」复用，不持久化） */
+let LAST_LIVE_ITEMS=[];
+/* 换一批旋转偏移，让同一批热词生成不同句式 */
+let colTopicRot=0;
 /* 全局实时刷新：单次联网同时更新热点选题 + 热门标签（silent=true 时为打开页面自动静默刷新，失败不弹提示） */
 function refreshAllLive(silent){
   silentLive=!!silent;
