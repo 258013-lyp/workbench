@@ -2387,6 +2387,7 @@ try{
   var bootScreen=document.getElementById('bootScreen'); if(bootScreen) bootScreen.remove();
   if(cloud.enabled) cloudPull();
   refreshAllLive(true); // 打开即自动拉取全平台实时热点与标签，保证时效性
+  setInterval(function(){ try{ refreshAllLive(true); }catch(e){} }, 10*60*1000); // 每10分钟静默轮询，实时热点与命中点持续自动滚动（离线静默失败）
 }catch(err){
   console.error('[init] 初始化异常：', err);
   showBootError(err);
