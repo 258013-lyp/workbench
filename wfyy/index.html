@@ -698,8 +698,9 @@ function syncTagPoolFromSelf(title, text, col, manualTags, now){
   const liveSet=new Set((state.tagPool||[]).filter(x=>x.live).map(x=>x.tag));
   const gen=tags.map(t=>({col:col||guessCol(t), tag:t, self:true, live:false, hitLive:liveSet.has(t), fetchedAt:now}));
   const keep=(state.tagPool||[]).filter(x=>!x.self);             // 我的主题每次重算，不无限堆积
-  const seen=new Set(keep.map(x=>(x.plat||'')+'|'+x.col+'|'+x.tag));
-  gen.forEach(x=>{ const k='|'+x.col+'|'+x.tag; if(!seen.has(k)){ seen.add(k); keep.push(x); } });
+  gen.forEach(x=>{ const k='|'+x.col+'|'+x.tag; const ex=keep.find(z=>('|'+z.col+'|'+z.tag)===k);
+    if(ex){ ex.self=true; ex.hitLive=true; if(!ex.fetchedAt) ex.fetchedAt=now; } // 命中实时热点：合并 self 维度并点亮
+    else { keep.push(x); } });
   state.tagPool=keep.slice(-200);
   state.tagUpdated=now;
 }
@@ -707,6 +708,17 @@ function syncTagPoolFromSelf(title, text, col, manualTags, now){
 function recomputeSelfHit(){
   const liveSet=new Set((state.tagPool||[]).filter(x=>x.live).map(x=>x.tag));
   (state.tagPool||[]).forEach(x=>{ if(x.self) x.hitLive=liveSet.has(x.tag); });
+}
+/* 保存文案后即时：先用当前热点判定命中，再（节流）静默拉全平台实时热点，推荐高热度契合标签 */
+let _lastSavePull=0;
+function liveMatchAfterSave(){
+  recomputeSelfHit();                                          // 先用已有 live 判定（离线也有结果）
+  if(document.getElementById('tagSuggest')) refreshTagSuggest();
+  const now=Date.now();
+  if(now - _lastSavePull > 60*1000){                           // 节流：60s 内不重复联网（避免连点爆源/限流）
+    _lastSavePull=now;
+    try{ refreshAllLive(true); }catch(e){}                    // 静默拉取→applyLiveItems 末尾自动 recomputeSelfHit+refreshTagSuggest，点亮命中
+  }
 }
 /* 判断某条实时热点是否命中了「我的文案主题」标签（反哺热榜卡片标注） */
 function hotHitsMyTags(h){
@@ -1184,9 +1196,10 @@ function getTagSuggest(colKey, plats){
   const add=x=>{ const k=x.col+'|'+x.tag; const ex=map.get(k);
     if(ex){ ex.live=ex.live||!!x.live; ex.self=ex.self||!!x.self; ex.hitLive=ex.hitLive||!!x.hitLive; }
     else { const o={tag:x.tag,col:x.col,live:!!x.live,self:!!x.self,hitLive:!!x.hitLive}; map.set(k,o); out.push(o); } };
-  pool.filter(x=>x.live && x.col===colKey).forEach(add);
-  pool.filter(x=>x.self && x.col===colKey).forEach(add);
-  pool.filter(x=>!x.live && !x.self && x.col===colKey).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x); });
+  pool.filter(x=>x.hitLive && x.col===colKey).forEach(add);            // ① 高契合：命中实时热点（最优先推荐）
+  pool.filter(x=>x.live && !x.hitLive && x.col===colKey).forEach(add); // ② 实时热点（未命中我的主题）
+  pool.filter(x=>x.self && !x.hitLive && x.col===colKey).forEach(add); // ③ 我的文案主题（未命中热点）
+  pool.filter(x=>!x.live && !x.self && x.col===colKey).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x); }); // ④ 离线种子（按平台）
   return out.slice(0,30);
 }
 function refreshTagSuggest(){
