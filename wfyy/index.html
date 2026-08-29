@@ -33,6 +33,8 @@
   .brand h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brand p{margin:0;font-size:12px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
   .head-actions{display:flex;gap:8px;flex:0 0 auto}
+.save-state{font-size:12px;color:rgba(255,255,255,.82);margin-top:5px;line-height:1.4}
+.save-state.warn{color:#ffd27d;font-weight:600}
   .btn{
     border:none;border-radius:10px;padding:9px 12px;font-size:14px;cursor:pointer;
     display:inline-flex;align-items:center;gap:6px;font-family:inherit;transition:.15s;min-height:40px;
@@ -306,6 +308,7 @@
       <div style="min-width:0">
         <h1>晚风予言 · 创作工作台</h1>
         <p>晚风捎来心动、释然与成长，也捎来平凡日子里的细碎光亮</p>
+        <div id="saveState" class="save-state"></div>
       </div>
     </div>
     <div class="head-actions">
@@ -780,10 +783,12 @@ function act(name, token){
   try{ fn(decId(token)); }catch(err){ try{ flashToast('操作失败：'+(err&&err.message||'未知错误')); }catch(e){} }
 }
 let saveWarned=false;
+function saveStateInfo(msg, warn){ const el=document.getElementById('saveState'); if(!el) return; el.textContent=msg||''; el.className='save-state'+(warn?' warn':''); }
 function save(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); try{ saveStateInfo('💾 已保存到本机 · '+nowHM()); }catch(_){} }
   catch(e){
     if(!saveWarned){ saveWarned=true; try{ flashToast('本机存储写入失败（空间已满或隐私模式），请点右上角「导出」备份数据'); }catch(_){} }
+    try{ saveStateInfo('⚠ 本机无法保存，请用「本地版」或「云同步」', true); }catch(_){}
   }
   if(cloud.enabled && booted && !syncing) schedulePush();
 }
@@ -2398,6 +2403,7 @@ try{
   renderAll();
   booted = true;
   var bootScreen=document.getElementById('bootScreen'); if(bootScreen) bootScreen.remove();
+  (function(){ try{ localStorage.setItem('__wfyy_test','1'); localStorage.removeItem('__wfyy_test'); const n=(state.works||[]).length+(state.ideas||[]).length+(state.materials||[]).length; saveStateInfo('💾 已从本机恢复 '+n+' 条 · 自动保存中'); }catch(e){ saveStateInfo('⚠ 本机存储不可用（隐私/无痕模式），数据不会自动保存——请用「本地版」下载离线副本或开启「云同步」', true); } })();
   if(cloud.enabled) cloudPull();
   refreshAllLive(true); // 打开即自动拉取全平台实时热点与标签，保证时效性
   setInterval(function(){ try{ refreshAllLive(true); }catch(e){} }, 10*60*1000); // 每10分钟静默轮询，实时热点与命中点持续自动滚动（离线静默失败）
