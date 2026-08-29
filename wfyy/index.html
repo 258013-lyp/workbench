@@ -175,6 +175,7 @@
   .hot-live{font-size:10px;font-weight:700;color:#fff;background:var(--red);border-radius:10px;padding:2px 7px}
   .hot-title{font-size:14px;font-weight:700;line-height:1.35}
   .hot-angle{font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5}
+  .hot-hit{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#fff0e6;color:#b5532e;font-size:11px;font-weight:600;vertical-align:middle}
   /* 发布节奏 */
   .rhythm-card{background:linear-gradient(135deg,#EEF1FB,#F4EEFB);border:1px solid #dfe3f5;border-radius:var(--r);padding:12px 14px;margin-bottom:12px}
   .rhythm-head{font-size:14px;font-weight:700;margin-bottom:8px}
@@ -258,6 +259,8 @@
 .tsg-tag.live{ background:#fff1e6; color:#c0531b; border-color:#ffd9b8; }
 .tsg-tag.used{ background:#e8f6ee; color:#2f8a55; border-color:#bfe6cd; }
 .tsg-empty{ font-size:12px; color:var(--ink2); }
+.tsg-tag.self{ background:#eaf1ff; color:#3a4a8a; border-color:#c9d6f5; }
+.tsg-tag.hit{ background:#fff0e6; color:#b5532e; border-color:#ffcf9e; font-weight:600; box-shadow:0 0 0 2px rgba(245,150,90,.14); }
 
 /* 全局刷新按钮旋转 */
 #globalRefresh.spin svg{ animation: spin 0.9s linear infinite; }
@@ -666,6 +669,52 @@ async function fetchLiveItems(){
   return merged;
 }
 function hotToTag(word){ const t=(word||'').replace(/[，。、！？!?；;：:""''（）()【】\[\]·\s]/g,'').slice(0,12); return t; }
+/* —— 闭环升级：文案标题/简介 → 实时热门标签（self 维度） —— */
+/* 治愈系主题词典：本地从文案标题/简介实时提取标签（无需联网，稳定可用） */
+const SELF_TAG_DICT=[
+  '治愈','温柔','孤独','内耗','焦虑','释然','遗憾','思念','心动','emo','松弛感','钝感力','自愈','独处','晚风','黄昏','日落','深夜','emo文学','情绪','共鸣',
+  '苏轼','李白','杜甫','纳兰','唐诗','宋词','诗经','飞花令','古风','诗词','古诗词','国风',
+  '春日','夏夜','秋意','冬雪','梅花','桂花','落叶','晚霞','雨','海','城市','通勤','咖啡','书桌','窗','地铁','卧室','阳台',
+  '暗恋','异地','友情','亲情','BE','HE','爱情','失恋','暗戳戳',
+  '成长','人生感悟','生活记录','小确幸','慢生活','自我成长','正能量','暖心','松弛','清醒','人间清醒',
+  '歌词','歌单','单曲循环','音乐','老歌','怀旧','电影','台词','名场面','影视','综艺','二刷'
+];
+/* 从文案标题(主题)+简介 本地提取候选标签：标题作主题短语，简介做词典命中，再去重限长 */
+function extractSelfTags(title, text, col){
+  const out=[]; const seen=new Set();
+  const norm=s=>(s||'').replace(/[，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim();
+  const push=raw=>{ const t=norm(raw).slice(0,12); if(t.length>=2 && !seen.has(t)){ seen.add(t); out.push(t); } };
+  if(title) push(title);
+  const blob=(title||'')+' '+(text||'');
+  SELF_TAG_DICT.forEach(k=>{ if(blob.indexOf(k)!==-1) push(k); });
+  return out.slice(0,12);
+}
+/* 文案 → 实时热门标签（self）：每次保存文案重算「我的主题」；命中实时热点标记 hitLive，形成闭环 */
+function syncTagPoolFromSelf(title, text, col, manualTags, now){
+  if(!now) now=Date.now();
+  const tags=extractSelfTags(title, text, col);
+  (manualTags||[]).forEach(t=>{ if(t&&t.length>=2) tags.push(t); });
+  if(!tags.length) return;
+  const liveSet=new Set((state.tagPool||[]).filter(x=>x.live).map(x=>x.tag));
+  const gen=tags.map(t=>({col:col||guessCol(t), tag:t, self:true, live:false, hitLive:liveSet.has(t), fetchedAt:now}));
+  const keep=(state.tagPool||[]).filter(x=>!x.self);             // 我的主题每次重算，不无限堆积
+  const seen=new Set(keep.map(x=>(x.plat||'')+'|'+x.col+'|'+x.tag));
+  gen.forEach(x=>{ const k='|'+x.col+'|'+x.tag; if(!seen.has(k)){ seen.add(k); keep.push(x); } });
+  state.tagPool=keep.slice(-200);
+  state.tagUpdated=now;
+}
+/* 实时热点刷新后，重算「我的文案主题」与实时热点的命中关系 */
+function recomputeSelfHit(){
+  const liveSet=new Set((state.tagPool||[]).filter(x=>x.live).map(x=>x.tag));
+  (state.tagPool||[]).forEach(x=>{ if(x.self) x.hitLive=liveSet.has(x.tag); });
+}
+/* 判断某条实时热点是否命中了「我的文案主题」标签（反哺热榜卡片标注） */
+function hotHitsMyTags(h){
+  const mine=(state.tagPool||[]).filter(x=>x.self).map(x=>x.tag);
+  if(!mine.length) return false;
+  const t=h.title||'';
+  return mine.some(tag=> tag.length>=2 && t.indexOf(tag)!==-1 );
+}
 
 
 /* 热点选题种子（AI 实时调研，抓取于 HOT_FETCHED；联网刷新会追加实时条目） */
@@ -999,7 +1048,7 @@ function renderHotTopics(){
   list.slice(0,12).forEach((h,idx)=>{
     const c=colOf(h.col);
     cards+=`<div class="hot-card">
-      <div class="hot-top"><span class="col-tag" style="background:${c.color}">${c.name}</span>${h.live?'<span class="hot-live">实时</span>':''}</div>
+      <div class="hot-top"><span class="col-tag" style="background:${c.color}">${c.name}</span>${h.live?'<span class="hot-live">实时</span>':''}${hotHitsMyTags(h)?'<span class="hot-hit">✍️ 命中你的文案</span>':''}</div>
       <div class="hot-title">${esc(h.title)}</div>
       <div class="hot-angle">💡 ${esc(h.angle)}</div>
       <button class="mini" style="margin-top:8px" onclick="hotToIdea(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>转灵感</button>
@@ -1075,7 +1124,7 @@ function applyLiveItems(items){
   state.hotTopics=mapped.concat(safeArr(state.hotTopics).filter(h=>!h.live && h.title)).slice(0,30);
   /* 标签池：优先用热点自带 tag，否则从标题提炼 */
   syncTagPoolFromHot(items.map(it=> it.tag || it.t), now);
-  save(); renderHotTopics(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
+  save(); renderHotTopics(); recomputeSelfHit(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
   if(!silentLive) flashToast('已更新 '+mapped.length+' 条实时热点');
 }
 function btnReset(){
@@ -1131,10 +1180,14 @@ function tagPoolNote(){
 function getTagSuggest(colKey, plats){
   if(!colKey) colKey='碎语';
   const pool=state.tagPool||[];
-  const set=new Set(); const out=[];
-  pool.filter(x=>x.live && x.col===colKey).forEach(x=>{ if(!set.has(x.tag)){ set.add(x.tag); out.push({tag:x.tag,live:true}); } });
-  pool.filter(x=>!x.live && x.col===colKey && plats.indexOf(x.plat)>=0).forEach(x=>{ if(!set.has(x.tag)){ set.add(x.tag); out.push({tag:x.tag,live:false}); } });
-  return out.slice(0,24);
+  const map=new Map(); const out=[];
+  const add=x=>{ const k=x.col+'|'+x.tag; const ex=map.get(k);
+    if(ex){ ex.live=ex.live||!!x.live; ex.self=ex.self||!!x.self; ex.hitLive=ex.hitLive||!!x.hitLive; }
+    else { const o={tag:x.tag,col:x.col,live:!!x.live,self:!!x.self,hitLive:!!x.hitLive}; map.set(k,o); out.push(o); } };
+  pool.filter(x=>x.live && x.col===colKey).forEach(add);
+  pool.filter(x=>x.self && x.col===colKey).forEach(add);
+  pool.filter(x=>!x.live && !x.self && x.col===colKey).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x); });
+  return out.slice(0,30);
 }
 function refreshTagSuggest(){
   const box=document.getElementById('tagSuggest'); if(!box) return;
@@ -1148,12 +1201,16 @@ function refreshTagSuggest(){
   else {
     sug.forEach(s=>{
       const used=cur.indexOf(s.tag)>=0;
-      tagsHtml+=`<span class="tsg-tag ${s.live?'live':''} ${used?'used':''}" onclick="insertTag('${jsAttr(s.tag)}')">${s.live?'🔥 ':''}${esc(s.tag)}${used?' ✓':''}</span>`;
+      let prefix='', cls='';
+      if(s.hitLive){ prefix='🔥✨ '; cls='hit'; }
+      else if(s.live){ prefix='🔥 '; cls='live'; }
+      else if(s.self){ prefix='✍️ '; cls='self'; }
+      tagsHtml+=`<span class="tsg-tag ${cls} ${used?'used':''}" onclick="insertTag('${jsAttr(s.tag)}')">${prefix}${esc(s.tag)}${used?' ✓':''}</span>`;
     });
   }
   box.innerHTML=`
     <div class="tsg-head">
-      <span>🔥 实时热门标签 <span style="font-weight:500;color:var(--ink2)">· 按平台匹配</span></span>
+      <span>🔥 实时热门标签 <span style="font-weight:500;color:var(--ink2)">· 我的文案主题实时同步</span></span>
       <button class="btn btn-soft" onclick="refreshTagPool()" style="min-height:32px;padding:5px 10px;font-size:12px">↻ 刷新标签</button>
     </div>
     <div class="tsg-note">${tagPoolNote()} · 当前合集：${esc(colOf(colKey).name)} ${plats.length?'· 平台：'+esc(plats.join('/')):''}</div>
@@ -1173,7 +1230,7 @@ function refreshTagPool(){
   fetchLiveItems().then(items=>{
     const words=[...new Set(items.map(it=>it.t))].filter(Boolean).slice(0,30);
     if(!words.length){ flashToast('暂未拉到实时热词'); if(btn){btn.disabled=false;btn.textContent='↻ 刷新标签';} return; }
-    syncTagPoolFromHot(words, Date.now());
+    syncTagPoolFromHot(words, Date.now()); recomputeSelfHit();
     save(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
     if(btn){btn.disabled=false;btn.textContent='↻ 刷新标签';}
     flashToast('已更新 '+words.length+' 个实时热门标签');
@@ -1331,7 +1388,7 @@ function saveMaterial(){
   if(!rec.content){ alert('请填写素材原文'); return; }
   if(editing.id){ const i=state.materials.findIndex(x=>x.id===editing.id); state.materials[i]={...state.materials[i],...rec}; }
   else { rec.id=uid(); rec.createdAt=Date.now(); state.materials.unshift(rec); }
-  save(); closeModal(); renderMaterials();
+  syncTagPoolFromSelf(rec.content, rec.author, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderMaterials(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 function toggleUsed(id){
   const m=state.materials.find(x=>x.id===id); if(!m)return;
@@ -1386,7 +1443,7 @@ function saveWorkFromMaterial(matId){
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
   const m=state.materials.find(x=>x.id===matId); if(m){ m.used=true; m.pubAll = plats.length>=PLATFORMS.length; }
-  save(); closeModal(); renderWorks(); renderMaterials(); renderToday(); renderData();
+  syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderMaterials(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 
 /* ============ 数据复盘（SVG 图表） ============ */
@@ -1724,7 +1781,7 @@ function saveWork(){
   const idx = eid ? state.works.findIndex(x=>x && x.id===eid) : -1;
   if(idx>=0){ state.works[idx]={...state.works[idx],...rec}; }
   else { rec.id = eid || uid(); rec.createdAt=Date.now(); state.works.unshift(rec); }
-  save(); closeModal(); renderWorks(); renderToday(); renderData();
+  syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 
 function openIdeaModal(id){
@@ -1756,7 +1813,7 @@ function saveIdea(){
   const idx = eid ? state.ideas.findIndex(x=>x && x.id===eid) : -1;
   if(idx>=0){ state.ideas[idx]={...state.ideas[idx],...rec}; }
   else { rec.id = eid || uid(); rec.createdAt=Date.now(); state.ideas.unshift(rec); }
-  save(); closeModal(); renderIdeas(); renderToday();
+  syncTagPoolFromSelf(rec.content, '', rec.collection, rec.tags, Date.now()); save(); closeModal(); renderIdeas(); renderToday(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 function advanceStatus(id){
   const it=state.ideas.find(x=>x.id===id); if(!it)return;
@@ -1805,7 +1862,7 @@ function saveWorkFromIdea(ideaId){
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
   const it=state.ideas.find(x=>x && x.id===ideaId); if(it){ it.status=3; }
-  save(); closeModal(); renderWorks(); renderIdeas(); renderToday(); renderData();
+  syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderIdeas(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 
 /* 删除 */
