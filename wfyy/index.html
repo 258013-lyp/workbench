@@ -380,6 +380,9 @@
     <button class="tab" data-tab="data" onclick="switchTab('data')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>数据看板
     </button>
+    <button class="tab" data-tab="calendar" onclick="switchTab('calendar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>内容日历
+    </button>
   </nav>
 
   <!-- ===== 作品库 ===== -->
@@ -473,6 +476,14 @@
       <div>还没有作品数据，去「作品库」记录几条带播放/互动数的作品吧</div>
     </div>
     <div id="dataCharts"></div>
+  </section>
+
+  <!-- ===== 内容日历 ===== -->
+  <section class="panel" id="panel-calendar">
+    <div class="cal-wrap">
+      <div id="calendarBox"></div>
+      <div id="calDetail"></div>
+    </div>
   </section>
 
 </div>
@@ -998,6 +1009,8 @@ function renderWorks(){
       <div class="item-meta">
         ${covChip}
         ${originHtml}
+        ${(w.altTitles&&w.altTitles.length)?`<span class="chip chip-multi">🅰 标题×${w.altTitles.length+1}</span>`:''}
+        ${(w.platText&&Object.keys(w.platText).length)?`<span class="chip chip-multi">✍️ 多平台文案×${Object.keys(w.platText).length}</span>`:''}
         ${hasD?'':`<span class="chip chip-wait">⏳ 待回填</span>`}
         <span class="chip">${esc(w.form||'—')}</span>
         ${(w.platforms||[]).map(p=>`<span class="chip chip-plat">${esc(p)}</span>`).join('')}
@@ -1491,9 +1504,10 @@ function publishFromMaterial(id){
     <div class="banner" style="margin-bottom:10px">📎 已按素材自动匹配：合集「<b>${colOf(m.collection).name}</b>」· 标签 · 文案来源（可直接保存，下拉可改合集）</div>
     <div class="warn-box" id="dupWarn"></div>
     <div class="field"><label>所属合集（已按素材自动匹配）</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(m.collection||state.activeCol||COLLECTIONS[0].key)}</select></div>
-    <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：一蓑烟雨任平生 · 苏轼的豁达" oninput="liveDupCheck()"></div>
+    <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：一蓑烟雨任平生 · 苏轼的豁达" oninput="liveDupCheck();runCompliance()"></div>
     <div class="src-prev">📎 素材来源：原文「<b>${esc(m.content)}</b>」${m.author?` · 出处「<b>${esc(m.author)}</b>」`:''}${m.type?` · 类型「${esc(m.type)}」`:''}</div>
-    <div class="field"><label>文案 / 简介（已带入素材原文与出处，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…">${esc((m.content||'')+(m.author?'\n（出处：'+m.author+'）':''))}</textarea></div>
+    <div class="field"><label>文案 / 简介（已带入素材原文与出处，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…" oninput="runCompliance()">${esc((m.content||'')+(m.author?'\n（出处：'+m.author+'）':''))}</textarea>
+    ${titleVariantsHTML(m)}</div>
     <div class="row2">
       <div class="field"><label>形式</label><select id="f_form"><option value="视频" selected>视频</option><option value="图文">图文</option></select></div>
       <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${todayStr()}"></div>
@@ -1506,11 +1520,13 @@ function publishFromMaterial(id){
     ${metricsCollapseHTML(PLATFORMS, editing.draft||{}, false)}
     <div class="field"><label>主题标签（逗号分隔）</label><input id="f_tags" value="${(m.tags||[]).join(', ')}" oninput="liveDupCheck()"></div>
     <div class="tag-suggest-box" id="tagSuggest"></div>
+    ${platTextHTML(m)}
+    ${complianceHTML()}
     <div class="modal-actions">
       <button class="btn btn-line" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" onclick="act('saveWorkFromMaterial','${encId(id)}')">记入作品库并标记素材已用</button>
     </div>`;
-  openModal(html); liveDupCheck();
+  openModal(html); liveDupCheck(); runCompliance();
 }
 function saveWorkFromMaterial(matId){
   const get=id=>document.getElementById(id).value;
@@ -1520,6 +1536,7 @@ function saveWorkFromMaterial(matId){
     form:get('f_form'), date:get('f_date'), duration:get('f_dur').trim(), bgm:get('f_bgm').trim(),
     platforms:plats, tags, metrics:(syncMetricsInputsToDraft(), collectPlatMetrics(plats)), createdAt:Date.now() };
   summarizeToMain(rec);
+  collectWorkExtras(rec);
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
   const m=state.materials.find(x=>x.id===matId); if(m){ m.used=true; m.pubAll = plats.length>=PLATFORMS.length; }
@@ -1724,6 +1741,27 @@ function renderData(){
     + partialHtml
     + '</div>';
 
+  // ===== 选题命中率 & 来源转化 =====
+  const ideasAll=safeArr(state.ideas);
+  const planN=ideasAll.length;
+  const schedN=ideasAll.filter(i=>i.status>=2).length;
+  const pubN=ideasAll.filter(i=>i.status===3).length;
+  const hitRate = planN? Math.round(pubN/planN*100):0;
+  const byKind={material:{n:0,plays:0},idea:{n:0,plays:0},direct:{n:0,plays:0}};
+  dataWorks.forEach(w=>{ const k=(w.origin&&w.origin.kind)||'direct'; if(!byKind[k])byKind[k]={n:0,plays:0}; byKind[k].n++; byKind[k].plays+=(wm(w).plays); });
+  const kindRows=['material','idea','direct'].map(k=>{ const o=byKind[k]; const name=k==='material'?'素材来源':k==='idea'?'灵感来源':'直接记录'; const avg=o.n?fmt(Math.round(o.plays/o.n)):'0'; return `<div class="bar-row"><div class="bar-label">${name}</div><div class="bar-track"><div class="bar-fill" style="width:${o.n?Math.round(o.n/Math.max(1,dataWorks.length)*100):0}%;background:#7C8FE0"></div></div><div class="bar-val">${o.n} 条 · 均播 ${avg}</div></div>`; }).join('');
+  const sourceHtml=`<div class="chart-card full"><h3>🎯 选题命中率 & 来源转化</h3>
+    <div class="kpi-row" style="margin-bottom:10px">
+      <div class="kpi"><b>${planN}</b><span>灵感总数</span></div>
+      <div class="kpi"><b>${schedN}</b><span>已排期</span></div>
+      <div class="kpi"><b style="color:var(--green)">${pubN}</b><span>已发布</span></div>
+      <div class="kpi"><b style="color:${hitRate>=50?'var(--green)':'var(--orange)'}">${hitRate}%</b><span>灵感命中率</span></div>
+    </div>
+    <div style="font-size:13px;color:var(--ink);margin-bottom:6px">作品按来源的平均播放（哪类选题真正跑得好）：</div>
+    ${kindRows}
+    <div style="font-size:11.5px;color:var(--ink2);margin-top:6px">命中率 = 已发布灵感 ÷ 灵感总数；来源转化看各渠道作品数与平均播放，回答「为什么爆、哪类选题真发了」</div>
+  </div>`;
+
   box.innerHTML=`
     ${platTabHtml}
     ${platSpecific}
@@ -1747,7 +1785,108 @@ function renderData(){
       <div class="chart-card full"><h3>发布星期热力（平均互动率）</h3><div class="heat-grid">${heatCells}</div></div>
       <div class="chart-card full"><h3>播放 Top 5 作品</h3>${topHtml}</div>
       <div class="chart-card full"><h3>🔥 爆款内容公式</h3>${formula}</div>
+      ${sourceHtml}
     </div>`;
+}
+
+/* ============ 内容日历 + 作品扩展字段 ============ */
+/* 基础限流/敏感词库（可自行补充；仅作发布前提醒，非平台官方词表） */
+const SENSITIVE_WORDS = ['第一','最','唯一','顶级','国家级','全国第一','史无前例','100%','免费领取','加微信','扫码','私聊','秒杀','转发','关注我','公众号','二维码','赚钱','日赚','兼职','招商','加盟','领红包','私信','紧急通知','震惊','绝对','万能','根治','偏方','特效','立即见效','点击链接','限时免费','元优惠券'];
+
+let calMonth = (()=>{ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })();
+let calSel = null;
+function calGo(delta){ const [y,m]=calMonth.split('-').map(Number); let nm=m-1+delta, ny=y; if(nm<1){nm=12;ny--;} if(nm>12){nm=1;ny++;} calMonth=ny+'-'+String(nm).padStart(2,'0'); renderCalendar(); }
+function calSelect(ds){ calSel=ds; renderCalendar(); }
+function wm0(w){ return dataPlat==='全部' ? mainMetrics(w) : getPlatMetrics(w,dataPlat); }
+function renderCalendar(){
+  const box=document.getElementById('calendarBox'); if(!box) return;
+  const [y,m]=calMonth.split('-').map(Number);
+  const first=new Date(y,m-1,1), startDow=first.getDay();
+  const daysInMonth=new Date(y,m,0).getDate();
+  const today=todayStr();
+  const pub={}, plan={};
+  safeArr(state.works).forEach(w=>{ if(w.date){ pub[w.date]=(pub[w.date]||0)+1; } });
+  safeArr(state.ideas).forEach(i=>{ if(i.planDate && i.status!==3){ plan[i.planDate]=(plan[i.planDate]||0)+1; } });
+  const dowNames=['日','一','二','三','四','五','六'];
+  let cells='';
+  for(let i=0;i<startDow;i++) cells+='<div class="cal-cell empty"></div>';
+  for(let d=1; d<=daysInMonth; d++){
+    const ds=y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const isToday=ds===today, isSel=ds===calSel;
+    const pb=pub[ds]||0, pn=plan[ds]||0;
+    cells+=`<div class="cal-cell ${isToday?'today':''} ${isSel?'sel':''}" onclick="calSelect('${ds}')">
+      <div class="cal-d">${d}</div>
+      <div class="cal-badges">${pb?`<span class="cal-b pub" title="已发布">📅${pb}</span>`:''}${pn?`<span class="cal-b plan" title="待发布">📌${pn}</span>`:''}</div>
+    </div>`;
+  }
+  const trailing=((7-(startDow+daysInMonth)%7)%7);
+  for(let i=0;i<trailing;i++) cells+='<div class="cal-cell empty"></div>';
+  const head=dowNames.map(n=>`<div class="cal-dow">${n}</div>`).join('');
+  box.innerHTML=`<div class="cal-head">
+      <button class="btn btn-soft" onclick="calGo(-1)">‹</button>
+      <b>${y} 年 ${m} 月</b>
+      <button class="btn btn-soft" onclick="calGo(1)">›</button>
+      <button class="btn btn-soft" onclick="calGo(0)" style="margin-left:8px">本月</button>
+    </div>
+    <div class="cal-grid-h">${head}</div>
+    <div class="cal-grid">${cells}</div>
+    <div class="cal-legend"><span><i class="cal-b pub">📅</i> 已发布（作品日期）</span><span><i class="cal-b plan">📌</i> 待发布（灵感排期）</span></div>`;
+  renderCalDetail();
+}
+function renderCalDetail(){
+  const box=document.getElementById('calDetail'); if(!box) return;
+  const ds=calSel;
+  if(!ds){ box.innerHTML='<div class="cal-detail-empty">点上方日期，看当天已发布 / 待发布的作品清单</div>'; return; }
+  const pubWorks=safeArr(state.works).filter(w=>w.date===ds);
+  const planIdeas=safeArr(state.ideas).filter(i=>i.planDate===ds && i.status!==3);
+  if(!pubWorks.length && !planIdeas.length){ box.innerHTML=`<div class="cal-detail-empty">${esc(ds)} 暂无安排</div>`; return; }
+  let html=`<div class="cal-detail-day">${esc(ds)}</div>`;
+  if(planIdeas.length){ html+='<div class="cal-sec">📌 待发布（'+planIdeas.length+'）</div>'+planIdeas.map(i=>`<div class="cal-item"><span class="badge badge-today">${colOf(i.collection).name}</span><div class="ci-main"><div class="ci-title">${esc(i.content)}</div><div class="ci-sub">${esc(STATUS[Number(i.status)]||'')} · 来源 ${esc(i.source||'—')}</div></div><button class="mini" onclick="act('publishFromIdea','${encId(i.id)}')">发布</button></div>`).join(''); }
+  if(pubWorks.length){ html+='<div class="cal-sec">📅 已发布（'+pubWorks.length+'）</div>'+pubWorks.map(w=>`<div class="cal-item"><span class="badge badge-done">${colOf(w.collection).name}</span><div class="ci-main"><div class="ci-title">${esc(w.title)}</div><div class="ci-sub">${fmt(wm0(w).plays)} 播放 · ${esc(w.date)}</div></div><button class="mini" onclick="act('openWorkModal','${encId(w.id)}')">查看</button></div>`).join(''); }
+  box.innerHTML=html;
+}
+/* 标题候选 A/B（多平台打开率差很多，发布前挑最优） */
+function titleVariantsHTML(w){
+  const a=(w&&w.altTitles)||[];
+  return `<div class="field"><label>标题候选 A/B（写 2 个备选，发布前挑打开率最高的）</label>
+    <input id="f_title2" placeholder="候选标题 2（如：竹杖芒鞋轻胜马，谁怕？）" value="${w?esc(a[0]||''):''}">
+    <input id="f_title3" placeholder="候选标题 3（如：苏轼教我笑着淋雨）" value="${w?esc(a[1]||''):''}" style="margin-top:6px">
+  </div>`;
+}
+/* 按平台差异化文案（抖音口语 / 小红书情绪 / B站深度） */
+function platTextHTML(w){
+  const cur=w&&w.platText||{};
+  return `<details class="collapse"><summary>✍️ 按平台差异化文案（抖音 / 小红书 / B站 文案不同，打开率差很多）</summary>
+    <div class="plat-text-box">${PLATFORMS.map(p=>`<div class="pt-row"><b>${p}</b><textarea id="f_pt_${p}" placeholder="${p} 专属文案（留空则用主文案）">${esc(cur[p]||'')}</textarea></div>`).join('')}</div>
+  </details>`;
+}
+/* 发布前合规自检 + 发布 Checklist */
+function complianceHTML(){
+  return `<div class="field"><label>发布前合规自检（限流词 / 敏感词提醒）</label>
+    <div id="complianceBox" class="compliance-box">输入标题 / 文案后自动检测…</div>
+  </div>
+  <div class="field"><label>发布 Checklist</label>
+    <div class="checklist">
+      <label><input type="checkbox"> #话题标签已加</label>
+      <label><input type="checkbox"> @ / 定位已设</label>
+      <label><input type="checkbox"> 评论区引导已写</label>
+      <label><input type="checkbox"> 封面文案已定</label>
+    </div>
+  </div>`;
+}
+function runCompliance(){
+  const box=document.getElementById('complianceBox'); if(!box) return;
+  const title=fieldVal('f_title'), text=fieldVal('f_text');
+  const hit=SENSITIVE_WORDS.filter(k=> (title+' '+text).includes(k));
+  if(!title && !text){ box.className='compliance-box'; box.innerHTML='输入标题 / 文案后自动检测…'; return; }
+  if(!hit.length){ box.className='compliance-box ok'; box.innerHTML='✓ 未发现明显限流 / 敏感词'; }
+  else { box.className='compliance-box bad'; box.innerHTML='⚠ 疑似限流 / 敏感词：'+hit.map(k=>'<span class="kw">'+esc(k)+'</span>').join('')+'（请斟酌是否保留）'; }
+}
+function collectWorkExtras(rec){
+  const t2=fieldVal('f_title2').trim(), t3=fieldVal('f_title3').trim();
+  rec.altTitles=[t2,t3].filter(Boolean);
+  const pt={}; PLATFORMS.forEach(p=>{ const v=fieldVal('f_pt_'+p).trim(); if(v) pt[p]=v; });
+  rec.platText=pt;
 }
 
 /* ============ 弹窗 ============ */
@@ -1873,8 +2012,9 @@ function openWorkModal(id){
     ${state.activeCol?`<div class="banner" style="margin-bottom:10px">🎯 本轮聚焦合集：${colOf(state.activeCol).name}</div>`:''}
     <div class="warn-box" id="dupWarn"></div>
     <div class="field"><label>所属合集</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(w?w.collection:(state.activeCol||'碎语'))}</select></div>
-    <div class="field"><label>标题 / 文案主题</label><input id="f_title" value="${w?esc(w.title):''}" placeholder="如：苏轼《定风波》· 一蓑烟雨任平生"></div>
-    <div class="field"><label>文案 / 简介</label><textarea id="f_text" placeholder="一句文案或视频旁白…">${w?esc(w.text):''}</textarea></div>
+    <div class="field"><label>标题 / 文案主题</label><input id="f_title" value="${w?esc(w.title):''}" placeholder="如：苏轼《定风波》· 一蓑烟雨任平生" oninput="runCompliance()"></div>
+    <div class="field"><label>文案 / 简介</label><textarea id="f_text" placeholder="一句文案或视频旁白…" oninput="runCompliance()">${w?esc(w.text):''}</textarea></div>
+    ${titleVariantsHTML(w)}
     <div class="row2">
       <div class="field"><label>形式</label><select id="f_form"><option value="视频" ${w&&w.form==='视频'?'selected':''}>视频</option><option value="图文" ${w&&w.form==='图文'?'selected':''}>图文</option></select></div>
       <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${w?esc(w.date):todayStr()}"></div>
@@ -1887,12 +2027,15 @@ function openWorkModal(id){
     ${metricsCollapseHTML(w?w.platforms:PLATFORMS, draft, !!(w&&workHasData(w)))}
     <div class="field"><label>主题标签（用逗号分隔，用于查重）</label><input id="f_tags" value="${w?esc((w.tags||[]).join(', ')):''}" placeholder="如：古诗, 豁达, 苏轼" oninput="liveDupCheck()"></div>
     <div class="tag-suggest-box" id="tagSuggest"></div>
+    ${platTextHTML(w)}
+    ${complianceHTML()}
     <div class="modal-actions">
       <button class="btn btn-line" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" onclick="saveWork()">${w?'保存修改':'记入作品库'}</button>
     </div>`;
   openModal(html);
   if(w) liveDupCheck();
+  runCompliance();
 }
 function liveDupCheck(){
   const title=document.getElementById('f_title').value;
@@ -1916,6 +2059,7 @@ function saveWork(){
     metrics:(syncMetricsInputsToDraft(), collectPlatMetrics(plats))
   };
   summarizeToMain(rec);
+  collectWorkExtras(rec);
   if(!rec.title){ alert('请填写标题'); return; }
   const eid = editing && editing.id ? editing.id : null;
   const idx = eid ? state.works.findIndex(x=>x && x.id===eid) : -1;
@@ -1969,9 +2113,10 @@ function publishFromIdea(id){
     <div class="banner" style="margin-bottom:10px">📎 已按灵感自动匹配：合集「<b>${colOf(it.collection).name}</b>」· 标签 · 文案来源（可直接保存，下拉可改合集）</div>
     <div class="warn-box" id="dupWarn"></div>
     <div class="field"><label>所属合集（已按灵感自动匹配）</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(it.collection||state.activeCol||COLLECTIONS[0].key)}</select></div>
-    <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：深夜的城市灯火，也是一种陪伴" oninput="liveDupCheck()"></div>
+    <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：深夜的城市灯火，也是一种陪伴" oninput="liveDupCheck();runCompliance()"></div>
     <div class="src-prev">💡 灵感来源：<b>${esc(it.content)}</b>${it.source?` · 来源「<b>${esc(it.source)}</b>」`:''}</div>
-    <div class="field"><label>文案 / 简介（已带入灵感内容，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…">${esc(it.content)}</textarea></div>
+    <div class="field"><label>文案 / 简介（已带入灵感内容，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…" oninput="runCompliance()">${esc(it.content)}</textarea>
+    ${titleVariantsHTML(it)}</div>
     <div class="row2">
       <div class="field"><label>形式</label><select id="f_form"><option value="视频" selected>视频</option><option value="图文">图文</option></select></div>
       <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${todayStr()}"></div>
@@ -1984,11 +2129,13 @@ function publishFromIdea(id){
     ${metricsCollapseHTML(PLATFORMS, editing.draft||{}, false)}
     <div class="field"><label>主题标签（逗号分隔）</label><input id="f_tags" value="${(it.tags||[]).join(', ')}" oninput="liveDupCheck()"></div>
     <div class="tag-suggest-box" id="tagSuggest"></div>
+    ${platTextHTML(it)}
+    ${complianceHTML()}
     <div class="modal-actions">
       <button class="btn btn-line" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" onclick="act('saveWorkFromIdea','${encId(id)}')">记入作品库并标记已发布</button>
     </div>`;
-  openModal(html); liveDupCheck();
+  openModal(html); liveDupCheck(); runCompliance();
 }
 function saveWorkFromIdea(ideaId){
   const get=fieldVal;
@@ -1998,6 +2145,7 @@ function saveWorkFromIdea(ideaId){
     form:get('f_form')||'视频', date:get('f_date'), duration:get('f_dur').trim(), bgm:get('f_bgm').trim(),
     platforms:plats, tags, metrics:(syncMetricsInputsToDraft(), collectPlatMetrics(plats)), createdAt:Date.now() };
   summarizeToMain(rec);
+  collectWorkExtras(rec);
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
   const it=state.ideas.find(x=>x && x.id===ideaId); if(it){ it.status=3; }
@@ -2479,6 +2627,7 @@ function switchTab(tab){
   if(tab==='works') renderWorks();
   if(tab==='ideas') renderIdeas();
   if(tab==='materials') renderMaterials();
+  if(tab==='calendar') renderCalendar();
 }
 
 /* 初始化 */
@@ -2488,7 +2637,7 @@ function initFilters(){
   const mf=document.getElementById('matColFilter');
   if(mf) mf.innerHTML='<option value="">全部合集</option>'+COLLECTIONS.map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
 }
-function renderAll(){ renderToday(); renderWorks(); renderIdeas(); renderMaterials(); renderData(); }
+function renderAll(){ renderToday(); renderWorks(); renderIdeas(); renderMaterials(); renderData(); renderCalendar(); }
 
 /* 内联 onclick 只允许调用 act(动作名, 编码id)，动作白名单在此登记 */
 ACTIONS.openWorkModal=openWorkModal;
