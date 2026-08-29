@@ -701,7 +701,7 @@ const SELF_TAG_DICT=[
 /* 从文案标题(主题)+简介 本地提取候选标签：标题作主题短语，简介做词典命中，再去重限长 */
 function extractSelfTags(title, text, col){
   const out=[]; const seen=new Set();
-  const norm=s=>(s||'').replace(/[，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim();
+  const norm=s=>(s||'').replace(/[<>&"'，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim();
   const push=raw=>{ const t=norm(raw).slice(0,12); if(t.length>=2 && !seen.has(t)){ seen.add(t); out.push(t); } };
   if(title) push(title);
   const blob=(title||'')+' '+(text||'');
@@ -712,7 +712,8 @@ function extractSelfTags(title, text, col){
 function syncTagPoolFromSelf(title, text, col, manualTags, now){
   if(!now) now=Date.now();
   const tags=extractSelfTags(title, text, col);
-  (manualTags||[]).forEach(t=>{ if(t&&t.length>=2) tags.push(t); });
+  const norm=s=>(s||'').replace(/[<>&"'，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim();
+  (manualTags||[]).forEach(t=>{ const nt=norm(t).slice(0,12); if(nt.length>=2) tags.push(nt); });
   if(!tags.length) return;
   const liveSet=new Set((state.tagPool||[]).filter(x=>x.live).map(x=>x.tag));
   const gen=tags.map(t=>({col:col||guessCol(t), tag:t, self:true, live:false, hitLive:liveSet.has(t), fetchedAt:now}));
