@@ -1795,7 +1795,7 @@ const SENSITIVE_WORDS = ['第一','最','唯一','顶级','国家级','全国第
 
 let calMonth = (()=>{ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })();
 let calSel = null;
-function calGo(delta){ const [y,m]=calMonth.split('-').map(Number); let nm=m-1+delta, ny=y; if(nm<1){nm=12;ny--;} if(nm>12){nm=1;ny++;} calMonth=ny+'-'+String(nm).padStart(2,'0'); renderCalendar(); }
+function calGo(delta){ const [y,m]=calMonth.split('-').map(Number); let nm=m+delta, ny=y; while(nm<1){nm+=12;ny--;} while(nm>12){nm-=12;ny++;} calMonth=ny+'-'+String(nm).padStart(2,'0'); renderCalendar(); }
 function calSelect(ds){ calSel=ds; renderCalendar(); }
 function wm0(w){ return dataPlat==='全部' ? mainMetrics(w) : getPlatMetrics(w,dataPlat); }
 function renderCalendar(){
