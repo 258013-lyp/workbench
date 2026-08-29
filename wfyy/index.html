@@ -812,7 +812,9 @@ function encId(s){
 function decId(s){ try{ return decodeURIComponent(String(s==null?'':s)); }catch(e){ return String(s==null?'':s); } }
 const ACTIONS={};
 function act(name, token){
-  const fn=ACTIONS[name];
+  let fn=ACTIONS[name];
+  /* 兜底：注册表未登记时，回退到同名全局函数（保留 id 安全解码），避免卡片按钮全部失效 */
+  if(typeof fn!=='function' && typeof window!=='undefined' && typeof window[name]==='function') fn=window[name];
   if(typeof fn!=='function'){ try{ flashToast('操作不可用，请刷新页面'); }catch(e){} return; }
   try{ fn(decId(token)); }catch(err){ try{ flashToast('操作失败：'+(err&&err.message||'未知错误')); }catch(e){} }
 }
