@@ -178,6 +178,14 @@
   .hot-track{cursor:default;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease,background .12s ease}
   .hot-track:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(40,50,90,.10)}
   .hot-track.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,#fff);font-weight:600;box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 22%,transparent)}
+  .metric-collapse{border:1px solid var(--line);border-radius:10px;margin-top:6px;overflow:hidden}
+  .mc-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;cursor:pointer;background:#f7f8fc;font-size:13px;font-weight:600;user-select:none}
+  .mc-head small{font-weight:400;color:var(--ink2);font-size:11.5px;margin-left:2px}
+  .mc-arrow{transition:transform .15s ease;color:var(--ink2);font-size:12px}
+  .mc-head.open .mc-arrow{transform:rotate(90deg)}
+  .mc-body{padding:10px 12px}
+  .chip-wait{background:#fff3e0;color:#b26a00;border-color:#ffe1b0}
+  .metric-wait{font-size:12px;color:var(--ink2);padding:8px 0 2px}
   .hot-focus-intro{font-size:12.5px;color:var(--ink);background:var(--primary-soft);border:1px solid #dfe3f5;border-radius:10px;padding:7px 10px;margin:0 0 8px;line-height:1.5}
   .hot-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .hot-card{flex:0 0 auto;width:230px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
@@ -961,9 +969,12 @@ function renderWorks(){
     box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><div>'+(q?'没有匹配的作品':'还没有记录作品，点「记作品」开始')+'</div></div>';
     return;
   }
-  box.innerHTML = list.map(w=>{
+  const pending = list.filter(w=>!workHasData(w)).length;
+  const pendingHtml = pending? `<div class="banner" style="margin-bottom:10px">⏳ ${pending} 个已发布作品数据待回填 · 去各平台后台看一眼，点卡片「回填数据」即可（看板只汇总已回填作品）</div>` : '';
+  box.innerHTML = pendingHtml + list.map(w=>{
     const c=colOf(w.collection);
     const pc=(w.platforms||[]).length;
+    const hasD=workHasData(w);
     const covChip = pc>=PLATFORMS.length ? `<span class="chip chip-cov-all">🌐 全平台✓</span>` : `<span class="chip chip-cov-part">${pc}/${PLATFORMS.length} 平台</span>`;
     const isHit = q && ((w.title||'').toLowerCase().includes(q)||(w.tags||[]).join(' ').toLowerCase().includes(q));
     const dSafe = esc(w.date||'—');
@@ -976,17 +987,17 @@ function renderWorks(){
       <div class="item-sub">${esc(w.text)}</div>
       <div class="item-meta">
         ${covChip}
+        ${hasD?'':`<span class="chip chip-wait">⏳ 待回填</span>`}
         <span class="chip">${esc(w.form||'—')}</span>
         ${(w.platforms||[]).map(p=>`<span class="chip chip-plat">${esc(p)}</span>`).join('')}
         ${dateHtml}
         ${w.duration?`<span class="chip chip-tag">⏱ ${esc(w.duration)}</span>`:''}
         ${(w.tags||[]).map(t=>`<span class="chip chip-tag">#${esc(t)}</span>`).join('')}
       </div>
-      <div class="metrics">
-        ${workCardMetrics(w, pf)}
-      </div>
+      ${hasD?`<div class="metrics">${workCardMetrics(w, pf)}</div>`:`<div class="metric-wait">⏳ 发布后回填各平台数据</div>`}
       <div class="item-actions">
         <button class="mini" onclick="act('openWorkModal','${encId(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16 4l4 4-11 11-4 1 1-4z"/></svg>编辑</button>
+        <button class="mini" onclick="act('openFillMetrics','${encId(w.id)}')">回填数据</button>
         <button class="mini" onclick="act('delWork','${encId(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>删除</button>
       </div>
     </div>`;
@@ -1479,11 +1490,9 @@ function publishFromMaterial(id){
       <div class="field"><label>配乐 / BGM</label><input id="f_bgm" placeholder="背景音乐"></div>
     </div>
     <div class="field"><label>发布平台（多选）</label><div class="checks" id="f_plats">${platChecks(PLATFORMS)}</div><div class="item-sub" style="margin-top:2px;color:var(--ink2)">默认全平台同步发布，可按需取消勾选</div></div>
-    <div class="field" style="margin-top:4px"><label>各平台数据（分别填写，体现各平台差异）</label></div>
-    <div id="platMetrics">${platMetricsHTML(PLATFORMS, {metrics:editing.draft||{}})}</div>
+    ${metricsCollapseHTML(PLATFORMS, editing.draft||{}, false)}
     <div class="field"><label>主题标签（逗号分隔）</label><input id="f_tags" value="${(m.tags||[]).join(', ')}" oninput="liveDupCheck()"></div>
     <div class="tag-suggest-box" id="tagSuggest"></div>
-    <div class="item-sub" style="color:var(--ink2);margin-top:4px">📌 数据按平台分别记录于上方「各平台数据」；顶部 KPI 与播放 Top5 会自动汇总各平台。</div>
     <div class="modal-actions">
       <button class="btn btn-line" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" onclick="act('saveWorkFromMaterial','${encId(id)}')">记入作品库并标记素材已用</button>
@@ -1496,7 +1505,7 @@ function saveWorkFromMaterial(matId){
   const tags=get('f_tags').split(',').map(s=>s.trim()).filter(Boolean);
   const rec={ id:uid(), collection:get('f_col'), title:get('f_title').trim(), text:get('f_text').trim(),
     form:get('f_form'), date:get('f_date'), duration:get('f_dur').trim(), bgm:get('f_bgm').trim(),
-    platforms:plats, tags, metrics:collectPlatMetrics(plats), createdAt:Date.now() };
+    platforms:plats, tags, metrics:(syncMetricsInputsToDraft(), collectPlatMetrics(plats)), createdAt:Date.now() };
   summarizeToMain(rec);
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
@@ -1543,10 +1552,16 @@ function renderData(){
     box.innerHTML = platTabHtml + '<div class="empty" style="padding:26px 12px"><div>「'+esc(curDataPlat)+'」还没有发布记录，可切换到其他平台查看</div></div>';
     return;
   }
+  // 数据复盘只看「已回填数据」的作品：刚发布的新作品数据为 0，不计入 KPI/Top5/互动率，避免拉低均值
+  const dataWorks = works.filter(workHasData);
+  if(!dataWorks.length){
+    box.innerHTML = platTabHtml + '<div class="empty" style="padding:26px 12px"><div>📡 当前作品都还在「数据待回填」状态——发布后去各平台后台看一眼，点作品卡「回填数据」即可。看板会自动汇总已回填的作品（播放、互动率、爆款公式都基于真实数据）。</div></div>';
+    return;
+  }
 
   // ===== 基础聚合（合集维度） =====
   const byCol = COLLECTIONS.map(c=>{
-    const ws=works.filter(w=>w.collection===c.key);
+    const ws=dataWorks.filter(w=>w.collection===c.key);
     const plays=ws.reduce((s,w)=>s+(wm(w).plays),0);
     const likes=ws.reduce((s,w)=>s+(wm(w).likes),0);
     const favs=ws.reduce((s,w)=>s+(wm(w).favs),0);
@@ -1569,12 +1584,12 @@ function renderData(){
   const bestComCol = byCol.slice().sort((a,b)=>b.comRate-a.comRate)[0];
 
   // 爆款：赞播比 >=5% 的作品
-  const hot = works.map(w=>({w, r:pct(wm(w).likes, wm(w).plays)})).filter(x=>x.r>=5).sort((a,b)=>b.r-a.r);
+  const hot = dataWorks.map(w=>({w, r:pct(wm(w).likes, wm(w).plays)})).filter(x=>x.r>=5).sort((a,b)=>b.r-a.r);
   const hotCount = hot.length;
 
   // 形式对比（视频/图文 平均赞播比）
   const formRate = {};
-  works.forEach(w=>{ const f=w.form||'未填'; const r=pct(wm(w).likes,wm(w).plays); if(!formRate[f])formRate[f]={n:0,sum:0}; formRate[f].n++; formRate[f].sum+=r; });
+  dataWorks.forEach(w=>{ const f=w.form||'未填'; const r=pct(wm(w).likes,wm(w).plays); if(!formRate[f])formRate[f]={n:0,sum:0}; formRate[f].n++; formRate[f].sum+=r; });
   const formArr = Object.keys(formRate).map(f=>({f, n:formRate[f].n, rate: formRate[f].sum/formRate[f].n})).sort((a,b)=>b.rate-a.rate);
 
   // 各合集作品数 柱状
@@ -1606,7 +1621,7 @@ function renderData(){
   const lineSvg=ms.length>1?`<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="max-height:200px"><defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6B7FD7" stop-opacity=".25"/><stop offset="1" stop-color="#6B7FD7" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#g1)"/><path d="${pts}" fill="none" stroke="#6B7FD7" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${labels}</svg>`:'<div style="padding:30px;text-align:center;color:var(--ink2)">发布满 2 个月份后展示趋势折线</div>';
 
   // 播放 Top5
-  const top=works.slice().sort((a,b)=>(wm(b).plays)-(wm(a).plays)).slice(0,5);
+  const top=dataWorks.slice().sort((a,b)=>(wm(b).plays)-(wm(a).plays)).slice(0,5);
   const topHtml=top.map((w,i)=>{ const c=colOf(w.collection); return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f4f0ea"><span style="width:22px;height:22px;border-radius:50%;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:0 0 auto">${i+1}</span><div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(w.title)}</div><div style="font-size:12px;color:var(--ink2)">${c.name} · ${esc(w.date||'—')}</div></div><div style="font-size:14px;font-weight:700;color:var(--primary)">${fmt(wm(w).plays)}</div></div>`; }).join('');
 
   // ===== 各合集互动率对比（水平条，按互动率排序） =====
@@ -1631,7 +1646,7 @@ function renderData(){
   // ===== 发布星期热力（平均互动率） =====
   const dowNames=['周日','周一','周二','周三','周四','周五','周六'];
   const dow={}; for(let i=0;i<7;i++)dow[i]={plays:0,inter:0,n:0};
-  works.forEach(w=>{ if(!w.date)return; const d=new Date(w.date); if(isNaN(d))return; const k=d.getDay(); dow[k].plays+=(wm(w).plays); dow[k].inter+=(wm(w).likes)+(wm(w).favs)+(wm(w).comments); dow[k].n++; });
+  dataWorks.forEach(w=>{ if(!w.date)return; const d=new Date(w.date); if(isNaN(d))return; const k=d.getDay(); dow[k].plays+=(wm(w).plays); dow[k].inter+=(wm(w).likes)+(wm(w).favs)+(wm(w).comments); dow[k].n++; });
   const dowRate=Object.keys(dow).map(k=>({k:Number(k), n:dow[k].n, plays:dow[k].plays, inter:dow[k].inter, rate:pct(dow[k].inter,dow[k].plays)}));
   const maxDow=Math.max(0.1,...dowRate.map(x=>x.rate));
   const bestDow=dowRate.slice().sort((a,b)=>b.rate-a.rate)[0];
@@ -1779,6 +1794,61 @@ function summarizeToMain(rec){
   rec.plays=plays; rec.likes=likes; rec.favs=favs; rec.comments=comments; return rec;
 }
 
+/* 作品数据回填优化：发布后才回填，不逼手填；看板只汇总已回填作品 */
+function workHasData(w){
+  if(!w) return false;
+  const m=w.metrics||{};
+  for(const p in m){ const o=m[p]||{}; for(const k in o){ if(Number(o[k])>0) return true; } }
+  if((Number(w.plays)||0)+(Number(w.likes)||0)+(Number(w.favs)||0)+(Number(w.comments)||0)>0) return true;
+  return false;
+}
+function syncMetricsInputsToDraft(){
+  if(!editing) return;
+  const d=editing.draft||{};
+  document.querySelectorAll('#platMetrics input[data-k]').forEach(el=>{ const p=el.dataset.p,k=el.dataset.k; d[p]=d[p]||{}; d[p][k]=Number(el.value)||0; });
+  editing.draft=d;
+}
+function metricsCollapseHTML(plats, draft, open){
+  return `<div class="metric-collapse">
+    <div class="mc-head${open?' open':''}" id="metricsHead" onclick="toggleMetricsBox()">
+      <span>📊 各平台数据 <small>（发布后从平台后台回填，可先留空）</small></span>
+      <span class="mc-arrow">▸</span>
+    </div>
+    <div id="platMetricsWrap" class="mc-body"${open?'':' style="display:none"'}>
+      <div id="platMetrics">${platMetricsHTML(plats,{metrics:draft})}</div>
+      <div class="item-sub" style="color:var(--ink2);margin-top:6px">📌 暂时不填也没关系：发布后去各平台后台看一眼，点作品卡「回填数据」即可。看板只汇总已回填的作品。</div>
+    </div>
+  </div>`;
+}
+function toggleMetricsBox(){
+  const el=document.getElementById('platMetricsWrap'); if(!el)return;
+  const willOpen=el.style.display==='none';
+  el.style.display=willOpen?'':'none';
+  const hd=document.getElementById('metricsHead'); if(hd) hd.classList.toggle('open',willOpen);
+}
+function openFillMetrics(id){
+  const w=state.works.find(x=>x.id===id); if(!w)return;
+  let draft={}; if(w.metrics) draft=JSON.parse(JSON.stringify(w.metrics)); else (w.platforms||['抖音']).forEach(p=>{ draft[p]=getPlatMetrics(w,p); });
+  editing={type:'work',id:id,draft:draft};
+  const html=`<h3>回填数据 · ${esc(w.title)}</h3>
+    <div class="banner" style="margin-bottom:10px">📡 发布后去各平台后台看一眼数据，回来填这里。看板会自动汇总已回填作品，不影响其他字段。</div>
+    <div class="field"><label>发布平台（多选）</label><div class="checks" id="f_plats">${platChecks(w.platforms)}</div><div class="item-sub" style="margin-top:2px;color:var(--ink2)">默认全平台同步发布，可按需取消勾选</div></div>
+    <div id="platMetrics">${platMetricsHTML(w.platforms,{metrics:draft})}</div>
+    <div class="modal-actions">
+      <button class="btn btn-line" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveFillMetrics()">保存数据</button>
+    </div>`;
+  openModal(html);
+}
+function saveFillMetrics(){
+  syncMetricsInputsToDraft();
+  const plats=[...document.querySelectorAll('#f_plats input:checked')].map(i=>i.value);
+  const w=state.works.find(x=>x.id===editing.id); if(!w)return;
+  w.platforms=plats; w.metrics=collectPlatMetrics(plats); summarizeToMain(w);
+  save(); closeModal(); renderWorks(); renderData(); renderToday();
+  flashToast('数据已回填，看板已更新');
+}
+
 function openWorkModal(id){
   const w = id? state.works.find(x=>x.id===id):null;
   let draft={};
@@ -1800,11 +1870,9 @@ function openWorkModal(id){
       <div class="field"><label>配乐 / BGM</label><input id="f_bgm" value="${w?esc(w.bgm):''}" placeholder="背景音乐"></div>
     </div>
     <div class="field"><label>发布平台（多选）</label><div class="checks" id="f_plats">${platChecks(w?w.platforms:PLATFORMS)}</div><div class="item-sub" style="margin-top:2px;color:var(--ink2)">默认全平台同步发布，可按需取消勾选</div></div>
-    <div class="field" style="margin-top:4px"><label>各平台数据（分别填写，体现各平台差异）</label></div>
-    <div id="platMetrics">${platMetricsHTML(w?w.platforms:PLATFORMS, {metrics:draft})}</div>
+    ${metricsCollapseHTML(w?w.platforms:PLATFORMS, draft, !!(w&&workHasData(w)))}
     <div class="field"><label>主题标签（用逗号分隔，用于查重）</label><input id="f_tags" value="${w?esc((w.tags||[]).join(', ')):''}" placeholder="如：古诗, 豁达, 苏轼" oninput="liveDupCheck()"></div>
     <div class="tag-suggest-box" id="tagSuggest"></div>
-    <div class="item-sub" style="color:var(--ink2);margin-top:4px">📌 数据按平台分别记录于上方「各平台数据」；顶部 KPI 与播放 Top5 会自动汇总各平台。</div>
     <div class="modal-actions">
       <button class="btn btn-line" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" onclick="saveWork()">${w?'保存修改':'记入作品库'}</button>
@@ -1831,7 +1899,7 @@ function saveWork(){
     collection:get('f_col')||'碎语', title:get('f_title').trim(), text:get('f_text').trim(),
     form:get('f_form')||'视频', date:get('f_date'), duration:get('f_dur').trim(), bgm:get('f_bgm').trim(),
     platforms:plats, tags,
-    metrics:collectPlatMetrics(plats)
+    metrics:(syncMetricsInputsToDraft(), collectPlatMetrics(plats))
   };
   summarizeToMain(rec);
   if(!rec.title){ alert('请填写标题'); return; }
@@ -1898,11 +1966,9 @@ function publishFromIdea(id){
       <div class="field"><label>配乐 / BGM</label><input id="f_bgm" placeholder="背景音乐"></div>
     </div>
     <div class="field"><label>发布平台（多选）</label><div class="checks" id="f_plats">${platChecks(PLATFORMS)}</div><div class="item-sub" style="margin-top:2px;color:var(--ink2)">默认全平台同步发布，可按需取消勾选</div></div>
-    <div class="field" style="margin-top:4px"><label>各平台数据（分别填写，体现各平台差异）</label></div>
-    <div id="platMetrics">${platMetricsHTML(PLATFORMS, {metrics:editing.draft||{}})}</div>
+    ${metricsCollapseHTML(PLATFORMS, editing.draft||{}, false)}
     <div class="field"><label>主题标签（逗号分隔）</label><input id="f_tags" value="${(it.tags||[]).join(', ')}" oninput="liveDupCheck()"></div>
     <div class="tag-suggest-box" id="tagSuggest"></div>
-    <div class="item-sub" style="color:var(--ink2);margin-top:4px">📌 数据按平台分别记录于上方「各平台数据」；顶部 KPI 与播放 Top5 会自动汇总各平台。</div>
     <div class="modal-actions">
       <button class="btn btn-line" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" onclick="act('saveWorkFromIdea','${encId(id)}')">记入作品库并标记已发布</button>
@@ -1915,7 +1981,7 @@ function saveWorkFromIdea(ideaId){
   const tags=get('f_tags').split(',').map(s=>s.trim()).filter(Boolean);
   const rec={ id:uid(), collection:get('f_col')||'碎语', title:get('f_title').trim(), text:get('f_text').trim(),
     form:get('f_form')||'视频', date:get('f_date'), duration:get('f_dur').trim(), bgm:get('f_bgm').trim(),
-    platforms:plats, tags, metrics:collectPlatMetrics(plats), createdAt:Date.now() };
+    platforms:plats, tags, metrics:(syncMetricsInputsToDraft(), collectPlatMetrics(plats)), createdAt:Date.now() };
   summarizeToMain(rec);
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
