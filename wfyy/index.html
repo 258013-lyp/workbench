@@ -185,6 +185,9 @@
   .mc-head.open .mc-arrow{transform:rotate(90deg)}
   .mc-body{padding:10px 12px}
   .chip-wait{background:#fff3e0;color:#b26a00;border-color:#ffe1b0}
+  .src-prev{font-size:12.5px;color:var(--ink);background:#f4f1fb;border:1px solid #e4def4;border-left:3px solid var(--primary);border-radius:8px;padding:8px 10px;margin:2px 0 4px;line-height:1.55;word-break:break-word}
+  .src-prev b{color:#5b3fa3;font-weight:600}
+  .chip-origin{background:#f1edfb;color:#6a4fb0;border-color:#e2d8f3}
   .metric-wait{font-size:12px;color:var(--ink2);padding:8px 0 2px}
   .hot-focus-intro{font-size:12.5px;color:var(--ink);background:var(--primary-soft);border:1px solid #dfe3f5;border-radius:10px;padding:7px 10px;margin:0 0 8px;line-height:1.5}
   .hot-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
@@ -980,6 +983,10 @@ function renderWorks(){
     const hasD=workHasData(w);
     const covChip = pc>=PLATFORMS.length ? `<span class="chip chip-cov-all">🌐 全平台✓</span>` : `<span class="chip chip-cov-part">${pc}/${PLATFORMS.length} 平台</span>`;
     const isHit = q && ((w.title||'').toLowerCase().includes(q)||(w.tags||[]).join(' ').toLowerCase().includes(q));
+    const originHtml = w.origin ? (w.origin.kind==='material'
+        ? `<span class="chip chip-origin">📎 素材：${esc((w.origin.content||'').slice(0,18))}${w.origin.author?` · ${esc(w.origin.author)}`:''}</span>`
+        : `<span class="chip chip-origin">💡 灵感：${esc((w.origin.content||'').slice(0,18))}</span>`)
+      : '';
     const dSafe = esc(w.date||'—');
     const dateHtml = isHit? `<span class="chip chip-date" style="background:var(--red-soft);color:var(--red)">📅 ${dSafe}</span>` : `<span class="chip chip-date">${dSafe}</span>`;
     return `<div class="item">
@@ -990,6 +997,7 @@ function renderWorks(){
       <div class="item-sub">${esc(w.text)}</div>
       <div class="item-meta">
         ${covChip}
+        ${originHtml}
         ${hasD?'':`<span class="chip chip-wait">⏳ 待回填</span>`}
         <span class="chip">${esc(w.form||'—')}</span>
         ${(w.platforms||[]).map(p=>`<span class="chip chip-plat">${esc(p)}</span>`).join('')}
@@ -1391,6 +1399,7 @@ function renderMaterials(){
         ${m.used?`<span class="st st-3">${m.pubAll?'全平台作品🌐':'已发作品'}</span>`:`<span class="st st-0">未用</span>`}
       </div>
       ${m.author?`<div class="item-sub">出处：${esc(m.author)}</div>`:''}
+      ${(()=>{ const lw=safeArr(state.works).filter(x=>x.origin&&x.origin.kind==='material'&&x.origin.refId===m.id); return lw.length?`<div class="item-sub" style="color:#6a4fb0">→ 已发作品：${lw.map(x=>esc(x.title)).join(' / ')}</div>`:''; })()}
       <div class="item-meta">
         <span class="chip" style="${typeCls}">${m.type||'素材'}</span>
         ${(m.tags||[]).map(t=>`<span class="chip chip-tag">#${esc(t)}</span>`).join('')}
@@ -1482,8 +1491,9 @@ function publishFromMaterial(id){
     ${state.activeCol?`<div class="banner" style="margin-bottom:10px">🎯 本轮发布合集：${colOf(state.activeCol).name} · 将全平台同步发布</div>`:''}
     <div class="warn-box" id="dupWarn"></div>
     <div class="field"><label>所属合集</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(state.activeCol||m.collection)}</select></div>
-    <div class="field"><label>标题 / 文案主题</label><input id="f_title" value="${esc(m.content)}" oninput="liveDupCheck()"></div>
-    <div class="field"><label>文案 / 简介</label><textarea id="f_text" placeholder="补充视频旁白或文案…">${m.author?esc('出处：'+m.author):''}</textarea></div>
+    <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：一蓑烟雨任平生 · 苏轼的豁达" oninput="liveDupCheck()"></div>
+    <div class="src-prev">📎 素材来源：原文「<b>${esc(m.content)}</b>」${m.author?` · 出处「<b>${esc(m.author)}</b>」`:''}${m.type?` · 类型「${esc(m.type)}」`:''}</div>
+    <div class="field"><label>文案 / 简介（已带入素材原文与出处，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…">${esc((m.content||'')+(m.author?'\n（出处：'+m.author+'）':''))}</textarea></div>
     <div class="row2">
       <div class="field"><label>形式</label><select id="f_form"><option value="视频" selected>视频</option><option value="图文">图文</option></select></div>
       <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${todayStr()}"></div>
@@ -1513,6 +1523,7 @@ function saveWorkFromMaterial(matId){
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
   const m=state.materials.find(x=>x.id===matId); if(m){ m.used=true; m.pubAll = plats.length>=PLATFORMS.length; }
+  rec.origin = m? {kind:'material', refId:matId, content:m.content, author:m.author, type:m.type} : null;
   syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderMaterials(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 
@@ -1908,7 +1919,7 @@ function saveWork(){
   if(!rec.title){ alert('请填写标题'); return; }
   const eid = editing && editing.id ? editing.id : null;
   const idx = eid ? state.works.findIndex(x=>x && x.id===eid) : -1;
-  if(idx>=0){ state.works[idx]={...state.works[idx],...rec}; }
+  if(idx>=0){ rec.origin = (state.works[idx] && state.works[idx].origin) || null; state.works[idx]={...state.works[idx],...rec}; }
   else { rec.id = eid || uid(); rec.createdAt=Date.now(); state.works.unshift(rec); }
   syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
@@ -1958,8 +1969,9 @@ function publishFromIdea(id){
     ${state.activeCol?`<div class="banner" style="margin-bottom:10px">🎯 本轮发布合集：${colOf(state.activeCol).name} · 将全平台同步发布</div>`:''}
     <div class="warn-box" id="dupWarn"></div>
     <div class="field"><label>所属合集</label><select id="f_col" onchange="refreshTagSuggest()">${colOptions(state.activeCol||it.collection)}</select></div>
-    <div class="field"><label>标题 / 文案主题</label><input id="f_title" value="${esc(it.content)}" oninput="liveDupCheck()"></div>
-    <div class="field"><label>文案 / 简介</label><textarea id="f_text" placeholder="补充视频旁白或文案…"></textarea></div>
+    <div class="field"><label>标题 / 文案主题（给发布的视频或图文起一个标题）</label><input id="f_title" value="" placeholder="如：深夜的城市灯火，也是一种陪伴" oninput="liveDupCheck()"></div>
+    <div class="src-prev">💡 灵感来源：<b>${esc(it.content)}</b>${it.source?` · 来源「<b>${esc(it.source)}</b>」`:''}</div>
+    <div class="field"><label>文案 / 简介（已带入灵感内容，可补充旁白）</label><textarea id="f_text" placeholder="补充视频旁白或文案…">${esc(it.content)}</textarea></div>
     <div class="row2">
       <div class="field"><label>形式</label><select id="f_form"><option value="视频" selected>视频</option><option value="图文">图文</option></select></div>
       <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${todayStr()}"></div>
@@ -1989,6 +2001,7 @@ function saveWorkFromIdea(ideaId){
   if(!rec.title){ alert('请填写标题'); return; }
   state.works.unshift(rec);
   const it=state.ideas.find(x=>x && x.id===ideaId); if(it){ it.status=3; }
+  rec.origin = it? {kind:'idea', refId:ideaId, content:it.content, source:it.source} : null;
   syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderIdeas(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 
