@@ -585,35 +585,59 @@ const SEED_SHIJIAN = [
   {name:'念奴娇·赤壁怀古',author:'苏轼',dynasty:'宋',line:'大江东去，浪淘尽，千古风流人物'},
   {name:'虞美人',author:'李煜',dynasty:'南唐',line:'问君能有几多愁？恰似一江春水向东流'}
 ];
+/* 晚风映言 · 实时参考池（联网优先：按实时热词 / 我的文案主题命中 themes 选取；无命中则按日轮换，保证联网即有实时参考） */
 const SEED_YINGYAN = [
-  {name:'肖申克的救赎',type:'电影',line:'希望让人自由。',role:'安迪',actor:'蒂姆·罗宾斯'},
-  {name:'阿甘正传',type:'电影',line:'生活就像一盒巧克力，你永远不知道下一颗是什么味道。',role:'阿甘',actor:'汤姆·汉克斯'},
-  {name:'泰坦尼克号',type:'电影',line:'你跳，我也跳。',role:'杰克',actor:'莱昂纳多·迪卡普里奥'},
-  {name:'霸王别姬',type:'电影',line:'不疯魔，不成活。',role:'程蝶衣',actor:'张国荣'},
-  {name:'这个杀手不太冷',type:'电影',line:'人生总是这么痛苦吗，还是只有小时候是这样？',role:'玛蒂尔达',actor:'娜塔莉·波特曼'},
-  {name:'大话西游之大圣娶亲',type:'电影',line:'曾经有一份真挚的感情摆在我面前，我没有珍惜……',role:'至尊宝',actor:'周星驰'},
-  {name:'甄嬛传',type:'电视剧',line:'臣妾做不到啊。',role:'甄嬛',actor:'孙俪'},
-  {name:'亮剑',type:'电视剧',line:'面对强大的对手，明知不敌，也要毅然亮剑。',role:'李云龙',actor:'李幼斌'},
-  {name:'知否知否应是绿肥红瘦',type:'电视剧',line:'父母之爱子，则为之计深远。',role:'盛老太太',actor:'曹翠芬'},
-  {name:'庆余年',type:'电视剧',line:'人生在世，富贵不可尽倚，贫贱不可尽欺。',role:'范闲',actor:'张若昀'},
-  {name:'请回答1988',type:'电视剧',line:'爸爸我也不是一生下来就是爸爸，爸爸也是头一次当爸爸。',role:'德善爸爸',actor:'成东日'},
-  {name:'回家的诱惑',type:'电视剧',line:'你好骚啊。',role:'洪世贤',actor:'凌潇肃'}
+  {name:'肖申克的救赎',type:'电影',line:'希望让人自由。',role:'安迪',actor:'蒂姆·罗宾斯',themes:['希望','自由','坚持','逆境','越狱','牢狱']},
+  {name:'阿甘正传',type:'电影',line:'生活就像一盒巧克力，你永远不知道下一颗是什么味道。',role:'阿甘',actor:'汤姆·汉克斯',themes:['人生','命运','纯真','奔跑','巧合']},
+  {name:'泰坦尼克号',type:'电影',line:'你跳，我也跳。',role:'杰克',actor:'莱昂纳多·迪卡普里奥',themes:['爱情','生死','海洋','牺牲','遇见']},
+  {name:'霸王别姬',type:'电影',line:'不疯魔，不成活。',role:'程蝶衣',actor:'张国荣',themes:['戏梦','执念','时代','京剧','痴情']},
+  {name:'这个杀手不太冷',type:'电影',line:'人生总是这么痛苦吗，还是只有小时候是这样？',role:'玛蒂尔达',actor:'娜塔莉·波特曼',themes:['孤独','童年','温柔','杀手里昂','陪伴']},
+  {name:'大话西游之大圣娶亲',type:'电影',line:'曾经有一份真挚的感情摆在我面前，我没有珍惜……',role:'至尊宝',actor:'周星驰',themes:['暗恋','遗憾','错过','至尊宝','时光']},
+  {name:'甄嬛传',type:'电视剧',line:'臣妾做不到啊。',role:'甄嬛',actor:'孙俪',themes:['宫廷','权谋','女性','宫斗','清醒']},
+  {name:'亮剑',type:'电视剧',line:'面对强大的对手，明知不敌，也要毅然亮剑。',role:'李云龙',actor:'李幼斌',themes:['勇气','军人','不服','亮剑','血性']},
+  {name:'知否知否应是绿肥红瘦',type:'电视剧',line:'父母之爱子，则为之计深远。',role:'盛老太太',actor:'曹翠芬',themes:['亲情','父母','家风','女子','成长']},
+  {name:'庆余年',type:'电视剧',line:'人生在世，富贵不可尽倚，贫贱不可尽欺。',role:'范闲',actor:'张若昀',themes:['权谋','逆袭','家国','穿越','聪明']},
+  {name:'请回答1988',type:'电视剧',line:'爸爸我也不是一生下来就是爸爸，爸爸也是头一次当爸爸。',role:'德善爸爸',actor:'成东日',themes:['亲情','父爱','邻里','青春','友情']},
+  {name:'回家的诱惑',type:'电视剧',line:'你好骚啊。',role:'洪世贤',actor:'凌潇肃',themes:['出轨','婚姻','渣男','原配','狗血']},
+  {name:'海上钢琴师',type:'电影',line:'我们笑着说再见，却深知再见遥遥无期。',role:'1900',actor:'蒂姆·罗斯',themes:['告别','孤独','远行','钢琴','海上']},
+  {name:'情书',type:'电影',line:'你好吗？我很好。',role:'渡边博子',actor:'中山美穗',themes:['暗恋','思念','初恋','信','怀念']},
+  {name:'千与千寻',type:'电影',line:'不要忘记自己的名字。',role:'千寻',actor:'柊瑠美',themes:['成长','勇气','迷失','名字','奇幻']},
+  {name:'当幸福来敲门',type:'电影',line:'如果你有梦想，就要去捍卫它。',role:'克里斯',actor:'威尔·史密斯',themes:['梦想','奋斗','父爱','贫穷','坚持']},
+  {name:'楚门的世界',type:'电影',line:'如果再见不到你，祝你早午晚都安。',role:'楚门',actor:'金·凯瑞',themes:['自由','真实','觉醒','逃离','自我']},
+  {name:'美丽人生',type:'电影',line:'早安，公主。',role:'圭多',actor:'罗伯托·贝尼尼',themes:['父爱','乐观','战争','幽默','守护']},
+  {name:'星际穿越',type:'电影',line:'爱是唯一可以穿越时空的东西。',role:'库珀',actor:'马修·麦康纳',themes:['爱','时间','父女','科幻','思念']},
+  {name:'疯狂动物城',type:'电影',line:'在动物城，任何人都能成为任何想成为的人。',role:'朱迪',actor:'金妮弗·古德温',themes:['梦想','偏见','坚持','成长','平等']},
+  {name:'琅琊榜',type:'电视剧',line:'既然我活了下来，就不会白白活着。',role:'梅长苏',actor:'胡歌',themes:['复仇','家国','权谋','坚持','赤子']},
+  {name:'觉醒年代',type:'电视剧',line:'为世界进文明，为人类造幸福。',role:'李大钊',actor:'张桐',themes:['理想','青春','奋斗','家国','热血']},
+  {name:'狂飙',type:'电视剧',line:'告诉老默，我想吃鱼了。',role:'高启强',actor:'张颂文',themes:['人性','逆袭','时代','黑帮','命运']},
+  {name:'都挺好',type:'电视剧',line:'你们两个人，一个比一个自私。',role:'苏明玉',actor:'姚晨',themes:['原生家庭','亲情','独立','成长','和解']}
 ];
+/* 晚风留声 · 实时参考池（联网优先：实时热歌榜 + 按实时热词 / 我的文案主题命中 themes；失败则按日轮换兜底） */
 const SEED_LIUSHENG = [
-  {name:'晴天',singer:'周杰伦'},
-  {name:'稻香',singer:'周杰伦'},
-  {name:'平凡之路',singer:'朴树'},
-  {name:'成都',singer:'赵雷'},
-  {name:'后来',singer:'刘若英'},
-  {name:'起风了',singer:'买辣椒也用券'},
-  {name:'海阔天空',singer:'Beyond'},
-  {name:'光辉岁月',singer:'Beyond'},
-  {name:'演员',singer:'薛之谦'},
-  {name:'泡沫',singer:'邓紫棋'},
-  {name:'南山南',singer:'马頔'},
-  {name:'小幸运',singer:'田馥甄'},
-  {name:'理想三旬',singer:'陈鸿宇'},
-  {name:'夜空中最亮的星',singer:'逃跑计划'}
+  {name:'晴天',singer:'周杰伦',themes:['晴天','青春','校园','初恋','怀念','夏天']},
+  {name:'稻香',singer:'周杰伦',themes:['童年','家乡','治愈','简单','夏天','回忆']},
+  {name:'平凡之路',singer:'朴树',themes:['迷茫','前行','平凡','旅程','公路','迷茫']},
+  {name:'成都',singer:'赵雷',themes:['城市','离别','民谣','小酒馆','回忆','街头']},
+  {name:'后来',singer:'刘若英',themes:['遗憾','错过','青春','初恋','成长','眼泪']},
+  {name:'起风了',singer:'买辣椒也用券',themes:['青春','告别','梦想','风','迷茫','飞行']},
+  {name:'海阔天空',singer:'Beyond',themes:['自由','理想','坚持','摇滚','热血','远方']},
+  {name:'光辉岁月',singer:'Beyond',themes:['抗争','自由','理想','时代','和平','岁月']},
+  {name:'演员',singer:'薛之谦',themes:['爱情','伪装','心痛','分手','演戏','卑微']},
+  {name:'泡沫',singer:'邓紫棋',themes:['爱情','破碎','谎言','悲伤','华丽','易碎']},
+  {name:'南山南',singer:'马頔',themes:['南方','离别','孤独','民谣','冬天','北风']},
+  {name:'小幸运',singer:'田馥甄',themes:['青春','幸运','暗恋','校园','电影','年少']},
+  {name:'理想三旬',singer:'陈鸿宇',themes:['理想','民谣','远方','孤独','时间','漂泊']},
+  {name:'夜空中最亮的星',singer:'逃跑计划',themes:['希望','指引','孤独','梦想','星空','光亮']},
+  {name:'红豆',singer:'王菲',themes:['相思','爱情','温柔','离别','想念','入骨']},
+  {name:'平凡的一天',singer:'毛不易',themes:['日常','治愈','平凡','慢生活','温暖','安稳']},
+  {name:'孤勇者',singer:'陈奕迅',themes:['勇敢','孤独','抗争','暗夜','热血','不完美']},
+  {name:'岁月神偷',singer:'金玟岐',themes:['时间','青春','遗憾','回忆','流逝','偷走']},
+  {name:'消愁',singer:'毛不易',themes:['孤独','酒精','迷茫','青春','愁','八杯']},
+  {name:'光年之外',singer:'邓紫棋',themes:['爱','宇宙','科幻','热血','浪漫','浩瀚']},
+  {name:'路过人间',singer:'李宗盛',themes:['人生','豁达','通透','路过','感悟','玩笑']},
+  {name:'其实都没有',singer:'薛之谦',themes:['遗憾','假装','孤独','爱情','逞强','空荡']},
+  {name:'倔强',singer:'五月天',themes:['坚持','倔强','理想','不甘','青春','逆风']},
+  {name:'一生中最爱',singer:'谭咏麟',themes:['爱情','最爱','遗憾','深情','经典','怀念']}
 ];
 /* —— 各栏目选题句式模板（{{kw}} 会被实时热词替换；严格贴合栏目赛道与简介语气）—— */
 const COL_TOPIC_TPL = {
@@ -1315,13 +1339,14 @@ function renderHotTopics(){
   if(!list.length){
     cards='<div class="empty" style="flex:1 0 100%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><div>'+(state.activeCol?'「'+esc(colOf(state.activeCol).name)+'」栏目暂无热点选题，点「刷新」拉实时热点，或点上方栏目取消聚焦看全部':'还没有热点选题，点「刷新」拉取实时热点')+'</div></div>';
   } else {
-    list.slice(0,16).forEach((h,idx)=>{
+    list.slice(0,20).forEach((h,idx)=>{
       const c=colOf(h.col);
       const oi=state.hotTopics.indexOf(h);
-      const badge = h.seedRef ? '<span class="hot-ref">参考·离线</span>'
+      const badge = h.meta ? (h.live ? '<span class="hot-live">实时参考</span>' : '<span class="hot-ref">参考·离线</span>')
+                  : (h.seedRef ? '<span class="hot-ref">参考·离线</span>'
                   : (h.generated ? '<span class="hot-live">实时选题</span>'
                   : (h.source==='账号选题库' ? '<span class="hot-ref">参考·离线</span>'
-                  : (h.live ? '<span class="hot-live">实时</span>' : '')));
+                  : (h.live ? '<span class="hot-live">实时</span>' : ''))));
       cards+=`<div class="hot-card">
         <div class="hot-top"><span class="col-tag" style="background:${c.color}">${c.name}</span>${badge}${hotHitsMyTags(h)?'<span class="hot-hit">✍️ 命中你的文案</span>':''}</div>
         ${topicDisplay(h)}
@@ -1383,7 +1408,7 @@ function refreshHotTopics(){
   });
 }
 const HOT_TITLE_MAX=80, HOT_ANGLE_MAX=120, HOT_TAG_MAX=12;
-function applyLiveItems(items){
+async function applyLiveItems(items){
   /* 清洗：兼容「{t,plat}」旧格式与「{title,col,plat,angle,tag}」托管格式；剔除空/非法、压缩空白、截断、去重 */
   const seen=new Set();
   const clean=(Array.isArray(items)?items:[]).map(it=>{
@@ -1415,17 +1440,39 @@ function applyLiveItems(items){
       source:'热点库·'+(it.plat||''), live:true, fetchedAt:now
     };
   });
-  /* 用实时热词 × 各栏目赛道，生成严格对口的选题（联网为主 · 每刷新鲜） */
+  /* 用实时热词 × 各栏目赛道，生成严格对口的选题（联网为主 · 每刷新鲜）—— 非结构化栏目 */
   let generated=[];
-  COLLECTIONS.forEach(c=>{ generated = generated.concat(genColTopics(c.key, items, 6, colTopicRot)); });
-  /* live 优先：本轮实时（raw+生成）替换旧 live；本地种子仅作离线参考兜底，置于末尾 */
-  const localRef = safeArr(state.hotTopics).filter(h=> !h.live && !h.generated && h.title);
-  state.hotTopics = mapped.concat(generated).concat(localRef).slice(0,64);
+  COLLECTIONS.forEach(c=>{ if(!STRUCTURED_COLS.has(c.key)) generated = generated.concat(genColTopics(c.key, items, 4, colTopicRot)); });
+  /* 实时参考：三栏结构化选题（联网即拉取真实诗词/台词/歌曲，标「实时参考」浮前；离线则退回种子参考） */
+  const selfTags=(state.tagPool||[]).filter(x=>x.self).map(x=>x.tag);
+  let livePoems=[], liveQuotes=[], liveSongs=[];
+  try{
+    [livePoems, liveQuotes, liveSongs] = await Promise.all([
+      fetchLivePoems(6).catch(()=>[]),
+      Promise.resolve(fetchLiveQuotes(items, selfTags)),
+      fetchLiveSongs(6, items, selfTags).catch(()=>[])
+    ]);
+  }catch(e){ console.warn('[live] 结构化实时参考获取异常：', e&&e.message); }
+  const cS=colOf('诗笺'), cY=colOf('映言'), cL=colOf('留声');
+  const liveStruct=[];
+  (livePoems||[]).forEach(p=> liveStruct.push(makeStructTopic('诗笺',cS,p,now,true)));
+  (liveQuotes||[]).forEach(q=> liveStruct.push(makeStructTopic('映言',cY,q,now,true)));
+  (liveSongs||[]).forEach(s=> liveStruct.push(makeStructTopic('留声',cL,s,now,true)));
+  /* 离线种子兜底：仅当某栏无实时参考时才补种子（保证离线/失败仍可见，标「参考·离线」） */
+  const offlineStruct=[];
+  STRUCTURED_COLS.forEach(col=>{
+    if(!liveStruct.some(h=>h.col===col)){
+      (COL_TOPIC_TPL[col]||[]).forEach(s=> offlineStruct.push(makeStructTopic(col, colOf(col), s, now, false)));
+    }
+  });
+  /* 非结构化离线参考库（账号选题库）保留在末尾 */
+  const localRef = safeArr(state.hotTopics).filter(h=> !h.live && !h.generated && !STRUCTURED_COLS.has(h.col) && h.title);
+  const head = mapped.slice(0,6);
+  state.hotTopics = head.concat(liveStruct).concat(generated).concat(localRef).concat(mapped.slice(6)).concat(offlineStruct).slice(0,64);
   /* 标签池：优先用热点自带 tag，否则从标题提炼 */
   syncTagPoolFromHot(items.map(it=> it.tag || it.t), now);
   save(); renderHotTopics(); recomputeSelfHit(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
-  enrichStructuredLive();
-  if(!silentLive) flashToast('已更新 '+mapped.length+' 条实时热点 + '+generated.length+' 条栏目选题');
+  if(!silentLive) flashToast('已更新 '+mapped.length+' 条实时热点 + '+generated.length+' 条栏目选题 + '+liveStruct.length+' 条实时参考');
 }
 function btnReset(){
   const btn=document.getElementById('hotRefresh');
@@ -1508,32 +1555,106 @@ function buildStructuredTopics(colKey, liveItems, maxN, rot){
   return liveTopics.concat(fill).slice(0, Math.max(1, maxN||6));
 }
 
-/* 联网优先 - 晚风诗笺：尝试拉取实时诗词（失败静默，不影响种子参考） */
-async function enrichStructuredLive(){
-  if(!colOf('诗笺')) return;
-  if(typeof fetch!=='function') return;
+/* ============ 三栏结构化选题 · 实时参考数据源（联网优先，离线/失败退回种子） ============ */
+/* 晚风诗笺：拉取实时诗词（每次刷新随机新诗，联网即为实时参考） */
+async function fetchLivePoems(n){
+  n=n||6;
+  if(typeof fetch!=='function') return [];
+  const one=()=>{ try{ return withTimeout(fetch('https://api.gushi.ci/all.json',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null),5000); }catch(e){ return Promise.resolve(null); } };
+  const rs=await Promise.all(Array.from({length:n},()=>one().catch(()=>null)));
+  const seen=new Set(); const out=[];
+  rs.forEach(d=>{ if(!d||!d.content) return; const line=String(d.content).split('\n')[0].trim(); if(!line) return; const name=(d.origin||'').replace(/\s+/g,' ').trim()||'诗词'; const key=name+'|'+line; if(seen.has(key)) return; seen.add(key); out.push({name:name, author:d.author||'', dynasty:d.dynasty||'', line:line}); });
+  return out;
+}
+/* 晚风映言：实时热词 / 我的文案主题 命中影视台词池（联网即随热点变化）；无命中则按日轮换保证有实时参考 */
+function fetchLiveQuotes(items, selfTags){
+  const pool=SEED_YINGYAN; if(!pool||!pool.length) return [];
+  const texts=(items||[]).map(x=>String((x&&(x.t||x.title))||'')).concat(selfTags||[]).filter(Boolean);
+  const hits=[]; const seen=new Set();
+  for(const txt of texts){
+    for(const q of pool){
+      if(seen.has(q.name)) continue;
+      if(q.themes && q.themes.some(t=> txt.indexOf(t)>=0)){ hits.push(q); seen.add(q.name); }
+      else if(txt.indexOf(q.name)>=0 || (q.actor&&txt.indexOf(q.actor)>=0)){ hits.push(q); seen.add(q.name); }
+    }
+  }
+  if(hits.length<3){
+    const dayIdx=Math.floor(Date.now()/86400000);
+    for(let i=0; i<pool.length && hits.length<3; i++){ const q=pool[(dayIdx+i)%pool.length]; if(!seen.has(q.name)){ hits.push(q); seen.add(q.name); } }
+  }
+  return hits.slice(0,6);
+}
+/* 晚风留声：实时热歌榜（多源竞速）+ 热词/主题命中歌单池；失败则退回主题/轮换 */
+async function fetchLiveSongs(n, items, selfTags){
+  n=n||6;
+  const apiSongs=await fetchHotSongs(n).catch(()=>[]);
+  const pool=SEED_LIUSHENG;
+  const texts=(items||[]).map(x=>String((x&&(x.t||x.title))||'')).concat(selfTags||[]).filter(Boolean);
+  const matched=[]; const seen=new Set((apiSongs||[]).map(s=>s&&s.name));
+  (apiSongs||[]).forEach(s=>{ if(s&&s.name) matched.push(s); });
+  if(matched.length<n && pool){
+    for(const txt of texts){
+      for(const s of pool){
+        if(seen.has(s.name)) continue;
+        if(s.themes && s.themes.some(t=> txt.indexOf(t)>=0)){ matched.push(s); seen.add(s.name); }
+        else if(txt.indexOf(s.name)>=0 || txt.indexOf(s.singer)>=0){ matched.push(s); seen.add(s.name); }
+        if(matched.length>=n) break;
+      }
+      if(matched.length>=n) break;
+    }
+  }
+  if(matched.length<n && pool){
+    const dayIdx=Math.floor(Date.now()/86400000); let k=0;
+    while(matched.length<n && k<pool.length){ const s=pool[(dayIdx+k)%pool.length]; if(!seen.has(s.name)){ matched.push(s); seen.add(s.name); } k++; }
+  }
+  return matched.slice(0,n);
+}
+/* 多源竞速拉取实时热歌（任一可用即返回；全部失败返回 []） */
+async function fetchHotSongs(n){
+  if(typeof fetch!=='function') return [];
+  const sources=[
+    ()=> fetch('https://api.vvhan.com/api/wyMusicHot',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null),
+    ()=> fetch('https://api.oioweb.cn/api/common/HotList?type=2',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null)
+  ];
+  for(const src of sources){
+    try{ const d=await withTimeout(src(),5000); const arr=normalizeSongs(d); if(arr&&arr.length) return arr.slice(0,n||6); }catch(e){}
+  }
+  return [];
+}
+function normalizeSongs(d){
+  if(!d) return [];
+  let raw=[];
+  if(Array.isArray(d.data)) raw=d.data;
+  else if(d.data&&Array.isArray(d.data.list)) raw=d.data.list;
+  else if(d.data&&Array.isArray(d.data.result)) raw=d.data.result;
+  else if(Array.isArray(d)) raw=d;
+  return raw.map(x=>{ if(!x||typeof x!=='object') return null;
+    const name=x.name||x.title||x.song||x.songname||'';
+    let singer=x.singer||x.artist||x.author||x.artists||x.singers||'';
+    singer=Array.isArray(singer)?singer.join('/'):String(singer||'');
+    if(!name) return null;
+    return {name:String(name).slice(0,40), singer:singer.slice(0,40)};
+  }).filter(Boolean).slice(0,12);
+}
+/* 聚焦某结构化栏目时「↻ 本栏换一批」：重新拉取该栏实时参考（失败退回种子） */
+async function refreshStructuredCol(colKey){
+  const now=Date.now(); const c=colOf(colKey); if(!c) return;
+  const selfTags=(state.tagPool||[]).filter(x=>x.self).map(x=>x.tag);
+  let items=[];
   try{
-    const c = colOf('诗笺');
-    const ctrl = (typeof AbortController==='function') ? new AbortController() : null;
-    const to = ctrl ? setTimeout(()=>{ try{ctrl.abort();}catch(e){} }, 4000) : null;
-    const r = await fetch('https://api.gushi.ci/all.json', {cache:'no-store', signal: ctrl?ctrl.signal:undefined});
-    if(to) clearTimeout(to);
-    if(!r || !r.ok) return;
-    const d = await r.json();
-    if(!d || !d.content) return;
-    const name = (d.origin||'').replace(/\s+/g,' ').trim() || '诗词';
-    const line = String(d.content).split('\n')[0].trim();
-    if(!line) return;
-    const seed = {name:name, author:d.author||'', dynasty:d.dynasty||'', line:line};
-    const now=Date.now();
-    const t = makeStructTopic('诗笺', c, seed, now, true);
-    t.source='实时·晚风诗笺';
-    state.hotTopics = [t].concat(safeArr(state.hotTopics).filter(h=> !(h.meta && h.meta.kind==='诗笺' && h.source==='实时·晚风诗笺')));
-    save(); renderHotTopics();
-  }catch(e){ /* 静默：联网失败不影响种子参考 */ }
+    if(colKey==='诗笺') items=await fetchLivePoems(6).catch(()=>[]);
+    else if(colKey==='映言') items=fetchLiveQuotes(LAST_LIVE_ITEMS, selfTags);
+    else if(colKey==='留声') items=await fetchLiveSongs(6, LAST_LIVE_ITEMS, selfTags).catch(()=>[]);
+  }catch(e){}
+  let cards=items.map(s=> makeStructTopic(colKey,c,s,now,true));
+  if(!cards.length){ (COL_TOPIC_TPL[colKey]||[]).forEach(s=> cards.push(makeStructTopic(colKey,c,s,now,false))); }
+  state.hotTopics = safeArr(state.hotTopics).filter(h=> !(h.col===colKey && h.meta)).concat(cards);
+  save(); renderHotTopics();
+  flashToast('已换一批「'+c.name+'」实时参考');
 }
 /* 聚焦某栏时「↻ 本栏换一批」：复用最近实时热词，按偏移生成不同句式的该栏选题 */
 function refreshColTopics(colKey){
+  if(STRUCTURED_COLS.has(colKey)){ refreshStructuredCol(colKey); return; }
   colTopicRot = (colTopicRot+1) % 101;
   const src = LAST_LIVE_ITEMS.length ? LAST_LIVE_ITEMS : safeArr(state.hotTopics).filter(h=>h.live && !h.generated).map(h=>({t:h.title}));
   const gen = genColTopics(colKey, src, 6, colTopicRot);
