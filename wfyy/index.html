@@ -349,6 +349,14 @@
 .cal-item .ci-main{flex:1;min-width:0}
 .cal-item .ci-title{font-size:14px;font-weight:600;color:var(--ink);word-break:break-word;line-height:1.4}
 .cal-item .ci-sub{font-size:12px;color:var(--ink2);margin-top:3px}
+.tab-badge{display:none;min-width:18px;height:18px;padding:0 5px;margin-left:3px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;line-height:1}
+/* 日历详情快捷操作 */
+.cal-detail-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.cal-detail-acts .mini{flex:1;min-width:120px;justify-content:center}
+.cal-jump{display:flex;gap:8px;margin-top:10px}
+.cal-jump .mini{flex:1;justify-content:center}
+.empty-cell-add{display:flex;gap:8px;margin-top:10px}
+.empty-cell-add .mini{flex:1;justify-content:center}
 </style>
 </head>
 <body>
@@ -418,7 +426,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>数据看板
     </button>
     <button class="tab" data-tab="calendar" onclick="switchTab('calendar')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>内容日历
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>内容日历<span class="tab-badge" id="calBadge"></span>
     </button>
   </nav>
 
@@ -902,6 +910,7 @@ function load(){
   if(!state.hotTopics || !state.hotTopics.length) state.hotTopics = HOT_SEED();
   if(!state.tagPool || !state.tagPool.length) state.tagPool = TAG_SEED();
   if(state.activeCol===undefined) state.activeCol=null;
+  if(state.dateFilter===undefined) state.dateFilter=null;
   if(!state.tagUpdated) state.tagUpdated=null;
   if(fromLocal || (window.__INITIAL__ && window.__INITIAL__.state)){ try{ save(); }catch(e){} } /* 本地版首开：内联数据落盘 */
   maybeAutoPushHot(); /* 每天首次打开：自动把当日热点推回仓库（静默降级） */
@@ -1008,6 +1017,7 @@ function renderWorks(){
   if(pf==='__ALL__') list=list.filter(w=>(w.platforms||[]).length>=PLATFORMS.length);
   else if(pf==='__PART__') list=list.filter(w=>(w.platforms||[]).length>0 && (w.platforms||[]).length<PLATFORMS.length);
   else if(pf) list=list.filter(w=>(w.platforms||[]).includes(pf));
+  if(state.dateFilter) list=list.filter(w=>w.date===state.dateFilter);
   if(q){
     list=list.filter(w=>
       (w.title||'').toLowerCase().includes(q) ||
@@ -1019,13 +1029,14 @@ function renderWorks(){
   list.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
   const box=document.getElementById('workList');
   if(!box) return;
+  const dfBanner = state.dateFilter ? '<div class="banner" style="cursor:pointer;margin-bottom:10px" onclick="clearDateFilter()">📅 正在按日期筛选：'+esc(state.dateFilter)+' · 点此清除</div>' : '';
   if(!list.length){
-    box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><div>'+(q?'没有匹配的作品':'还没有记录作品，点「记作品」开始')+'</div></div>';
+    box.innerHTML=dfBanner+'<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><div>'+(state.dateFilter?'该日期没有发布作品':(q?'没有匹配的作品':'还没有记录作品，点「记作品」开始'))+'</div></div>';
     return;
   }
   const pending = list.filter(w=>!workHasData(w)).length;
   const pendingHtml = pending? `<div class="banner" style="margin-bottom:10px">⏳ ${pending} 个已发布作品数据待回填 · 去各平台后台看一眼，点卡片「回填数据」即可（看板只汇总已回填作品）</div>` : '';
-  box.innerHTML = pendingHtml + list.map(w=>{
+  box.innerHTML = dfBanner + pendingHtml + list.map(w=>{
     const c=colOf(w.collection);
     const pc=(w.platforms||[]).length;
     const hasD=workHasData(w);
@@ -1060,6 +1071,7 @@ function renderWorks(){
         <button class="mini" onclick="act('openWorkModal','${encId(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16 4l4 4-11 11-4 1 1-4z"/></svg>编辑</button>
         <button class="mini" onclick="act('openFillMetrics','${encId(w.id)}')">回填数据</button>
         <button class="mini" onclick="act('delWork','${encId(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>删除</button>
+        ${w.date?`<button class="mini" onclick="jumpToCalendar('${esc(w.date)}')">📅 日历</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -1118,15 +1130,17 @@ function renderIdeas(){
   let list=state.ideas.slice();
   if(sf!=='') list=list.filter(i=>String(i.status)===sf);
   if(q) list=list.filter(i=>(i.content||'').toLowerCase().includes(q)||(i.tags||[]).join(' ').toLowerCase().includes(q));
+  if(state.dateFilter) list=list.filter(i=>i.planDate===state.dateFilter);
   list.sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
   if(state.activeCol) list=list.filter(i=>i.collection===state.activeCol);
   const box=document.getElementById('ideaList');
+  const dfBanner = state.dateFilter ? '<div class="banner" style="cursor:pointer;margin-bottom:10px" onclick="clearDateFilter()">📅 正在按日期筛选：'+esc(state.dateFilter)+' · 点此清除</div>' : '';
   const focusHtml = state.activeCol? `<div class="banner" style="cursor:pointer" onclick="clearActiveCol()">🎯 本轮聚焦：${colOf(state.activeCol).name} · 点此取消聚焦</div>`:'';
   if(!list.length){
-    box.innerHTML=focusHtml+'<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg><div>'+(state.activeCol?'本轮聚焦的合集下还没有灵感，去别的合集找找或取消聚焦':'还没有灵感，点「记灵感」随手存一个念头')+'</div></div>';
+    box.innerHTML=dfBanner+focusHtml+'<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg><div>'+(state.dateFilter?'该日期没有排期灵感':(state.activeCol?'本轮聚焦的合集下还没有灵感，去别的合集找找或取消聚焦':'还没有灵感，点「记灵感」随手存一个念头'))+'</div></div>';
     return;
   }
-  box.innerHTML=focusHtml+list.map(i=>{
+  box.innerHTML=dfBanner+focusHtml+list.map(i=>{
     const c=colOf(i.collection);
     const overdue = i.status!==3 && i.planDate && i.planDate < todayStr();
     return `<div class="item">
@@ -1145,6 +1159,7 @@ function renderIdeas(){
         <button class="mini" onclick="act('advanceStatus','${encId(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>推进</button>
         ${i.status!==3?`<button class="mini" onclick="act('publishFromIdea','${encId(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>发布</button>`:''}
         <button class="mini" onclick="act('delIdea','${encId(i.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>删除</button>
+        ${i.planDate?`<button class="mini" onclick="jumpToCalendar('${esc(i.planDate)}')">📅 日历</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -1835,6 +1850,14 @@ let calSel = null;
 function calGo(delta){ const [y,m]=calMonth.split('-').map(Number); let nm=m+delta, ny=y; while(nm<1){nm+=12;ny--;} while(nm>12){nm-=12;ny++;} calMonth=ny+'-'+String(nm).padStart(2,'0'); renderCalendar(); }
 function calToday(){ calMonth=todayStr().slice(0,7); calSel=null; renderCalendar(); }
 function calSelect(ds){ calSel=ds; renderCalendar(); }
+/* ===== 内容日历 ↔ 作品 / 灵感 双向联动 ===== */
+function jumpToCalendar(ds){ if(!ds) return; calMonth=ds.slice(0,7); calSel=ds; switchTab('calendar'); }
+function calViewWorks(ds){ state.dateFilter=ds; switchTab('works'); }
+function calViewIdeas(ds){ state.dateFilter=ds; switchTab('ideas'); }
+function clearDateFilter(){ state.dateFilter=null; if(curTab==='works') renderWorks(); else if(curTab==='ideas') renderIdeas(); else switchTab('works'); }
+function calNewIdea(ds){ openIdeaModal(null, ds); }
+function calNewWork(ds){ openWorkModal(null, ds); }
+function updateCalBadge(){ const b=document.getElementById('calBadge'); if(!b) return; const due=safeArr(state.ideas).filter(i=>i.status!==3 && i.planDate && i.planDate<=todayStr()).length; if(due>0){ b.textContent=due; b.style.display='inline-flex'; } else b.style.display='none'; }
 function wm0(w){ return dataPlat==='全部' ? mainMetrics(w) : getPlatMetrics(w,dataPlat); }
 function renderCalendar(){
   const box=document.getElementById('calendarBox'); if(!box) return;
@@ -1870,7 +1893,7 @@ function renderCalendar(){
     <div class="cal-grid-h">${dowNames}</div>
     <div class="cal-grid">${cells}</div>
     <div class="cal-legend"><span><i class="cal-b pub">📅</i> 已发布（作品日期）</span><span><i class="cal-b plan">📌</i> 待发布（灵感排期）</span></div>`;
-  renderCalDetail();
+  renderCalDetail(); updateCalBadge();
 }
 function renderCalDetail(){
   const box=document.getElementById('calDetail'); if(!box) return;
@@ -1878,10 +1901,13 @@ function renderCalDetail(){
   if(!ds){ box.innerHTML='<div class="cal-detail-empty">点上方日期，看当天已发布 / 待发布的作品清单</div>'; return; }
   const pubWorks=safeArr(state.works).filter(w=>w.date===ds);
   const planIdeas=safeArr(state.ideas).filter(i=>i.planDate===ds && i.status!==3);
-  if(!pubWorks.length && !planIdeas.length){ box.innerHTML=`<div class="cal-detail-empty">${esc(ds)} 暂无安排</div>`; return; }
   let html=`<div class="cal-detail-day">${esc(ds)}</div>`;
-  if(planIdeas.length){ html+='<div class="cal-sec">📌 待发布（'+planIdeas.length+'）</div>'+planIdeas.map(i=>`<div class="cal-item"><span class="badge badge-today">${colOf(i.collection).name}</span><div class="ci-main"><div class="ci-title">${esc(i.content)}</div><div class="ci-sub">${esc(STATUS[Number(i.status)]||'')} · 来源 ${esc(i.source||'—')}</div></div><button class="mini" onclick="act('publishFromIdea','${encId(i.id)}')">发布</button></div>`).join(''); }
-  if(pubWorks.length){ html+='<div class="cal-sec">📅 已发布（'+pubWorks.length+'）</div>'+pubWorks.map(w=>`<div class="cal-item"><span class="badge badge-done">${colOf(w.collection).name}</span><div class="ci-main"><div class="ci-title">${esc(w.title)}</div><div class="ci-sub">${fmt(wm0(w).plays)} 播放 · ${esc(w.date)}</div></div><button class="mini" onclick="act('openWorkModal','${encId(w.id)}')">查看</button></div>`).join(''); }
+  let sec='';
+  if(planIdeas.length){ sec+='<div class="cal-sec">📌 待发布（'+planIdeas.length+'）<button class="mini" style="float:right;min-height:30px" onclick="calViewIdeas(\''+ds+'\')">在灵感库查看 ›</button></div>'+planIdeas.map(i=>`<div class="cal-item"><span class="badge badge-today">${colOf(i.collection).name}</span><div class="ci-main"><div class="ci-title">${esc(i.content)}</div><div class="ci-sub">${esc(STATUS[Number(i.status)]||'')} · 来源 ${esc(i.source||'—')}</div></div><button class="mini" onclick="act('publishFromIdea','${encId(i.id)}')">发布</button></div>`).join(''); }
+  if(pubWorks.length){ sec+='<div class="cal-sec">📅 已发布（'+pubWorks.length+'）<button class="mini" style="float:right;min-height:30px" onclick="calViewWorks(\''+ds+'\')">在作品库查看 ›</button></div>'+pubWorks.map(w=>`<div class="cal-item"><span class="badge badge-done">${colOf(w.collection).name}</span><div class="ci-main"><div class="ci-title">${esc(w.title)}</div><div class="ci-sub">${fmt(wm0(w).plays)} 播放 · ${esc(w.date)}</div></div><button class="mini" onclick="act('openWorkModal','${encId(w.id)}')">查看</button></div>`).join(''); }
+  if(!sec){ sec=`<div class="cal-detail-empty">${esc(ds)} 暂无安排</div>`; }
+  html+=sec;
+  html+=`<div class="cal-jump"><button class="mini" onclick="calNewIdea('${ds}')">＋ 排期灵感</button><button class="mini" onclick="calNewWork('${ds}')">＋ 新建作品</button></div>`;
   box.innerHTML=html;
 }
 /* 标题候选 A/B（多平台打开率差很多，发布前挑最优） */
@@ -2041,7 +2067,7 @@ function saveFillMetrics(){
   flashToast('数据已回填，看板已更新');
 }
 
-function openWorkModal(id){
+function openWorkModal(id, prefillDate){
   const w = id? state.works.find(x=>x.id===id):null;
   let draft={};
   if(w){ if(w.metrics) draft=JSON.parse(JSON.stringify(w.metrics)); else (w.platforms||['抖音']).forEach(p=>{ draft[p]=getPlatMetrics(w,p); }); }
@@ -2056,7 +2082,7 @@ function openWorkModal(id){
     ${titleVariantsHTML(w)}
     <div class="row2">
       <div class="field"><label>形式</label><select id="f_form"><option value="视频" ${w&&w.form==='视频'?'selected':''}>视频</option><option value="图文" ${w&&w.form==='图文'?'selected':''}>图文</option></select></div>
-      <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${w?esc(w.date):todayStr()}"></div>
+      <div class="field"><label>发布日期</label><input id="f_date" type="date" value="${w?esc(w.date):(prefillDate||todayStr())}"></div>
     </div>
     <div class="row2">
       <div class="field"><label>时长（视频）</label><input id="f_dur" value="${w?esc(w.duration):''}" placeholder="如 1:05"></div>
@@ -2104,10 +2130,10 @@ function saveWork(){
   const idx = eid ? state.works.findIndex(x=>x && x.id===eid) : -1;
   if(idx>=0){ rec.origin = (state.works[idx] && state.works[idx].origin) || null; state.works[idx]={...state.works[idx],...rec}; }
   else { rec.id = eid || uid(); rec.createdAt=Date.now(); state.works.unshift(rec); }
-  syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
+  syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderToday(); renderData(); renderCalendar(); updateCalBadge(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 
-function openIdeaModal(id){
+function openIdeaModal(id, prefillDate){
   editing={type:'idea',id:id||null};
   const it=id? state.ideas.find(x=>x.id===id):null;
   const html=`
@@ -2118,7 +2144,7 @@ function openIdeaModal(id){
     <div class="field"><label>状态</label><select id="i_status">
       ${STATUS.map((s,i)=>`<option value="${i}" ${it&&it.status===i?'selected':''}>${s}</option>`).join('')}
     </select></div>
-    <div class="field"><label>计划发布日期（留空=未排期）</label><input id="i_plan" type="date" value="${it?it.planDate:''}"></div>
+    <div class="field"><label>计划发布日期（留空=未排期）</label><input id="i_plan" type="date" value="${it?it.planDate:(prefillDate||'')}"></div>
     <div class="field"><label>主题标签（逗号分隔）</label><input id="i_tags" value="${it?(it.tags||[]).join(', '):''}" placeholder="如：治愈, 城市"></div>
     <div class="modal-actions">
       <button class="btn btn-line" onclick="closeModal()">取消</button>
@@ -2136,12 +2162,12 @@ function saveIdea(){
   const idx = eid ? state.ideas.findIndex(x=>x && x.id===eid) : -1;
   if(idx>=0){ state.ideas[idx]={...state.ideas[idx],...rec}; }
   else { rec.id = eid || uid(); rec.createdAt=Date.now(); state.ideas.unshift(rec); }
-  syncTagPoolFromSelf(rec.content, '', rec.collection, rec.tags, Date.now()); save(); closeModal(); renderIdeas(); renderToday(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
+  syncTagPoolFromSelf(rec.content, '', rec.collection, rec.tags, Date.now()); save(); closeModal(); renderIdeas(); renderToday(); renderCalendar(); updateCalBadge(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 function advanceStatus(id){
   const it=state.ideas.find(x=>x.id===id); if(!it)return;
-  it.status=Math.min(3,it.status+1); if(it.status===2&&!it.planDate) it.planDate=todayStr();
-  save(); renderIdeas(); renderToday();
+  it.status=Math.min(3,it.status+1);   if(it.status===2&&!it.planDate) it.planDate=todayStr();
+  save(); renderIdeas(); renderToday(); renderCalendar(); updateCalBadge();
 }
 function publishFromIdea(id){
   const it=state.ideas.find(x=>x.id===id); if(!it)return;
@@ -2189,12 +2215,12 @@ function saveWorkFromIdea(ideaId){
   state.works.unshift(rec);
   const it=state.ideas.find(x=>x && x.id===ideaId); if(it){ it.status=3; }
   rec.origin = it? {kind:'idea', refId:ideaId, content:it.content, source:it.source} : null;
-  syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderIdeas(); renderToday(); renderData(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
+  syncTagPoolFromSelf(rec.title, rec.text, rec.collection, rec.tags, Date.now()); save(); closeModal(); renderWorks(); renderIdeas(); renderToday(); renderData(); renderCalendar(); updateCalBadge(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
 
 /* 删除 */
-function delWork(id){ if(!confirm('确定删除这条作品记录？'))return; state.works=safeArr(state.works).filter(w=>w.id!==id); save(); renderWorks(); renderToday(); renderData(); }
-function delIdea(id){ if(!confirm('确定删除这条灵感？'))return; state.ideas=safeArr(state.ideas).filter(i=>i.id!==id); save(); renderIdeas(); renderToday(); }
+function delWork(id){ if(!confirm('确定删除这条作品记录？'))return; state.works=safeArr(state.works).filter(w=>w.id!==id); save(); renderWorks(); renderToday(); renderData(); renderCalendar(); updateCalBadge(); }
+function delIdea(id){ if(!confirm('确定删除这条灵感？'))return; state.ideas=safeArr(state.ideas).filter(i=>i.id!==id); save(); renderIdeas(); renderToday(); renderCalendar(); updateCalBadge(); }
 
 /* 快速添加：根据当前 tab 打开对应弹窗 */
 function quickAdd(){ if(curTab==='ideas') openIdeaModal(); else if(curTab==='materials') openMaterialModal(); else openWorkModal(); }
