@@ -175,6 +175,9 @@
   .hot-track{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink2);background:#f3f5fb;border:1px solid #e2e6f2;border-radius:999px;padding:3px 9px;line-height:1.4}
   .hot-track b{color:var(--c);font-weight:700}
   .hot-track i{font-style:normal;opacity:.85}
+  .hot-track{cursor:default;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease,background .12s ease}
+  .hot-track:hover{transform:translateY(-1px);box-shadow:0 2px 8px rgba(40,50,90,.10)}
+  .hot-track.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,#fff);font-weight:600;box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 22%,transparent)}
   .hot-focus-intro{font-size:12.5px;color:var(--ink);background:var(--primary-soft);border:1px solid #dfe3f5;border-radius:10px;padding:7px 10px;margin:0 0 8px;line-height:1.5}
   .hot-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .hot-card{flex:0 0 auto;width:230px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
@@ -1079,23 +1082,29 @@ function renderIdeas(){
 function renderHotTopics(){
   const box=document.getElementById('hotTopics');
   if(!box) return;
-  const list = state.hotTopics || [];
+  let list = state.hotTopics || [];
+  if(state.activeCol) list = list.filter(h=>h.col===state.activeCol);
   const live = list.find(h=>h.live);
-  const note = live
-    ? ('已实时更新 · 精选库 + 实时热榜（'+new Date(live.fetchedAt).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'）')
-    : ('托管精选库（打开时自动从 GitHub/同域更新，也可点「刷新」）');
+  const note = state.activeCol
+    ? ('📂 当前只看「'+colOf(state.activeCol).name+'」栏目 · '+(live?('已实时更新（'+new Date(live.fetchedAt).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'）'):'托管精选库'))
+    : (live?('已实时更新 · 精选库 + 实时热榜（'+new Date(live.fetchedAt).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+'）'):('托管精选库（打开时自动从 GitHub/同域更新，也可点「刷新」）'));
   let cards='';
-  list.slice(0,12).forEach((h,idx)=>{
-    const c=colOf(h.col);
-    cards+=`<div class="hot-card">
-      <div class="hot-top"><span class="col-tag" style="background:${c.color}">${c.name}</span>${h.live?'<span class="hot-live">实时</span>':''}${hotHitsMyTags(h)?'<span class="hot-hit">✍️ 命中你的文案</span>':''}</div>
-      <div class="hot-title">${esc(h.title)}</div>
-      <div class="hot-angle">💡 ${esc(h.angle)}</div>
-      <button class="mini" style="margin-top:8px" onclick="hotToIdea(${idx})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>转灵感</button>
-    </div>`;
-  });
-  const trackStrip = COLLECTIONS.map(c=>`<span class="hot-track" style="--c:${c.color}"><b>${esc(c.name)}</b><i>${esc(c.desc)}</i></span>`).join('');
-  const focusIntro = state.activeCol ? `<div class="hot-focus-intro">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)}</div>` : '';
+  if(!list.length){
+    cards='<div class="empty" style="flex:1 0 100%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><div>'+(state.activeCol?'「'+esc(colOf(state.activeCol).name)+'」栏目暂无热点选题，点「刷新」拉实时热点，或点上方栏目取消聚焦看全部':'还没有热点选题，点「刷新」拉取实时热点')+'</div></div>';
+  } else {
+    list.slice(0,12).forEach((h,idx)=>{
+      const c=colOf(h.col);
+      const oi=state.hotTopics.indexOf(h);
+      cards+=`<div class="hot-card">
+        <div class="hot-top"><span class="col-tag" style="background:${c.color}">${c.name}</span>${h.live?'<span class="hot-live">实时</span>':''}${hotHitsMyTags(h)?'<span class="hot-hit">✍️ 命中你的文案</span>':''}</div>
+        <div class="hot-title">${esc(h.title)}</div>
+        <div class="hot-angle">💡 ${esc(h.angle)}</div>
+        <button class="mini" style="margin-top:8px" onclick="hotToIdea(${oi})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>转灵感</button>
+      </div>`;
+    });
+  }
+  const trackStrip = COLLECTIONS.map(c=>`<span class="hot-track${state.activeCol===c.key?' on':''}" style="--c:${c.color};cursor:pointer" title="点击只看「${esc(c.name)}」的栏目热点与灵感" onclick="toggleCol('${c.key}')"><b>${esc(c.name)}</b><i>${esc(c.desc)}</i></span>`).join('');
+  const focusIntro = state.activeCol ? `<div class="hot-focus-intro" style="cursor:pointer" onclick="clearActiveCol()" title="点击取消聚焦，看全部栏目">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)} <span style="float:right;opacity:.65;font-weight:600">✕ 取消</span></div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
       <div class="hot-title-main">🔥 热点选题 · 精选库 + 实时热榜</div>
@@ -1322,12 +1331,16 @@ function renderRhythm(){
     ${warn}
   </div>`;
 }
+function toggleCol(key){
+  if(state.activeCol===key){ clearActiveCol(); }
+  else { setActiveCol(key); }
+}
 function setActiveCol(key){
-  state.activeCol=key; save(); renderIdeas(); renderRhythm();
+  state.activeCol=key; save(); renderIdeas(); renderRhythm(); renderHotTopics();
   flashToast('本轮聚焦：'+colOf(key).name);
 }
 function clearActiveCol(){
-  state.activeCol=null; save(); renderIdeas(); renderRhythm();
+  state.activeCol=null; save(); renderIdeas(); renderRhythm(); renderHotTopics();
 }
 function flashToast(msg){
   let t=document.getElementById('toast');
