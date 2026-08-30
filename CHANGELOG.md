@@ -58,3 +58,24 @@
 - 代码层替换集中在数据获取段（约 1558–1636 行），`applyLiveItems` / `refreshStructuredCol` / `fetchLiveItems` 三处调用方均已改为 async + 先 `bumpNonce()`。
 - 残留引用核查：`fetchHotSongs` / `normalizeSongs` 已无引用；`node --check` 语法校验通过（脚本 151,735 字节，0 错误）。
 - 新增文件：`wfyy/data/poems.json`（30）、`quotes.json`（30）、`songs.json`（30）、`hot.json`（30），Node `require` 校验均通过。
+
+## 2026-08-30（续）选题热点改为「GitHub 定时 Action 服务端实时抓取」
+
+### 背景
+用户明确：选题热点要的是**全网实时热点**，不是提前写死的 30 条——写死即失去时效性。但浏览器直接 `fetch` 第三方热榜 API 在 2026 年已不可行：实测 vvhan / oioweb 直接 `fetch failed`、tenapi 502、微博官方接口 `Forbidden`（CORS + 源大面积失效）。故必须把抓取搬出浏览器。
+
+### 方案
+新增 **GitHub Actions 定时任务**（`.github/workflows/update-hot.yml`，cron 每 30 分钟 + 可手动触发）：
+- 运行在 GitHub 真实服务器（有外网、无浏览器 CORS 限制），服务端多源竞速抓取**真实全网热点**；
+- 抓取脚本 `scripts/update-hot.mjs`：内置多适配器（百度实时热搜 HTML 解析、微博 hotSearch JSON+请求头、oioweb/vvhan 等聚合 API 通用抽取），合并去重→洗牌→写入 `wfyy/data/hot.json` 与 `data/hot.json`；
+- 任一源带回真实数据即写入；**全部失败则保留旧文件不覆盖**，保证页面永远有内容；
+- 每次抓取仅内容有变化才提交，推送 main 触发 Pages 自动重建（约 1 分钟）。
+
+### 效果
+- 选题热点（hot.json）现在是**最近 30 分钟内的真实全网热点**，有时效性，非人工预设；
+- 页面仍走同源 `fetch('./data/hot.json')`，无 CORS 问题；每次刷新配合 `bumpNonce` 轮换，且底层数据本身每 30 分钟自动换新；
+- 结构化三栏（诗笺/映言/留声）走各自同源 JSON 池（诗词/台词/歌曲属于参考库，本就不适用"实时"，保持现状）。
+
+### 工程
+- 新增 `scripts/update-hot.mjs`（Node 20，`node --check` 通过）、`.github/workflows/update-hot.yml`。
+- 首跑后需在 Actions 日志确认哪些源真能用（服务端网络与沙箱不同），必要时迭代增删源。

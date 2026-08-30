@@ -1,0 +1,39 @@
+name: 更新全网实时热点
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # 每 30 分钟抓取一次真实全网热点
+  workflow_dispatch: {} # 允许在 Actions 页面手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 抓取真实热点并回写 hot.json
+        run: node scripts/update-hot.mjs
+
+      - name: 提交（仅在内容有变化时）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add wfyy/data/hot.json data/hot.json
+          if git diff --cached --quiet; then
+            echo "热点内容无变化，跳过提交"
+          else
+            git commit -m "chore(hot): 自动更新全网实时热点 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          fi
