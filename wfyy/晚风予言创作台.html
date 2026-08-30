@@ -1031,6 +1031,51 @@ const POEM_KB={ // 古诗词：作品名 → 作者
   '岳阳楼记':'范仲淹','醉翁亭记':'欧阳修',
   '沁园春雪':'毛泽东','沁园春长沙':'毛泽东'
 };
+/* 名句 → 作品名：标题或正文直接引用某句名诗时，可反查到原作品与作者 */
+const POEM_LINE_KB={
+  '相见时难别亦难':'无题','东风无力百花残':'无题','春蚕到死丝方尽':'无题','蜡炬成灰泪始干':'无题','蓬山此去无多路':'无题','青鸟殷勤为探看':'无题',
+  '曾经沧海难为水':'离思',
+  '一蓑烟雨任平生':'定风波','也无风雨也无晴':'定风波','归去':'定风波','何妨吟啸且徐行':'定风波','此心安处是吾乡':'定风波',
+  '大江东去':'念奴娇赤壁怀古','乱石穿空':'念奴娇赤壁怀古','惊涛拍岸':'念奴娇赤壁怀古','卷起千堆雪':'念奴娇赤壁怀古',
+  '明月几时有':'水调歌头明月几时有','把酒问青天':'水调歌头明月几时有','高处不胜寒':'水调歌头明月几时有','起舞弄清影':'水调歌头明月几时有','但愿人长久':'水调歌头明月几时有','千里共婵娟':'水调歌头明月几时有',
+  '十年生死两茫茫':'江城子','不思量自难忘':'江城子','千里孤坟':'江城子','无处话凄凉':'江城子',
+  '小舟从此逝':'临江仙','江海寄余生':'临江仙','人生如逆旅':'临江仙','我亦是行人':'临江仙','诗酒趁年华':'临江仙',
+  '寻寻觅觅':'声声慢','冷冷清清':'声声慢','凄凄惨惨戚戚':'声声慢','这次第':'声声慢','怎一个愁字了得':'声声慢',
+  '知否知否':'如梦令','绿肥红瘦':'如梦令','昨夜雨疏风骤':'如梦令','应是绿肥红瘦':'如梦令','争渡争渡':'如梦令','惊起一滩鸥鹭':'如梦令',
+  '物是人非事事休':'武陵春','载不动许多愁':'武陵春',
+  '莫道不销魂':'醉花阴','人比黄花瘦':'醉花阴','帘卷西风':'醉花阴',
+  '才下眉头':'一剪梅','却上心头':'一剪梅','一种相思':'一剪梅','两处闲愁':'一剪梅','花自飘零水自流':'一剪梅','云中谁寄锦书来':'一剪梅',
+  '君不见黄河之水天上来':'将进酒','天生我材必有用':'将进酒','千金散尽还复来':'将进酒','与尔同销万古愁':'将进酒',
+  '床前明月光':'静夜思','疑是地上霜':'静夜思','举头望明月':'静夜思','低头思故乡':'静夜思',
+  '红豆生南国':'相思','春来发几枝':'相思','愿君多采撷':'相思','此物最相思':'相思',
+  '大漠孤烟直':'使至塞上','长河落日圆':'使至塞上','萧关逢候骑':'使至塞上',
+  '空山新雨后':'山居秋暝','天气晚来秋':'山居秋暝','明月松间照':'山居秋暝','清泉石上流':'山居秋暝',
+  '国破山河在':'春望','城春草木深':'春望','感时花溅泪':'春望','恨别鸟惊心':'春望','烽火连三月':'春望','家书抵万金':'春望',
+  '无边落木萧萧下':'登高','不尽长江滚滚来':'登高',
+  '会当凌绝顶':'望岳','一览众山小':'望岳',
+  '好雨知时节':'春夜喜雨','随风潜入夜':'春夜喜雨','润物细无声':'春夜喜雨',
+  '两个黄鹂鸣翠柳':'绝句','一行白鹭上青天':'绝句','窗含西岭千秋雪':'绝句','门泊东吴万里船':'绝句',
+  '月落乌啼霜满天':'枫桥夜泊','江枫渔火对愁眠':'枫桥夜泊','姑苏城外寒山寺':'枫桥夜泊','夜半钟声到客船':'枫桥夜泊',
+  '白日依山尽':'登鹳雀楼','黄河入海流':'登鹳雀楼','欲穷千里目':'登鹳雀楼','更上一层楼':'登鹳雀楼',
+  '黄河远上白云间':'凉州词','一片孤城万仞山':'凉州词','羌笛何须怨杨柳':'凉州词','春风不度玉门关':'凉州词',
+  '春眠不觉晓':'春晓','处处闻啼鸟':'春晓','夜来风雨声':'春晓','花落知多少':'春晓',
+  '锦瑟无端五十弦':'锦瑟','一弦一柱思华年':'锦瑟','庄生晓梦迷蝴蝶':'锦瑟','望帝春心托杜鹃':'锦瑟','此情可待成追忆':'锦瑟','只是当时已惘然':'锦瑟',
+  '君问归期未有期':'夜雨寄北','巴山夜雨涨秋池':'夜雨寄北','何当共剪西窗烛':'夜雨寄北','却话巴山夜雨时':'夜雨寄北',
+  '安得广厦千万间':'茅屋为秋风所破歌','大庇天下寒士俱欢颜':'茅屋为秋风所破歌',
+  '沉舟侧畔千帆过':'酬乐天扬州初逢席上见赠','病树前头万木春':'酬乐天扬州初逢席上见赠','今日听君歌一曲':'酬乐天扬州初逢席上见赠',
+  '千呼万唤始出来':'琵琶行','犹抱琵琶半遮面':'琵琶行','同是天涯沦落人':'琵琶行','相逢何必曾相识':'琵琶行',
+  '在天愿作比翼鸟':'长恨歌','在地愿为连理枝':'长恨歌','天长地久有时尽':'长恨歌','此恨绵绵无绝期':'长恨歌',
+  '离离原上草':'赋得古原草送别','野火烧不尽':'赋得古原草送别','春风吹又生':'赋得古原草送别',
+  '日出江花红胜火':'忆江南','春来江水绿如蓝':'忆江南','能不忆江南':'忆江南',
+  '阡陌交通':'桃花源记','鸡犬相闻':'桃花源记','黄发垂髫':'桃花源记',
+  '采菊东篱下':'饮酒','悠然见南山':'饮酒','此中有真意':'饮酒',
+  '路漫漫其修远兮':'离骚','吾将上下而求索':'离骚',
+  '夕阳西下':'天净沙秋思','断肠人在天涯':'天净沙秋思',
+  '先天下之忧而忧':'岳阳楼记','后天下之乐而乐':'岳阳楼记','不以物喜':'岳阳楼记','不以己悲':'岳阳楼记',
+  '醉翁之意不在酒':'醉翁亭记','在乎山水之间也':'醉翁亭记',
+  '北国风光':'沁园春雪','千里冰封':'沁园春雪','万里雪飘':'沁园春雪','江山如此多娇':'沁园春雪','引无数英雄竞折腰':'沁园春雪',
+  '恰同学少年':'沁园春长沙','风华正茂':'沁园春长沙','书生意气':'沁园春长沙','挥斥方遒':'沁园春长沙','问苍茫大地':'沁园春长沙','谁主沉浮':'沁园春长沙'
+};
 const DRAMA_KB={ // 影视：剧名 → {role:[角色], actor:[演员]}
   '繁花':{role:['宝总','汪小姐','玲子','李李','爷叔'],actor:['胡歌','马伊琍','唐嫣','辛芷蕾']},
   '琅琊榜':{role:['梅长苏','靖王','飞流','霓凰'],actor:['胡歌','王凯','刘涛']},
@@ -1102,14 +1147,26 @@ function extractEntities(title, text, colKey){
   const blob=(title||'')+' '+(text||'');
   const out=[]; const seen=new Set();
   const add=t=>{ t=(t||'').trim().replace(/[《》]/g,''); if(t && t.length>=2 && t.length<=14 && !seen.has(t)){ seen.add(t); out.push(t); } };
-  const works=[...blob.matchAll(/《([^《》]{1,15})》/g)].map(m=>m[1].trim()).filter(Boolean);
-  works.forEach(w=>{
-    add(w); // 作品名本身即优质标签
-    // 古诗词：作者补全（词典命中）
+  // 辅助：非中文边界的位置安全匹配，避免把短作品名误吞进别的词
+  const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const findOccur=(str,w)=>{
+    const re=new RegExp('(^|[^一-龥])'+escRe(w)+'($|[^一-龥])','g'); const r=[]; let m;
+    while((m=re.exec(str))!==null){ const s=m.index+(m[1]?m[1].length:0); r.push({start:s,end:s+w.length}); }
+    return r;
+  };
+  const nearby=(aPos,bStr,win=12)=>{
+    let idx=blob.indexOf(bStr);
+    while(idx!==-1){ if(Math.abs(idx-aPos)<=win) return true; idx=blob.indexOf(bStr,idx+1); }
+    return false;
+  };
+  const poetryCtx = colKey==='诗笺' || /诗|词|古文|名句|出处|古风/.test(blob);
+
+  // 1) 书名号《》析出（最可靠）
+  const book=[...blob.matchAll(/《([^《》]{1,15})》/g)].map(m=>({w:m[1].trim(), s:m.index, e:m.index+m[0].length})).filter(x=>x.w);
+  book.forEach(({w})=>{
+    add(w);
     if(POEM_KB[w]){ const a=POEM_KB[w]; add(a); add(w+'·'+a); }
-    // 音乐：歌手补全（词典命中）
     if(SONG_KB[w]){ const s=SONG_KB[w]; if(s){ add(s); add(w+'—'+s); } }
-    // 影视：角色/演员（仅当正文中出现才推，避免无关角色噪音）
     const d=DRAMA_KB[w];
     if(d){
       (d.role||[]).forEach(r=>{ if(blob.indexOf(r)!==-1) add(r); });
@@ -1117,7 +1174,58 @@ function extractEntities(title, text, colKey){
       add(w);
     }
   });
-  // 相邻作者/歌手模式：「X《作品》」或「《作品》X」或「X的《作品》」(X=2~4字人名)
+  const occupied=book.map(x=>({start:x.s,end:x.e}));
+  const free=(s,e)=>!occupied.some(r=>s<r.end && e>r.start);
+  const use=(s,e)=>{ if(free(s,e)) occupied.push({start:s,end:e}); return free(s,e); };
+
+  // 2) 名句反查：标题或正文出现完整名句 → 作品 → 作者
+  Object.entries(POEM_LINE_KB).forEach(([line,work])=>{
+    const author=POEM_KB[work];
+    if(blob.indexOf(line)!==-1){
+      if(author){ add(work); add(author); add(work+'·'+author); }
+      else add(work);
+    }
+  });
+
+  // 3) 无书名号时扫描已知作品名：按长度降序优先匹配长名，短名需上下文/作者佐证
+  const allWorks=[
+    ...Object.keys(POEM_KB).map(w=>({w,t:'poem'})),
+    ...Object.keys(SONG_KB).map(w=>({w,t:'song'})),
+    ...Object.keys(DRAMA_KB).map(w=>({w,t:'drama'}))
+  ].sort((a,b)=>b.w.length-a.w.length);
+  allWorks.forEach(({w,t})=>{
+    findOccur(blob,w).forEach(({start,end})=>{
+      if(!free(start,end)) return;
+      const inTitle=(title||'').indexOf(w)!==-1;
+      if(t==='poem'){
+        const author=POEM_KB[w];
+        const hasAuthor=author && blob.indexOf(author)!==-1 && nearby(start,author,12);
+        const keep = w.length>=3 || inTitle || hasAuthor || poetryCtx;
+        if(keep){
+          use(start,end); add(w);
+          if(author && (hasAuthor || inTitle || poetryCtx)){ add(author); add(w+'·'+author); }
+        }
+      }else if(t==='song'){
+        const singer=SONG_KB[w];
+        const hasSinger=singer && blob.indexOf(singer)!==-1 && nearby(start,singer,12);
+        const keep = w.length>=3 || inTitle || hasSinger;
+        if(keep){
+          use(start,end); add(w);
+          if(singer && hasSinger){ add(singer); add(w+'—'+singer); }
+        }
+      }else if(t==='drama'){
+        const d=DRAMA_KB[w];
+        const hits=[...(d.actor||[]), ...(d.role||[])].filter(p=> blob.indexOf(p)!==-1 && nearby(start,p,12) );
+        const keep = w.length>=3 || inTitle || hits.length>0;
+        if(keep){
+          use(start,end); add(w);
+          hits.forEach(p=>{ add(p); add(p+'·'+w); });
+        }
+      }
+    });
+  });
+
+  // 4) 相邻作者/歌手模式：「X《作品》」或「《作品》X」或「X的《作品》」(X=2~4字人名)
   const adj=[...blob.matchAll(/([一-龥]{1,4})(?:的)?《([^《》]{1,15})》/g)].map(m=>[m[1].trim(),m[2].trim()])
     .concat([...blob.matchAll(/《([^《》]{1,15})》([一-龥]{1,4})/g)].map(m=>[m[2].trim(),m[1].trim()]));
   adj.forEach(([person,w])=>{
@@ -1127,10 +1235,11 @@ function extractEntities(title, text, colKey){
       add(person);
       if(idx.author.length && POEM_KB[w]) add(w+'·'+person);
       if(idx.singer.length && SONG_KB[w]) add(w+'—'+person);
-      if(idx.actor.length) add(w); // 演员对应剧名已在 works 处理
+      if(idx.actor.length) add(w); // 演员对应剧名已在书名号处理
     }
   });
-  // 显式复合：「歌名—歌手」或「歌名 - 歌手」（不依赖《》）
+
+  // 5) 显式复合：「歌名—歌手」或「歌名 - 歌手」（不依赖《》）
   [...blob.matchAll(/([一-龥A-Za-z0-9]{1,10})\s*[—\-–]\s*([一-龥A-Za-z0-9]{1,8})/g)].forEach(m=>{
     const a=m[1].trim(), b=m[2].trim(); if(!a||!b) return;
     if(SONG_KB[a] && SONG_KB[a]===b){ add(a); add(b); add(a+'—'+b); }       // 歌名—歌手 完全命中
@@ -1138,6 +1247,17 @@ function extractEntities(title, text, colKey){
     else if(SONG_KB[a]){ add(a); add(b); add(a+'—'+b); }                    // 歌名—歌手 歌手未知也推组合
     else if(SONG_KB[b]){ add(a); add(b); add(b+'—'+a); }
   });
+
+  // 6) 无书名号兜底：识别「出处：作品 作者」「(出处：作品 作者)」「作品 作者」等
+  const clean=blob.replace(/[《》]/g,'');
+  [...clean.matchAll(/(?:出处[：:]?\s*)?([一-龥A-Za-z0-9]{2,10})\s+([一-龥]{2,4})/g)].forEach(m=>{
+    const a=m[1].trim(), b=m[2].trim();
+    if(POEM_KB[a] && POEM_KB[a]===b){ add(a); add(b); add(a+'·'+b); }
+    if(SONG_KB[a] && SONG_KB[a]===b){ add(a); add(b); add(a+'—'+b); }
+    if(POEM_KB[b] && POEM_KB[b]===a){ add(b); add(a); add(b+'·'+a); }
+    if(SONG_KB[b] && SONG_KB[b]===a){ add(b); add(a); add(b+'—'+a); }
+  });
+
   return out;
 }
 /* 文案 → 实时热门标签（self）：每次保存文案重算「我的主题」；命中实时热点标记 hitLive，形成闭环 */
