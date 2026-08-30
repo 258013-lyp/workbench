@@ -242,6 +242,23 @@
   .fc-empty{font-size:12px;color:var(--ink2);opacity:.8}
   .fc-refresh{font-size:11.5px;padding:4px 8px;align-self:flex-start}
   @media(max-width:920px){ .five-col{grid-template-columns:repeat(2,1fr)} }
+  /* 五栏选题灵感（热榜不展示，仅输出各栏目选题与灵感） */
+  .col-block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 13px;margin-top:10px;box-shadow:var(--shadow)}
+  .col-block-head{display:flex;align-items:center;gap:8px;padding-bottom:8px;margin-bottom:9px;border-bottom:2px solid var(--c);flex-wrap:wrap}
+  .col-block-name{font-size:14px;font-weight:800;color:var(--c)}
+  .col-block-desc{font-size:11.5px;color:var(--ink2);flex:1 1 auto}
+  .col-block-count{font-size:11px;font-weight:700;color:#fff;background:var(--c);border-radius:20px;padding:1px 9px}
+  .col-topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+  .col-topic{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:11px;padding:10px 11px;display:flex;flex-direction:column;gap:7px}
+  .col-topic-head{display:flex;align-items:flex-start;gap:7px;justify-content:space-between}
+  .col-topic-title{font-size:13.5px;font-weight:800;color:#1f2430;line-height:1.4;word-break:break-word}
+  .col-topic-kind{font-size:10px;font-weight:800;flex:0 0 auto;padding:1px 7px;border-radius:20px;white-space:nowrap}
+  .col-topic-kind.live{color:#b8436a;background:#ffe9f0}
+  .col-topic-kind.stay{color:#6a7b52;background:#eef4e2}
+  .col-topic-pts{display:flex;flex-direction:column;gap:4px}
+  .col-pt{font-size:12px;color:#3a4151;line-height:1.5;background:#f7f8fc;border-radius:8px;padding:5px 8px;border-left:2px solid var(--c)}
+  .col-empty{font-size:12px;color:var(--ink2);opacity:.8;padding:4px 0}
+  .col-topic .mini{align-self:flex-start;margin-top:1px}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .hot-live{font-size:10px;font-weight:700;color:#fff;background:var(--red);border-radius:10px;padding:2px 7px}
   .hot-ref{font-size:10px;font-weight:700;color:#7a8194;background:#eef0f5;border:1px solid #dfe3ee;border-radius:10px;padding:2px 7px}
@@ -1415,12 +1432,12 @@ function renderHotTopics(){
   const focusIntro = state.activeCol ? `<div class="hot-focus-intro" style="cursor:pointer" onclick="clearActiveCol()" title="点击取消聚焦，看全部栏目">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)} <span style="float:right;opacity:.65;font-weight:600">✕ 取消</span></div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
-      <div class="hot-title-main">✨ 选题灵感 · 全网热点驱动（仅全网综合）</div>
+      <div class="hot-title-main">✨ 五栏选题灵感 · 实时热点激发</div>
       <button class="btn btn-primary" id="inspireGen" onclick="genInspiration('all')" style="min-height:36px;padding:6px 12px">🔄 生成选题灵感</button>
       <button class="btn btn-soft" id="inspireShuffle" onclick="genInspiration('all', false, true)" style="min-height:36px;padding:6px 12px">↻ 换一批</button>
       <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
     </div>
-    <div class="hot-note">实时拉取各平台（微博 / 抖音 / B站 / 视频号 / 快手 等）<b>真实热门话题</b>作为选题原料；按「高热度 · 高关注 · 高话题量」综合热度筛选，<b>只保留</b>与你五栏核心创作方向<b>真正相关</b>的话题，并给出可落地的创作意见。不强行蹭热点。</div>
+    <div class="hot-note">实时拉取<b>全网真实热门话题</b>作为燃料（<b>热榜不展示</b>），按「高热度 · 高关注 · 高话题量」综合热度筛选，<b>只取与五栏核心真正相关</b>的话题，转化为各栏目专属的<b>选题方向与创作灵感</b>。无关热点自动丢弃，绝不生硬结合。</div>
     ${renderInspire()}
   </div>`;
 }
@@ -1500,33 +1517,31 @@ async function fetchLiveHotViaProxy(plat){
    页面自动尝试：已配置 Worker URL → 本机 localhost:8787 → 否则提示配置。热榜本身不展示，仅作选题参考。 */
 const INSPIRE_TABS = [...LIVE_PLATFORMS, {key:'all', name:'全网综合', note:'跨平台'}];
 async function genInspiration(plat, cached, shuffle){
-  plat = plat || state.activeHotPlat || 'all';
-  state.activeHotPlat = plat;
+  plat='all'; state.activeHotPlat='all';   // 选题原料统一来自「全网综合」跨平台真实热门话题
   const btn=document.getElementById('inspireGen');
   if(btn){ btn.disabled=true; btn.textContent='生成中…'; }
   let items;
   if(cached){
     items = collectLiveItems();
   } else {
-    try{ items = await fetchInspireTopics(plat); }catch(e){ items=null; }
+    try{ items = await fetchInspireTopics('all'); }catch(e){ items=null; }
     if(items && items.length){
       state.liveHot = state.liveHot||{};
-      state.liveHot[plat] = { items: items.map(x=>({t:x.t, heat:x.heat, src:x.src})), updatedAt: Date.now() };
+      state.liveHot.all = { items: items.map(x=>({t:x.t, heat:x.heat, src:x.src||'全网'})), updatedAt: Date.now() };
     } else {
       items = collectLiveItems();
       if(items && items.length) flashToast('实时代理未连，已用缓存热榜生成');
-      else flashToast('请先在「⚙ 代理」连接本机代理，或点「↻ 用定时热榜」');
     }
   }
   if(!items || !items.length){
-    if(btn){ btn.disabled=false; btn.textContent='🔄 生成选题灵感'; }
-    renderHotTopics(); return;
+    // 联网完全不可用：用常驻灵感库直接填充五栏，保证五栏始终有产出
+    items = COLLECTIONS.map(c=>({t:'', heat:0, src:'常驻'}));
   }
-  const cards = buildInspireCards(items, plat, shuffle);
-  state.inspire = cards; save(); renderHotTopics();
+  const data = buildColumnTopics(items, shuffle);
+  state.colTopics = data; save(); renderHotTopics();
   if(btn){ btn.disabled=false; btn.textContent='🔄 生成选题灵感'; }
-  const pname = (plat==='all')?'全网综合':platName(plat);
-  flashToast('已生成 '+cards.length+' 条选题灵感（'+pname+' · 综合热度筛选 · 仅保留与五栏核心相关）');
+  const total = Object.keys(data).reduce((s,k)=> s + (data[k]?data[k].length:0), 0);
+  flashToast('已为五栏生成 '+total+' 条选题灵感（实时热点驱动 · 不展示热榜）');
 }
 async function fetchInspireTopics(plat){
   if(plat==='all'){
@@ -1536,54 +1551,74 @@ async function fetchInspireTopics(plat){
   const d = await fetchLiveHotViaProxy(plat);
   return (d.items||[]).map(it=>({ t:it.t, heat:Number(it.heat)||0, src:platName(plat) }));
 }
-function buildInspireCards(topics, plat, shuffle){
-  // 综合「高热度·高关注·高话题量」= 单一热度信号（代理已做跨平台归一化），按热度降序取前 N
-  const ranked = topics.slice().sort((a,b)=> (Number(b.heat)||0)-(Number(a.heat)||0));
-  let pool = ranked.slice(0, 28);
-  // 「换一批」：洗牌取不同组合，避免每次都一样
-  if(shuffle && pool.length>8){ for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=pool[i]; pool[i]=pool[j]; pool[j]=x; } }
-  const cards=[];
-  for(const t of pool){
-    // 只保留与你五栏核心「真正相关」的话题：与所有栏目都不沾边的话题直接丢弃，不强行结合
-    const matched = matchCollections(t.t);
-    if(!matched.length) continue;
-    const heat = Number(t.heat)||0;
-    const cols = matched.map(m=>{ const c=colOf(m.key); return { key:c.key, name:c.name, color:c.color, opinion: COL_OPINION[c.key](t.t) }; });
-    cards.push({ t:t.t, heat, label:inspireHeatLabel(heat), src:t.src||'全网', cols });
-    if(cards.length>=16) break;
-  }
-  return cards;
+/* 把「实时全网热门话题」按栏目归类，转化为「五栏各自的选题与灵感」。
+   核心原则（第一性原理）：
+   1) 产品是「五栏选题库」，不是「热榜」。热榜只是不可见的燃料。
+   2) 只有与某栏核心「真正相关」的话题才进入该栏；无关话题直接丢弃（不强行蹭）。
+   3) 每个进入某栏的话题，被「转译」为该栏专属的选题标题 + 可执行的创作灵感（角度/金句/评论入口）。
+   4) 某栏实时匹配不足时，用该栏常驻灵感库补足，保证五栏始终有产出。 */
+function buildColumnTopics(items, shuffle){
+  // 综合「高热度·高关注·高话题量」= 单一热度信号（代理已做跨平台归一化），按热度降序
+  const ranked = (items||[]).slice().sort((a,b)=> (Number(b.heat)||0)-(Number(a.heat)||0));
+  if(shuffle && ranked.length>8){ for(let i=ranked.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=ranked[i]; ranked[i]=ranked[j]; ranked[j]=x; } }
+  const byCol={}; COLLECTIONS.forEach(c=>byCol[c.key]=[]);
+  ranked.forEach(it=>{
+    const t=String(it&&it.t||''); if(!t) return;
+    matchCollections(t).forEach(m=>{
+      const f=deriveCore(m.hit, m.key);
+      byCol[m.key].push({ core:f.core, emo:f.emo, heat:Number(it.heat)||0, kind:(it.src==='常驻'?'常驻':'实时') });
+    });
+  });
+  const result={};
+  COLLECTIONS.forEach(c=>{
+    const col=c.key;
+    let arr=byCol[col].slice(0,5);
+    const need=Math.max(0,4-arr.length);
+    (COL_EVERGREEN_BANK[col]||[]).slice(0,need).forEach(core=> arr.push({ core, emo:CORE_FALLBACK[col].emo, heat:0, kind:'常驻' }));
+    const seen=new Set(); const cards=[];
+    arr.forEach(a=>{ if(seen.has(a.core)) return; seen.add(a.core); cards.push(makeTopicCard(col,a)); });
+    result[col]=cards;
+  });
+  return result;
+}
+function makeTopicCard(col, a){
+  const tpl=COL_TOPIC_GEN[col];
+  const title=tpl.titles[Math.floor(Math.random()*tpl.titles.length)](a.core);
+  return { title, points:tpl.points(a.core,a.emo), kind:a.kind, heat:a.heat };
 }
 function renderInspire(){
-  const cards = state.inspire||[];
-  if(!cards.length){
-    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」拉取全网真实热门话题，按综合热度筛选后，只保留与你五栏核心真正相关的话题并生成创作意见。</div>
-      <div class="five-empty-sub">需先连代理：点「⚙ 代理」确认本机代理 http://localhost:8787 正在运行（终端执行 node scripts/proxy.mjs）。</div></div>`;
+  const data=state.colTopics||{};
+  const hasAny=Object.keys(data).some(k=>data[k]&&data[k].length);
+  if(!hasAny){
+    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」拉取全网真实热门话题，转化为五栏专属选题与灵感（<b>热榜不展示</b>）。</div>
+      <div class="five-empty-sub">需先连代理：点「⚙ 代理」确认本机代理 http://localhost:8787 正在运行（终端执行 node scripts/proxy.mjs）。未联网时自动用常驻灵感库填充五栏。</div></div>`;
   }
-  return `<div class="inspire-grid">`+cards.map((c,ci)=>{
-    const colRows = c.cols.map((col,ki)=>`
-      <div class="in-col" style="--c:${col.color}">
-        <div class="in-col-head"><b>${esc(col.name)}</b></div>
-        <div class="in-col-op">${esc(col.opinion)}</div>
-        <button class="mini" onclick="adoptInspire(${ci},${ki})">＋ 采用</button>
+  return COLLECTIONS.map(c=>{
+    const cards=(data[c.key]||[]).map((cd,ki)=>`
+      <div class="col-topic" style="--c:${c.color}">
+        <div class="col-topic-head">
+          <span class="col-topic-title">${esc(cd.title)}</span>
+          <span class="col-topic-kind ${cd.kind==='实时'?'live':'stay'}">${cd.kind==='实时'?'实时':'常驻'}</span>
+        </div>
+        <div class="col-topic-pts">${cd.points.map(p=>`<div class="col-pt">${esc(p)}</div>`).join('')}</div>
+        <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
       </div>`).join('');
-    return `<div class="in-card">
-      <div class="in-card-top">
-        <span class="in-heat">${esc(c.label)}</span>
-        <span class="in-topic">${esc(c.t)}</span>
+    return `<div class="col-block">
+      <div class="col-block-head" style="--c:${c.color}">
+        <span class="col-block-name">${esc(c.name)}</span>
+        <span class="col-block-desc">${esc(c.desc||'')}</span>
+        <span class="col-block-count">${(data[c.key]||[]).length} 选题</span>
       </div>
-      <div class="in-meta">热度来源：${esc(c.src)}${c.heat?(' · 综合热度 '+fmtHeat(c.heat)):''} · 匹配 ${c.cols.length} 个栏目</div>
-      <div class="in-cols">${colRows}</div>
+      <div class="col-topics">${cards || '<div class="col-empty">暂无，点「↻ 换一批」</div>'}</div>
     </div>`;
-  }).join('')+`</div>`;
+  }).join('');
 }
-function adoptInspire(ci, ki){
-  const c=(state.inspire||[])[ci]; if(!c) return;
-  const col=c.cols[ki]; if(!col) return;
-  const content='【'+c.t+'｜'+c.src+'】'+col.opinion;
-  const rec={id:uid(),collection:col.key,content:content,source:'选题灵感·'+col.name,tags:[c.src, c.t.slice(0,12)],status:0,planDate:'',createdAt:Date.now()};
+function adoptColTopic(col, idx){
+  const arr=(state.colTopics||{})[col]||[]; const cd=arr[idx]; if(!cd) return;
+  const content=cd.title+'\n'+cd.points.join('\n');
+  const rec={id:uid(),collection:col,content:content,source:'五栏选题灵感·'+(cd.kind==='实时'?'实时':'常驻'),tags:[cd.kind==='实时'?'实时热点':'常驻灵感'],status:0,planDate:'',createdAt:Date.now()};
   state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
-  flashToast('已采用到 '+col.name);
+  flashToast('已采用到 '+colOf(col).name);
 }
 const PLAT_PROFILE = {
   weibo:{name:'微博', style:'话题性强、情绪浓度高，适合观点输出与金句，短平快。', tip:'开头抛共鸣/争议点，带 #话题# 引发讨论。'},
@@ -1609,21 +1644,102 @@ const COL_MATCH = {
 function matchCollections(text){
   const t=text||''; const out=[];
   Object.keys(COL_MATCH).forEach(col=>{
-    const m=COL_MATCH[col]; let s=0;
-    m.kw.forEach(k=>{ if(t.indexOf(k)!==-1) s += 1; });
-    if(m.strong && m.strong.some(k=>t.indexOf(k)!==-1)) s += 4;
+    const m=COL_MATCH[col]; let s=0; let hit=null;
+    m.kw.forEach(k=>{ if(t.indexOf(k)!==-1){ s+=1; if(!hit) hit=k; } });
+    if(m.strong && m.strong.some(k=>t.indexOf(k)!==-1)){ s+=4; const sk=m.strong.find(k=>t.indexOf(k)!==-1); if(sk) hit=sk; }
     const thr = (col==='碎语')?2:1;   // 碎语为人生/日常大范畴，需 ≥2 分避免什么都算碎语；其余 ≥1 即视为相关
-    if(s>=thr) out.push({key:col, score:s});
+    if(s>=thr) out.push({key:col, score:s, hit:hit});
   });
   out.sort((a,b)=> b.score-a.score);
   return out;
 }
-const COL_OPINION = {
-  碎语:(t)=>`把「${t}」写成一段睡前碎碎念：不讲道理，只写你看到它时心里那点轻轻的触动——像晚风把一句话吹到你耳边。`,
-  心事:(t)=>`借「${t}」讲一个具体的情绪瞬间：别概括，写「那天……」的细节，让有同样经历的人在文字里看见自己。`,
-  诗笺:(t)=>`以「${t}」里的画面入诗：挑一两个意象（它的颜色、声音或温度），写几句留白多、不直说情绪的短句。`,
-  映言:(t)=>`从「${t}」里找一个能共情的人物或台词作开场，落到每个人都会遇到的那点心事上，温柔而不说教。`,
-  留声:(t)=>`给「${t}」配一首同频的歌：在情绪最高点轻轻推上来，让旋律替你把没说完的话接住。`
+/* —— 五栏选题生成器：把「真实热点」转译为各栏目专属选题（不展示热榜、绝不生硬结合）—— */
+const CORE_FAMILY = {
+  life:    {core:'平凡日子里的微光', emo:'踏实的小确幸'},
+  tired:   {core:'心里那点说不清的累', emo:'想逃又无处可去'},
+  alone:   {core:'一个人也要好好过', emo:'独立又有点孤单'},
+  exam:    {core:'为梦想熬过的那些夜', emo:'孤单又倔强'},
+  work:    {core:'成年人的体面与不容易', emo:'疲惫却还在撑'},
+  heal:    {core:'慢慢和自己和解', emo:'温柔地松了口气'},
+  love_end:{core:'爱过又走散的人', emo:'遗憾又释然'},
+  like:    {core:'没说出口的喜欢', emo:'小心翼翼的心动'},
+  regret:  {core:'那个回不去的瞬间', emo:'意难平'},
+  quiet:   {core:'一个人慢慢消化的情绪', emo:'安静的难过'},
+  close:   {core:'亲密关系里的拉扯', emo:'委屈与清醒'},
+  family:  {core:'家人之间说不出的话', emo:'爱与束缚'},
+  poem:    {core:'古人一句诗的重量', emo:'古典的温柔'},
+  scene:   {core:'时间里的景与人', emo:'淡淡的怅惘'},
+  line:    {core:'某个被说中心事的时刻', emo:'被说中的那一刻'},
+  act:     {core:'戏里戏外的人性', emo:'台前幕后的反差'},
+  song:    {core:'某个失眠的夜晚', emo:'说不出的心事'},
+  live:    {core:'现场那一刻的共振', emo:'说不出的心事'},
+};
+const CORE_KEY2FAM = {
+  '慢生活':'heal','成长治愈':'heal','自我成长':'heal','小确幸':'life','松弛感':'heal','人间清醒':'heal','好好生活':'life','生活':'life','人生':'life','工作':'work','日常':'life','成长':'heal','治愈':'heal','努力':'life','幸福':'life','快乐':'life','考研':'exam','考公':'exam','考编':'exam','上岸':'exam','备考':'exam','内耗':'tired','边界感':'tired','情绪价值':'tired','躺平':'work','内卷':'work','打工人':'work','副业':'work','存钱':'alone','租房':'alone','独居':'alone','自律':'alone','焦虑':'tired','压力':'tired','情绪':'tired',
+  '失恋':'love_end','暗恋':'like','心动':'like','遗憾':'regret','释然':'quiet','emo':'quiet','孤独':'quiet','思念':'quiet','暧昧':'like','分手':'love_end','出轨':'close','意难平':'regret','破防':'regret','复合':'love_end','白月光':'like','恋爱':'close','结婚':'close','离婚':'close','婚姻':'close','异地':'close','前任':'love_end','委屈':'close','难过':'quiet','亲情':'family','家庭':'family','催婚':'family','父母':'family','告别':'quiet',
+  '苏轼':'poem','李白':'poem','杜甫':'poem','纳兰':'poem','王维':'poem','李清照':'poem','诗词':'poem','古诗':'poem','唐诗':'poem','宋词':'poem','诗经':'poem','飞花令':'poem','国风':'poem','元曲':'poem','词人':'poem','诗句':'poem','古风':'poem','汉服':'poem','节气':'scene','春天':'scene','春日':'scene','雪':'scene','月':'scene','月亮':'scene','江南':'scene','远方':'scene','落日':'scene','黄昏':'scene','晚风':'scene','离别':'scene','乡愁':'scene','故人':'scene','旧时光':'scene',
+  '台词':'line','名场面':'line','电影台词':'line','影视':'line','综艺':'line','二刷':'line','影片':'line','导演':'act','演员':'act','番剧':'line','动漫':'line','国漫':'line','电影':'line','电视剧':'line','剧':'line','主演':'act','演技':'act','塌房':'act','翻红':'act',
+  '歌词':'song','歌单':'song','单曲循环':'song','演唱会':'live','旋律':'song','翻唱':'song','现场':'live','BGM':'song','OST':'song','音乐节':'live','歌曲':'song','歌':'song','音乐':'song','专辑':'song','老歌':'song','新歌':'song','耳机':'song','循环':'song','歌手':'live','乐队':'live','治愈系':'song','说唱':'song','民谣':'song','摇滚':'song','神曲':'song','副歌':'song','vocal':'song','舞台':'live','Live':'live','音综':'song',
+};
+const CORE_FALLBACK = {
+  碎语:{core:'平凡日子里的微光', emo:'踏实的小确幸'},
+  心事:{core:'心里没说出口的话', emo:'安静的难过'},
+  诗笺:{core:'时间里的景与人', emo:'淡淡的怅惘'},
+  映言:{core:'某个被说中心事的时刻', emo:'被说中的那一刻'},
+  留声:{core:'某个失眠的夜晚', emo:'说不出的心事'},
+};
+function deriveCore(hit, col){
+  if(hit && CORE_KEY2FAM[hit] && CORE_FAMILY[CORE_KEY2FAM[hit]]) return CORE_FAMILY[CORE_KEY2FAM[hit]];
+  return CORE_FALLBACK[col] || {core:'生活里的小事', emo:'温柔的触动'};
+}
+const COL_TOPIC_GEN = {
+  碎语:{
+    titles:[(c)=>`${c}，想慢下来和你说几句`,(c)=>`${c}，藏着慢慢来的勇气`,(c)=>`今天不想讲道理，只想聊聊${c}`],
+    points:(c,e)=>[
+      `角度：用日常比喻把${c}讲成一句温柔提醒，不评判、不鸡汤。`,
+      `金句方向：「你不必急着变好，${c}本身就有意义。」`,
+      `评论入口：「你最近有没有一个，想慢下来好好说的时刻？」`,
+    ],
+  },
+  心事:{
+    titles:[(c)=>`关于${c}，我想说点不敢发在朋友圈的话`,(c)=>`${c}，是我们都不愿提起的那点委屈`,(c)=>`有些${c}，只能写在只有自己看得到的日记里`],
+    points:(c,e)=>[
+      `角度：写一个具体瞬间（时间/地点/动作），别概括，让有同样经历的人看见自己。`,
+      `金句方向：「${e}最深的样子，是笑着笑着就沉默了。」`,
+      `评论入口：「你也有过${e}却没人可说的时刻吗？」`,
+    ],
+  },
+  诗笺:{
+    titles:[(c)=>`${c}，写成一句可以收藏的诗`,(c)=>`${c}退去，人间仍有未凉的灯`,(c)=>`若${c}入诗，该用哪一个意象`],
+    points:(c,e)=>[
+      `角度：挑 1–2 个意象（月/风/灯/雪/旧信）承载${c}，留白多、不直说情绪。`,
+      `金句方向：「${c}入诗，便有了被原谅的温柔。」`,
+      `评论入口：「如果给${c}写一句诗，你会写什么？」`,
+    ],
+  },
+  映言:{
+    titles:[(c)=>`有句台词一直记得，放在${c}上刚刚好`,(c)=>`${c}，某部电影早就说透了`,(c)=>`借一段名场面，聊聊${c}`],
+    points:(c,e)=>[
+      `角度：用经典台词/名场面作开场，落到每个人都会遇到的那点心事，温柔不说教。`,
+      `金句方向：「电影里那句台词，说的其实就是${e}。」`,
+      `评论入口：「哪句台词，曾替你说出了${e}？」`,
+    ],
+  },
+  留声:{
+    titles:[(c)=>`为${c}，挑一首深夜单曲循环的歌`,(c)=>`${c}，需要这样一首歌陪你`,(c)=>`把${c}写进歌单的第几首`],
+    points:(c,e)=>[
+      `角度：选温暖/治愈向 BGM，在情绪最高点轻轻推上来，让旋律接住没说完的话。`,
+      `金句方向：「有些${e}，音乐比语言更懂。」`,
+      `评论入口：「有没有一首歌，一听就让你想起${e}？」`,
+    ],
+  },
+};
+const COL_EVERGREEN_BANK = {
+  碎语:['平凡日子里的微光','慢慢和自己和解','一个人的充电时刻','和不完美的自己和解'],
+  心事:['没说出口的喜欢','爱过又走散的人','家人之间说不出的话','那个没说再见的告别'],
+  诗笺:['时间里的景与人','古人一句诗的重量','旧时光里的一封信','月色里未寄出的信'],
+  映言:['某个被说中心事的时刻','戏里戏外的人性','名场面里的人生','电影教会我的事'],
+  留声:['某个失眠的夜晚','说不出的心事','现场那一刻的共振','单曲循环的那首老歌'],
 };
 function inspireHeatLabel(h){
   // 「高热度·高关注·高话题量」合并为单一综合热度信号（代理已归一化），不拆成三项分别展示
