@@ -490,7 +490,7 @@
   </div>
 </header>
 
-<div class="wrap">
+<div class="wrap" id="mainWrap">
 
   <!-- 今天要处理 -->
   <section class="today" id="todaySection">
@@ -1346,6 +1346,8 @@ let curTab = 'works';
 let editing = null; // {type, id}
 let cloud = loadCloud();
 let booted = false, syncing = false, pushTimer = null, cloudDirty = false;
+let bootLocalHadData = false; // 启动时可否从本机恢复出真实数据
+let everUsed = false;         // 是否曾保存过真实数据（用于区分"老用户丢数据"与"新用户首开"）
 
 /* ============ 存储 ============ */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -1374,7 +1376,7 @@ function act(name, token){
 let saveWarned=false;
 function saveStateInfo(msg, warn){ const el=document.getElementById('saveState'); if(!el) return; el.textContent=msg||''; el.className='save-state'+(warn?' warn':''); }
 function save(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); try{ saveStateInfo('💾 已保存到本机 · '+nowHM()); }catch(_){} }
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); const _n=(state.works||[]).length+(state.ideas||[]).length+(state.materials||[]).length; if(_n>0){ try{ localStorage.setItem('wb_wfyy_ever_used','1'); }catch(e){} } try{ saveStateInfo('💾 已保存到本机 · '+nowHM()); }catch(_){} }
   catch(e){
     if(!saveWarned){ saveWarned=true; try{ flashToast('本机存储写入失败（空间已满或隐私模式），请点右上角「导出」备份数据'); }catch(_){} }
     try{ saveStateInfo('⚠ 本机无法保存，请用「本地版」或「云同步」', true); }catch(_){}
@@ -1391,6 +1393,8 @@ function load(){
   }
   const usable = d && typeof d==='object' && !Array.isArray(d) &&
     (Array.isArray(d.works) || Array.isArray(d.ideas) || Array.isArray(d.materials));
+  /* 真实数据来源：本机存储 或 本地版内联数据；用于判断"本机空舱" */
+  bootLocalHadData = !!(usable && (fromLocal || (window.__INITIAL__ && window.__INITIAL__.state)));
   if(!usable){
     state = sampleData();
     try{ save(); }catch(e){}
@@ -3720,10 +3724,47 @@ async function cloudPull(){
     cloud.lastSha=r.sha; cloud.lastSync=nowHM(); saveCloud();
     renderAll();
     setCloudStatus('已从云端下载 · '+cloud.lastSync,'ok');
+    hideRecoveryBanner(); // 成功恢复后自动收起提示横幅
   }catch(err){
     if(err.status===404){ cloud.lastSync=nowHM(); saveCloud(); setCloudStatus('云端为空，已上传本机数据','warn'); await cloudPush(); }
     else { setCloudStatus('下载失败：'+(err.message||('HTTP '+(err.status||''))),'err'); }
   }
+}
+
+/* ============ 启动恢复横幅（选项 A） ============
+   场景：老用户（everUsed）本机数据丢失（被清站点数据），启动后本地是空舱。
+   若已配置云同步 → 一键从云端拉回；否则引导配置云同步 / 导入本地备份。
+   新用户首开不会触发（everUsed 为假）。 */
+function showRecoveryBanner(){
+  const wrap=document.getElementById('mainWrap'); if(!wrap) return;
+  if(document.getElementById('recoveryBanner')) return;
+  const cloudOk = !!(cloud.token && cloud.repo);
+  const el=document.createElement('div');
+  el.id='recoveryBanner';
+  el.style.cssText='margin:14px 0;padding:14px 16px;border-radius:12px;background:linear-gradient(90deg,#fff7ed,#fff1f2);border:1px solid #fcd9b6;display:flex;gap:12px;align-items:flex-start;box-shadow:0 2px 10px rgba(234,88,12,.08)';
+  el.innerHTML =
+    '<div style="flex:0 0 auto;margin-top:2px">'+
+      '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>'+
+    '</div>'+
+    '<div style="flex:1 1 auto;min-width:0">'+
+      '<div style="font-weight:600;color:#9a3412;font-size:14px;margin-bottom:3px">未发现本机数据</div>'+
+      '<div style="font-size:13px;color:#7c2d12;line-height:1.5">浏览器可能清过站点数据。如果你开启过云同步，可一键从云端拉回；也可以用之前导出的备份文件恢复。</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+
+        (cloudOk
+          ? '<button class="btn btn-primary" onclick="doRecoveryPull()">立即从云端拉回</button>'
+          : '<button class="btn btn-primary" onclick="openCloudModal()">去配置云同步</button>')+
+        '<button class="btn btn-soft" onclick="document.getElementById(\'importFile\').click()">导入本地备份</button>'+
+        '<button class="btn btn-line" onclick="hideRecoveryBanner()">稍后</button>'+
+      '</div>'+
+    '</div>';
+  wrap.insertBefore(el, wrap.firstChild);
+}
+function hideRecoveryBanner(){ const el=document.getElementById('recoveryBanner'); if(el) el.remove(); }
+async function doRecoveryPull(){
+  if(!cloud.token || !cloud.repo){ openCloudModal(); return; }
+  hideRecoveryBanner();
+  setCloudStatus('正在从云端恢复…','warn');
+  try{ await cloudPull(); }catch(e){ /* cloudPull 内部已提示 */ }
 }
 
 /* 自动同步：本地有改动自动上传，云端有更新（来自其他设备）自动拉取，不互相覆盖 */
@@ -4180,6 +4221,9 @@ try{
   var bootScreen=document.getElementById('bootScreen'); if(bootScreen) bootScreen.remove();
   (function(){ try{ localStorage.setItem('__wfyy_test','1'); localStorage.removeItem('__wfyy_test'); const n=(state.works||[]).length+(state.ideas||[]).length+(state.materials||[]).length; saveStateInfo('💾 已从本机恢复 '+n+' 条 · 自动保存中'); }catch(e){ saveStateInfo('⚠ 本机存储不可用（隐私/无痕模式），数据不会自动保存——请用「本地版」下载离线副本或开启「云同步」', true); } })();
   if(cloud.enabled) cloudPull();
+  /* 选项 A：老用户本机数据丢失时，主动提示从云端拉回 / 导入本地备份。
+     触发：本机空舱 且（曾保存过真实数据 或 仍残留云同步配置）——避免新用户首开误弹。 */
+  try{ everUsed = (localStorage.getItem('wb_wfyy_ever_used')==='1'); const cloudLeft=!!(cloud.token && cloud.repo); if(!bootLocalHadData && (everUsed || cloudLeft)) showRecoveryBanner(); }catch(e){}
   refreshAllLive(true); // 打开即自动拉取全平台实时热点与标签，保证时效性
   setInterval(function(){ try{ refreshAllLive(true); }catch(e){} }, 10*60*1000); // 每10分钟静默轮询，实时热点与命中点持续自动滚动（离线静默失败）
   setInterval(function(){ try{ if(cloud.enabled && cloud.autoSync!==false) cloudAutoSync(); }catch(e){} }, 2*60*1000); // 每2分钟双向自动同步（本地改动上传 / 云端更新拉取）
