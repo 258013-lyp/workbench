@@ -92,18 +92,42 @@ const SOURCES = {
   ]),
 };
 
-// —— 实时热歌榜（留声栏真实数据源）：网易云热歌榜优先，失败回退聚合源 ——
+// —— 全网音乐平台热歌综合（留声栏真实数据源）——
+// 多平台 × 多榜单并行抓取，去重后按「跨平台出现次数」加权为综合热度，
+// 避免单一平台偏差：一首歌同时登上网易云热歌 + QQ音乐热歌，或包揽网易云热歌/飙升/新歌，
+// 其综合热度最高，优先进入留声选题。任一源失败自动跳过，全部失败回退常驻库。
+async function neMusic(id){
+  const d = await getJSON('https://music.163.com/api/playlist/detail?id='+id, { Referer: 'https://music.163.com/' });
+  const tracks = (d && d.result && (d.result.tracks || (d.result.playlist && d.result.playlist.tracks))) || [];
+  return tracks.slice(0, 30).map(t => ({ name: t.name, singer: (t.artists || []).map(a => a.name).join('/') })).filter(x => x.name);
+}
+async function qqMusic(topid){
+  const url = 'https://c.y.qq.com/v8/fcg-bin/fcg_v8_toplist_cp.fcg?type=top&topid='+topid+'&tpl=3&page=detail&date=&song_begin=0&song_num=30&format=json&inCharset=utf8&outCharset=utf-8&platform=jsonp&needNewCode=0&g_tk=5381';
+  const d = await getJSON(url, { Referer: 'https://y.qq.com/' });
+  const list = (d && d.songlist) || [];
+  return list.slice(0, 30).map(s => {
+    const dt = s.data || {};
+    const sg = dt.singer;
+    const singer = Array.isArray(sg) ? sg.map(x => (x && (x.name||x)) || '').join('/') : (dt.singername || '');
+    return { name: dt.songname || dt.song_name || '', singer: singer };
+  }).filter(x => x.name);
+}
 const MUSIC_SOURCES = [
-  async () => {
-    const d = await getJSON('https://music.163.com/api/playlist/detail?id=3778678', { Referer: 'https://music.163.com/' });
-    const tracks = (d && d.result && (d.result.tracks || (d.result.playlist && d.result.playlist.tracks))) || [];
-    return tracks.slice(0, 30).map(t => ({ name: t.name, singer: (t.artists || []).map(a => a.name).join('/') })).filter(x => x.name);
-  },
-  async () => {
-    const d = await getJSON('https://api.vvhan.com/api/music/hot');
-    const arr = (d && d.data) || (Array.isArray(d) ? d : []);
-    return (Array.isArray(arr) ? arr : []).slice(0, 30).map(x => ({ name: x.name || x.title || x.song, singer: x.singer || x.artist || x.auther || '' })).filter(x => x.name);
-  },
+  { tag: '网易云·热歌', fn: async () => neMusic(3778678) },
+  { tag: '网易云·飙升', fn: async () => neMusic(19723756) },
+  { tag: '网易云·新歌', fn: async () => neMusic(3779629) },
+  { tag: 'QQ音乐·热歌', fn: async () => qqMusic(26) },
+];
+// 全部音源不可用时回退的常驻热门（真实歌曲，仅离线兜底）
+const FALLBACK_MUSIC = [
+  { name: '晴天', singer: '周杰伦' }, { name: '孤勇者', singer: '陈奕迅' },
+  { name: '起风了', singer: '买辣椒也用券' }, { name: '如愿', singer: '王菲' },
+  { name: '人世间', singer: '雷佳' }, { name: '删了吧', singer: '于果' },
+  { name: '可能否', singer: '程响' }, { name: '演员', singer: '薛之谦' },
+  { name: '体面', singer: '于文文' }, { name: '光年之外', singer: '邓紫棋' },
+  { name: '错位时空', singer: '艾辰' }, { name: '热爱105°C的你', singer: '阿肆' },
+  { name: '白月光与朱砂痣', singer: '大籽' }, { name: '你的答案', singer: '阿冗' },
+  { name: '万疆', singer: '李玉刚' }, { name: '灯火里的中国', singer: '舒楠' },
 ];
 
 async function fetchPlat(plat) {
@@ -134,9 +158,31 @@ const server = http.createServer(async (req, res) => {
   try {
     if (u.pathname === '/health') return send(200, { ok: true });
     if (u.pathname === '/music') {
-      const items = await raceFirst(MUSIC_SOURCES.map(f => f));
-      const out = (items || []).filter(x => x && x.name).slice(0, 20).map(x => ({ name: x.name, singer: (x.singer || '').toString() }));
-      return send(200, { plat: 'music', items: out, updatedAt: Date.now(), error: out.length ? null : '无可用音源' });
+      // 全网音乐平台热歌综合：并行抓多平台多榜单 → 去重 → 按跨平台出现次数加权 → 降序
+      const collected = [];
+      await Promise.all(MUSIC_SOURCES.map(async s => {
+        try {
+          const arr = await s.fn();
+          (arr || []).forEach(x => { if (x && x.name) collected.push({ name: x.name, singer: (x.singer || '').toString(), src: s.tag }); });
+        } catch (e) { /* 单源失败忽略，其他源仍可用 */ }
+      }));
+      const norm = n => (n || '').replace(/[\s\-_～~!！?？.。，、()（）【】[\]()]/g, '').toLowerCase();
+      const map = new Map();
+      for (const it of collected) {
+        const key = norm(it.name);
+        if (!key) continue;
+        if (!map.has(key)) map.set(key, { name: it.name, singer: it.singer, srcs: new Set() });
+        const e = map.get(key);
+        e.srcs.add(it.src);
+        if (!e.singer && it.singer) e.singer = it.singer;
+      }
+      let out = [...map.values()].map(e => ({ name: e.name, singer: e.singer, heat: e.srcs.size, src: [...e.srcs].join('/') }));
+      // 综合热度 = 跨平台/跨榜单出现次数；同分按歌名稳定排序
+      out.sort((a, b) => b.heat - a.heat || (a.name > b.name ? 1 : -1));
+      out = out.slice(0, 30);
+      const ok = out.length > 0;
+      if (!ok) out = FALLBACK_MUSIC.slice(0, 20).map(s => ({ name: s.name, singer: s.singer, heat: 0, src: '常驻' }));
+      return send(200, { plat: 'music', items: out, updatedAt: Date.now(), error: ok ? null : '无可用音源，已回退常驻' });
     }
     if (u.pathname === '/hot') {
       const plat = (u.searchParams.get('plat') || 'weibo');
