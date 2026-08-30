@@ -257,6 +257,9 @@
   .col-topic-kind.stay{color:#6a7b52;background:#eef4e2}
   .col-topic-pts{display:flex;flex-direction:column;gap:4px}
   .col-pt{font-size:12px;color:#3a4151;line-height:1.5;background:#f7f8fc;border-radius:8px;padding:5px 8px;border-left:2px solid var(--c)}
+  .col-topic-line{font-size:13px;color:#2a3140;line-height:1.6;background:#f7f8fc;border-radius:8px;padding:7px 9px;border-left:3px solid var(--c)}
+  .col-topic-meta{font-size:12px;color:#5a6172;font-weight:700}
+  .col-topic-hint{font-size:11.5px;color:#6a7286;line-height:1.5;background:#fff7fb;border-radius:7px;padding:4px 8px}
   .col-empty{font-size:12px;color:var(--ink2);opacity:.8;padding:4px 0}
   .col-topic .mini{align-self:flex-start;margin-top:1px}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
@@ -1437,7 +1440,7 @@ function renderHotTopics(){
       <button class="btn btn-soft" id="inspireShuffle" onclick="genInspiration('all', false, true)" style="min-height:36px;padding:6px 12px">↻ 换一批</button>
       <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
     </div>
-    <div class="hot-note">实时拉取<b>全网真实热门话题</b>作为燃料（<b>热榜不展示</b>），按「高热度 · 高关注 · 高话题量」综合热度筛选，<b>只取与五栏核心真正相关</b>的话题，转化为各栏目专属的<b>选题方向与创作灵感</b>。无关热点自动丢弃，绝不生硬结合。</div>
+    <div class="hot-note">五栏选题均为<b>真实作品数据</b>（<b>热榜不展示</b>）：<b>晚风诗笺</b>=真实古诗词（名·作者·朝代·名句）、<b>晚风映言</b>=真实影视台词（剧名·类型·台词·角色/演员）、<b>晚风留声</b>=<b>实时热歌榜</b>（歌名—歌手）。碎语/心事结合实时热点生成；诗笺/映言以实时热点做<b>当下相关性</b>加权，不编造常驻选题。</div>
     ${renderInspire()}
   </div>`;
 }
@@ -1534,14 +1537,18 @@ async function genInspiration(plat, cached, shuffle){
     }
   }
   if(!items || !items.length){
-    // 联网完全不可用：用常驻灵感库直接填充五栏，保证五栏始终有产出
-    items = COLLECTIONS.map(c=>({t:'', heat:0, src:'常驻'}));
+    // 联网完全不可用：留空，由 buildColumnTopics 用真实作品库填充（诗笺/映言/留声为真实数据，碎语/心事用常驻）
+    items = [];
   }
-  const data = buildColumnTopics(items, shuffle);
+  // 实时热歌榜（留声栏真实数据源）——与热榜并行获取
+  let music = [];
+  try{ music = await fetchLiveMusic(); }catch(e){ music = []; }
+  if(!music || !music.length){ music = FALLBACK_SONGS.slice(); }
+  const data = buildColumnTopics(items, music, shuffle);
   state.colTopics = data; save(); renderHotTopics();
   if(btn){ btn.disabled=false; btn.textContent='🔄 生成选题灵感'; }
   const total = Object.keys(data).reduce((s,k)=> s + (data[k]?data[k].length:0), 0);
-  flashToast('已为五栏生成 '+total+' 条选题灵感（实时热点驱动 · 不展示热榜）');
+  flashToast('已为五栏生成 '+total+' 条选题（诗笺/映言/留声均为真实作品数据 · 留声实时热歌）');
 }
 async function fetchInspireTopics(plat){
   if(plat==='all'){
@@ -1551,27 +1558,42 @@ async function fetchInspireTopics(plat){
   const d = await fetchLiveHotViaProxy(plat);
   return (d.items||[]).map(it=>({ t:it.t, heat:Number(it.heat)||0, src:platName(plat) }));
 }
+async function fetchLiveMusic(){
+  const base = (function(){try{return (localStorage.getItem('LIVE_PROXY_URL')||'').trim();}catch(e){return '';}})() || 'http://localhost:8787';
+  const url = base.replace(/\/+$/,'') + '/music';
+  const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), 8000);
+  try{
+    const r = await fetch(url, { signal: ctrl.signal });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    const arr = (d && d.items) || [];
+    return arr.filter(x=>x && x.name).map(x=>({ name:x.name, singer:(x.singer||'').toString() })).slice(0,20);
+  }catch(e){ return []; }
+  finally{ clearTimeout(t); }
+}
 /* 把「实时全网热门话题」按栏目归类，转化为「五栏各自的选题与灵感」。
    核心原则（第一性原理）：
    1) 产品是「五栏选题库」，不是「热榜」。热榜只是不可见的燃料。
    2) 只有与某栏核心「真正相关」的话题才进入该栏；无关话题直接丢弃（不强行蹭）。
    3) 每个进入某栏的话题，被「转译」为该栏专属的选题标题 + 可执行的创作灵感（角度/金句/评论入口）。
    4) 某栏实时匹配不足时，用该栏常驻灵感库补足，保证五栏始终有产出。 */
-function buildColumnTopics(items, shuffle){
+function buildColumnTopics(items, music, shuffle){
   // 综合「高热度·高关注·高话题量」= 单一热度信号（代理已做跨平台归一化），按热度降序
   const ranked = (items||[]).slice().sort((a,b)=> (Number(b.heat)||0)-(Number(a.heat)||0));
-  if(shuffle && ranked.length>8){ for(let i=ranked.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=ranked[i]; ranked[i]=ranked[j]; ranked[j]=x; } }
+  if(shuffle && ranked.length>8){ shuffleArr(ranked); }
   const byCol={}; COLLECTIONS.forEach(c=>byCol[c.key]=[]);
   ranked.forEach(it=>{
     const t=String(it&&it.t||''); if(!t) return;
     matchCollections(t).forEach(m=>{
+      // 诗笺/映言/留声 改用真实作品数据（见下方生成器），不走热榜转译，避免生硬结合与编造
+      if(m.key==='诗笺' || m.key==='映言' || m.key==='留声') return;
       const f=deriveCore(m.hit, m.key);
       byCol[m.key].push({ core:f.core, emo:f.emo, heat:Number(it.heat)||0, kind:(it.src==='常驻'?'常驻':'实时') });
     });
   });
   const result={};
-  COLLECTIONS.forEach(c=>{
-    const col=c.key;
+  // 碎语 / 心事：实时热点 + 常驻补足（情感/生活类，常驻主题可接受）
+  ['碎语','心事'].forEach(col=>{
     let arr=byCol[col].slice(0,5);
     const need=Math.max(0,4-arr.length);
     (COL_EVERGREEN_BANK[col]||[]).slice(0,need).forEach(core=> arr.push({ core, emo:CORE_FALLBACK[col].emo, heat:0, kind:'常驻' }));
@@ -1579,6 +1601,10 @@ function buildColumnTopics(items, shuffle){
     arr.forEach(a=>{ if(seen.has(a.core)) return; seen.add(a.core); cards.push(makeTopicCard(col,a)); });
     result[col]=cards;
   });
+  // 诗笺 / 映言 / 留声：真实作品数据（实时优先/库），不编造常驻
+  result['诗笺'] = genShiJian(items, shuffle);
+  result['映言'] = genYingYan(items, shuffle);
+  result['留声'] = genLiuSheng(music, shuffle);
   return result;
 }
 function makeTopicCard(col, a){
@@ -1590,19 +1616,11 @@ function renderInspire(){
   const data=state.colTopics||{};
   const hasAny=Object.keys(data).some(k=>data[k]&&data[k].length);
   if(!hasAny){
-    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」拉取全网真实热门话题，转化为五栏专属选题与灵感（<b>热榜不展示</b>）。</div>
-      <div class="five-empty-sub">需先连代理：点「⚙ 代理」确认本机代理 http://localhost:8787 正在运行（终端执行 node scripts/proxy.mjs）。未联网时自动用常驻灵感库填充五栏。</div></div>`;
+    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」拉取实时数据，转化为五栏专属选题（<b>热榜不展示</b>）。</div>
+      <div class="five-empty-sub">需先连代理：点「⚙ 代理」确认本机代理 http://localhost:8787 正在运行（终端执行 node scripts/proxy.mjs）。未联网时自动用真实作品库填充诗笺/映言/留声三栏。</div></div>`;
   }
   return COLLECTIONS.map(c=>{
-    const cards=(data[c.key]||[]).map((cd,ki)=>`
-      <div class="col-topic" style="--c:${c.color}">
-        <div class="col-topic-head">
-          <span class="col-topic-title">${esc(cd.title)}</span>
-          <span class="col-topic-kind ${cd.kind==='实时'?'live':'stay'}">${cd.kind==='实时'?'实时':'常驻'}</span>
-        </div>
-        <div class="col-topic-pts">${cd.points.map(p=>`<div class="col-pt">${esc(p)}</div>`).join('')}</div>
-        <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
-      </div>`).join('');
+    const cards=(data[c.key]||[]).map((cd,ki)=> colTopicHtml(c, cd, ki)).join('');
     return `<div class="col-block">
       <div class="col-block-head" style="--c:${c.color}">
         <span class="col-block-name">${esc(c.name)}</span>
@@ -1613,10 +1631,58 @@ function renderInspire(){
     </div>`;
   }).join('');
 }
+function colTopicHtml(c, cd, ki){
+  if(cd.type==='poem'){
+    return `<div class="col-topic" style="--c:${c.color}">
+      <div class="col-topic-head">
+        <span class="col-topic-title">《${esc(cd.name)}》·${esc(cd.author)}（${esc(cd.dynasty)}）</span>
+        <span class="col-topic-kind ${cd.kind==='实时相关'?'live':'stay'}">${esc(cd.kind)}</span>
+      </div>
+      <div class="col-topic-line">${esc(cd.line)}</div>
+      <div class="col-topic-hint">${esc(cd.hint)}</div>
+      <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
+    </div>`;
+  }
+  if(cd.type==='film'){
+    return `<div class="col-topic" style="--c:${c.color}">
+      <div class="col-topic-head">
+        <span class="col-topic-title">《${esc(cd.name)}》[${esc(cd.genre)}]</span>
+        <span class="col-topic-kind ${cd.kind==='实时相关'?'live':'stay'}">${esc(cd.kind)}</span>
+      </div>
+      <div class="col-topic-line">${esc(cd.line)}</div>
+      <div class="col-topic-meta">${esc(cd.role)} / ${esc(cd.actor)}</div>
+      <div class="col-topic-hint">${esc(cd.hint)}</div>
+      <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
+    </div>`;
+  }
+  if(cd.type==='song'){
+    return `<div class="col-topic" style="--c:${c.color}">
+      <div class="col-topic-head">
+        <span class="col-topic-title">「${esc(cd.name)}」—${esc(cd.singer)}</span>
+        <span class="col-topic-kind ${cd.kind==='实时热歌'?'live':'stay'}">${esc(cd.kind)}</span>
+      </div>
+      <div class="col-topic-hint">${esc(cd.hint)}</div>
+      <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
+    </div>`;
+  }
+  // 碎语 / 心事（原有结构）
+  return `<div class="col-topic" style="--c:${c.color}">
+    <div class="col-topic-head">
+      <span class="col-topic-title">${esc(cd.title)}</span>
+      <span class="col-topic-kind ${cd.kind==='实时'?'live':'stay'}">${cd.kind==='实时'?'实时':'常驻'}</span>
+    </div>
+    <div class="col-topic-pts">${cd.points.map(p=>`<div class="col-pt">${esc(p)}</div>`).join('')}</div>
+    <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
+  </div>`;
+}
 function adoptColTopic(col, idx){
   const arr=(state.colTopics||{})[col]||[]; const cd=arr[idx]; if(!cd) return;
-  const content=cd.title+'\n'+cd.points.join('\n');
-  const rec={id:uid(),collection:col,content:content,source:'五栏选题灵感·'+(cd.kind==='实时'?'实时':'常驻'),tags:[cd.kind==='实时'?'实时热点':'常驻灵感'],status:0,planDate:'',createdAt:Date.now()};
+  let content='';
+  if(cd.type==='poem') content=`《${cd.name}》·${cd.author}（${cd.dynasty}）\n${cd.line}\n${cd.hint}`;
+  else if(cd.type==='film') content=`《${cd.name}》[${cd.genre}]\n台词：${cd.line}\n${cd.role} / ${cd.actor}\n${cd.hint}`;
+  else if(cd.type==='song') content=`「${cd.name}」—${cd.singer}\n${cd.hint}`;
+  else content=cd.title+'\n'+cd.points.join('\n');
+  const rec={id:uid(),collection:col,content:content,source:'五栏选题灵感·'+(cd.kind||''),tags:[cd.kind||'灵感'],status:0,planDate:'',createdAt:Date.now()};
   state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
   flashToast('已采用到 '+colOf(col).name);
 }
@@ -1741,6 +1807,133 @@ const COL_EVERGREEN_BANK = {
   映言:['某个被说中心事的时刻','戏里戏外的人性','名场面里的人生','电影教会我的事'],
   留声:['某个失眠的夜晚','说不出的心事','现场那一刻的共振','单曲循环的那首老歌'],
 };
+/* ============ 诗笺 / 映言 / 留声：真实作品数据（非编造常驻，实时优先） ============ */
+function shuffleArr(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=a[i]; a[i]=a[j]; a[j]=x; } return a; }
+
+// 1) 晚风诗笺：真实古诗词库 {name, author, dynasty, line(名句)}
+const SHI_JIAN_LIB = [
+  {name:'静夜思', author:'李白', dynasty:'唐', line:'床前明月光，疑是地上霜。举头望明月，低头思故乡。'},
+  {name:'登鹳雀楼', author:'王之涣', dynasty:'唐', line:'欲穷千里目，更上一层楼。'},
+  {name:'相思', author:'王维', dynasty:'唐', line:'愿君多采撷，此物最相思。'},
+  {name:'春晓', author:'孟浩然', dynasty:'唐', line:'夜来风雨声，花落知多少。'},
+  {name:'水调歌头', author:'苏轼', dynasty:'宋', line:'但愿人长久，千里共婵娟。'},
+  {name:'念奴娇·赤壁怀古', author:'苏轼', dynasty:'宋', line:'大江东去，浪淘尽，千古风流人物。'},
+  {name:'声声慢', author:'李清照', dynasty:'宋', line:'寻寻觅觅，冷冷清清，凄凄惨惨戚戚。'},
+  {name:'如梦令', author:'李清照', dynasty:'宋', line:'知否，知否？应是绿肥红瘦。'},
+  {name:'黄鹤楼送孟浩然之广陵', author:'李白', dynasty:'唐', line:'孤帆远影碧空尽，唯见长江天际流。'},
+  {name:'送元二使安西', author:'王维', dynasty:'唐', line:'劝君更尽一杯酒，西出阳关无故人。'},
+  {name:'绝句', author:'杜甫', dynasty:'唐', line:'两个黄鹂鸣翠柳，一行白鹭上青天。'},
+  {name:'春望', author:'杜甫', dynasty:'唐', line:'感时花溅泪，恨别鸟惊心。'},
+  {name:'赋得古原草送别', author:'白居易', dynasty:'唐', line:'野火烧不尽，春风吹又生。'},
+  {name:'钱塘湖春行', author:'白居易', dynasty:'唐', line:'乱花渐欲迷人眼，浅草才能没马蹄。'},
+  {name:'江雪', author:'柳宗元', dynasty:'唐', line:'孤舟蓑笠翁，独钓寒江雪。'},
+  {name:'枫桥夜泊', author:'张继', dynasty:'唐', line:'月落乌啼霜满天，江枫渔火对愁眠。'},
+  {name:'游子吟', author:'孟郊', dynasty:'唐', line:'谁言寸草心，报得三春晖。'},
+  {name:'陋室铭', author:'刘禹锡', dynasty:'唐', line:'斯是陋室，惟吾德馨。'},
+  {name:'饮酒·其五', author:'陶渊明', dynasty:'东晋', line:'采菊东篱下，悠然见南山。'},
+  {name:'虞美人', author:'李煜', dynasty:'南唐', line:'问君能有几多愁？恰似一江春水向东流。'},
+  {name:'青玉案·元夕', author:'辛弃疾', dynasty:'宋', line:'众里寻他千百度，蓦然回首，那人却在，灯火阑珊处。'},
+  {name:'相见欢', author:'李煜', dynasty:'南唐', line:'剪不断，理还乱，是离愁。'},
+  {name:'天净沙·秋思', author:'马致远', dynasty:'元', line:'枯藤老树昏鸦，小桥流水人家，古道西风瘦马。'},
+  {name:'竹石', author:'郑燮', dynasty:'清', line:'千磨万击还坚劲，任尔东西南北风。'},
+];
+// 2) 晚风映言：真实影视库 {name, type:'电影'|'电视剧', line(台词), role(角色), actor(演员)}
+const YING_YAN_LIB = [
+  {name:'肖申克的救赎', type:'电影', line:'希望是件好事，也许是人间至善，而美好的事物永不消逝。', role:'安迪', actor:'蒂姆·罗宾斯'},
+  {name:'阿甘正传', type:'电影', line:'生活就像一盒巧克力，你永远不知道下一颗是什么味道。', role:'阿甘', actor:'汤姆·汉克斯'},
+  {name:'当幸福来敲门', type:'电影', line:'别让别人告诉你，你成不了才。', role:'克里斯', actor:'威尔·史密斯'},
+  {name:'海上钢琴师', type:'电影', line:'陆地？陆地对我来说是一艘太大的船。', role:'1900', actor:'蒂姆·罗斯'},
+  {name:'霸王别姬', type:'电影', line:'说的是一辈子！差一年，一个月，一天，一个时辰，都不算一辈子！', role:'程蝶衣', actor:'张国荣'},
+  {name:'大话西游', type:'电影', line:'曾经有一份真挚的感情摆在我的面前，我没有珍惜……', role:'至尊宝', actor:'周星驰'},
+  {name:'无间道', type:'电影', line:'给我一个机会，我想做个好人。', role:'刘建明', actor:'刘德华'},
+  {name:'楚门的世界', type:'电影', line:'如果再见不到你，祝你早午晚都安。', role:'楚门', actor:'金·凯瑞'},
+  {name:'千与千寻', type:'电影', line:'曾经发生的事不可能忘记，只是想不起来而已。', role:'千寻', actor:'柊瑠美'},
+  {name:'这个杀手不太冷', type:'电影', line:'人生总是这么痛苦吗，还是只有小时候这样？', role:'玛蒂尔达', actor:'娜塔莉·波特曼'},
+  {name:'美丽人生', type:'电影', line:'早安，公主。', role:'圭多', actor:'罗伯托·贝尼尼'},
+  {name:'放牛班的春天', type:'电影', line:'凡事都有可能，永远别说永远。', role:'克莱门特', actor:'热拉尔·朱尼奥'},
+  {name:'岁月神偷', type:'电影', line:'在变幻的生命里，岁月，原来是最大的小偷。', role:'罗进二', actor:'李治廷'},
+  {name:'忠犬八公的故事', type:'电影', line:'它只是你的一条狗，但你却是它的一生。', role:'帕克', actor:'理查·基尔'},
+  {name:'摔跤吧！爸爸', type:'电影', line:'金牌谁都可以拿，但亚军什么都不是。', role:'马哈维亚', actor:'阿米尔·汗'},
+  {name:'寻梦环游记', type:'电影', line:'被爱的人记住，才是真正的活着。', role:'可可', actor:'阿兰娜·乌巴赫'},
+  {name:'甄嬛传', type:'电视剧', line:'臣妾做不到啊！', role:'华妃', actor:'蒋欣'},
+  {name:'琅琊榜', type:'电视剧', line:'既然我活了下来，就不会白白活着。', role:'梅长苏', actor:'胡歌'},
+  {name:'知否知否应是绿肥红瘦', type:'电视剧', line:'父母之爱子，则为之计深远。', role:'盛老太太', actor:'曹翠芬'},
+  {name:'庆余年', type:'电视剧', line:'人活这一辈子，能尽情舒展地活着，便是最好的。', role:'范闲', actor:'张若昀'},
+  {name:'觉醒年代', type:'电视剧', line:'遍地哀鸿满城血，无非一念救苍生。', role:'陈独秀', actor:'于和伟'},
+  {name:'山海情', type:'电视剧', line:'苦瘠甲天下，咱们要把这穷根拔了。', role:'马得福', actor:'黄轩'},
+  {name:'父母爱情', type:'电视剧', line:'一辈子的牵手，平平淡淡才是真。', role:'安杰', actor:'蒋雯丽'},
+  {name:'武林外传', type:'电视剧', line:'确定一个目标，努力向前，剩下的交给时间。', role:'佟湘玉', actor:'闫妮'},
+];
+// 3) 留声实时兜底（代理不可用时）真实歌曲 {name, singer}
+const FALLBACK_SONGS = [
+  {name:'孤勇者', singer:'陈奕迅'}, {name:'起风了', singer:'买辣椒也用券'}, {name:'海底', singer:'凤凰传奇'},
+  {name:'漠河舞厅', singer:'柳爽'}, {name:'是妈妈是女儿', singer:'黄绮珊/希林娜依高'}, {name:'如愿', singer:'王菲'},
+  {name:'人间', singer:'王菲'}, {name:'晚安', singer:'颜人中'}, {name:'错位时空', singer:'艾辰'},
+  {name:'晴天', singer:'周杰伦'}, {name:'稻香', singer:'周杰伦'}, {name:'孤城', singer:'洛先生'},
+];
+// 根据实时热榜上下文，给真实库做「当下相关性」加权，让选题有时效性（相关度优先，其余轮换保鲜）
+function trendBoost(col, items){
+  const txt = (items||[]).map(x=>String(x&&x.t||'')).join(' ');
+  if(col==='诗笺'){
+    return SHI_JIAN_LIB.map(it=>{
+      let s=0, rel=false;
+      if(txt.indexOf(it.author)>-1){ s+=5; rel=true; }                                  // 具体诗人上热搜
+      if(txt.indexOf(it.name.replace(/[《》]/g,''))>-1){ s+=8; rel=true; }                // 具体诗名被提及
+      if(/诗词|古诗|唐诗|宋词|汉服|国风|节气|飞花令/.test(txt)) s+=1;                     // 仅影响排序，不打「实时相关」标
+      return { it, s, rel };
+    });
+  }
+  if(col==='映言'){
+    return YING_YAN_LIB.map(it=>{
+      let s=0, rel=false;
+      if(txt.indexOf(it.name.replace(/[《》]/g,''))>-1){ s+=8; rel=true; }                // 具体剧名上热搜
+      if(/电影|票房|演技|名场面|台词|二刷|新剧|大结局|综艺|番剧|国漫|开播|追剧/.test(txt)) s+=1;
+      if(it.type==='电影' && /电影|票房|影片/.test(txt)) s+=1;
+      if(it.type==='电视剧' && /剧|追剧|开播|大结局/.test(txt)) s+=1;
+      return { it, s, rel };
+    });
+  }
+  return null;
+}
+function pickReal(lib, scores, shuffle, n){
+  let arr = scores.slice();
+  arr.sort((a,b)=> b.s - a.s || (Math.random()-0.5));
+  if(shuffle){
+    const top = arr.filter(x=>x.s>0).slice(0, n);
+    const rest = arr.filter(x=>x.s===0); shuffleArr(rest);
+    arr = top.concat(rest).slice(0, n);
+  }
+  return arr.slice(0,n).map(x=>x.it);
+}
+function genShiJian(items, shuffle){
+  const scores = trendBoost('诗笺', items);
+  const picks = pickReal(SHI_JIAN_LIB, scores, shuffle, 6);
+  return picks.map(it=>({
+    type:'poem', name:it.name, author:it.author, dynasty:it.dynasty, line:it.line,
+    kind: (scores.find(s=>s.it===it && s.rel)?'实时相关':'库'),
+    hint:'创作方向：以「'+it.line.slice(0,12)+'…」破题，借'+it.author+'的笔写今天的事。'
+  }));
+}
+function genYingYan(items, shuffle){
+  const scores = trendBoost('映言', items);
+  const picks = pickReal(YING_YAN_LIB, scores, shuffle, 6);
+  return picks.map(it=>({
+    type:'film', name:it.name, genre:it.type, line:it.line, role:it.role, actor:it.actor,
+    kind: (scores.find(s=>s.it===it && s.rel)?'实时相关':'库'),
+    hint:'创作方向：用这句台词开场，落到你我都会遇到的那点心事。'
+  }));
+}
+function genLiuSheng(music, shuffle){
+  let list = (music && music.length)? music.slice() : FALLBACK_SONGS.slice();
+  if(shuffle) shuffleArr(list);
+  const isLive = (music && music.length)>0;
+  return list.slice(0,6).map(it=>({
+    type:'song', name:it.name, singer:it.singer,
+    kind: isLive?'实时热歌':'库',
+    hint:'创作方向：用这首歌当 BGM，情绪峰值处留白。'
+  }));
+}
+
 function inspireHeatLabel(h){
   // 「高热度·高关注·高话题量」合并为单一综合热度信号（代理已归一化），不拆成三项分别展示
   h=Number(h)||0;

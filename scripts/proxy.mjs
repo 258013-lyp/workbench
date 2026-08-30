@@ -92,6 +92,20 @@ const SOURCES = {
   ]),
 };
 
+// —— 实时热歌榜（留声栏真实数据源）：网易云热歌榜优先，失败回退聚合源 ——
+const MUSIC_SOURCES = [
+  async () => {
+    const d = await getJSON('https://music.163.com/api/playlist/detail?id=3778678', { Referer: 'https://music.163.com/' });
+    const tracks = (d && d.result && (d.result.tracks || (d.result.playlist && d.result.playlist.tracks))) || [];
+    return tracks.slice(0, 30).map(t => ({ name: t.name, singer: (t.artists || []).map(a => a.name).join('/') })).filter(x => x.name);
+  },
+  async () => {
+    const d = await getJSON('https://api.vvhan.com/api/music/hot');
+    const arr = (d && d.data) || (Array.isArray(d) ? d : []);
+    return (Array.isArray(arr) ? arr : []).slice(0, 30).map(x => ({ name: x.name || x.title || x.song, singer: x.singer || x.artist || x.auther || '' })).filter(x => x.name);
+  },
+];
+
 async function fetchPlat(plat) {
   const fn = SOURCES[plat];
   if (!fn) return { items: [], error: '未知平台: ' + plat };
@@ -119,6 +133,11 @@ const server = http.createServer(async (req, res) => {
   const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
   try {
     if (u.pathname === '/health') return send(200, { ok: true });
+    if (u.pathname === '/music') {
+      const items = await raceFirst(MUSIC_SOURCES.map(f => f));
+      const out = (items || []).filter(x => x && x.name).slice(0, 20).map(x => ({ name: x.name, singer: (x.singer || '').toString() }));
+      return send(200, { plat: 'music', items: out, updatedAt: Date.now(), error: out.length ? null : '无可用音源' });
+    }
     if (u.pathname === '/hot') {
       const plat = (u.searchParams.get('plat') || 'weibo');
       if (plat === 'all') {
