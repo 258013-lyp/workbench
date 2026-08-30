@@ -93,8 +93,8 @@ const SOURCES = {
 };
 
 // —— 全网音乐平台热歌综合（留声栏真实数据源）——
-// 多平台 × 多榜单并行抓取，去重后按「跨平台出现次数」加权为综合热度，
-// 避免单一平台偏差：一首歌同时登上网易云热歌 + QQ音乐热歌，或包揽网易云热歌/飙升/新歌，
+// 三方平台（网易云 ×3 榜 / QQ音乐 / 酷狗）× 多榜单并行抓取，去重后按「跨平台出现次数」加权为综合热度，
+// 避免单一平台偏差：一首歌同时登上网易云热歌 + QQ音乐热歌 + 酷狗飙升，或包揽网易云热歌/飙升/新歌，
 // 其综合热度最高，优先进入留声选题。任一源失败自动跳过，全部失败回退常驻库。
 async function neMusic(id){
   const d = await getJSON('https://music.163.com/api/playlist/detail?id='+id, { Referer: 'https://music.163.com/' });
@@ -112,11 +112,27 @@ async function qqMusic(topid){
     return { name: dt.songname || dt.song_name || '', singer: singer };
   }).filter(x => x.name);
 }
+async function kgMusic(rankid){
+  const url = 'https://m.kugou.com/rank/info/?rankid='+rankid+'&page=1&json=true';
+  const d = await getJSON(url, { Referer: 'https://m.kugou.com/' });
+  const list = (d && d.songs && d.songs.list) || [];
+  return list.slice(0, 30).map(s => {
+    let name = s.songname || '';
+    const m = name.match(/\s*\(([^)]*)\)\s*$/);
+    if (m && /[A-Za-z]/.test(m[1])) name = name.slice(0, name.length - m[0].length).trim();
+    const authors = s.authors || [];
+    const singer = Array.isArray(authors)
+      ? authors.map(a => (a && (a.author_name || a)) || '').join('/')
+      : (s.h5_author_name || '');
+    return { name, singer };
+  }).filter(x => x.name);
+}
 const MUSIC_SOURCES = [
   { tag: '网易云·热歌', fn: async () => neMusic(3778678) },
   { tag: '网易云·飙升', fn: async () => neMusic(19723756) },
   { tag: '网易云·新歌', fn: async () => neMusic(3779629) },
   { tag: 'QQ音乐·热歌', fn: async () => qqMusic(26) },
+  { tag: '酷狗·飙升', fn: async () => kgMusic(6666) },
 ];
 // 全部音源不可用时回退的常驻热门（真实歌曲，仅离线兜底）
 const FALLBACK_MUSIC = [
