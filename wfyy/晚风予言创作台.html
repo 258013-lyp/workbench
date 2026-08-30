@@ -984,6 +984,26 @@ function extractSelfTags(title, text, col){
   SELF_TAG_DICT.forEach(k=>{ if(blob.indexOf(k)!==-1) push(k); });
   return out.slice(0,12);
 }
+/* 内容词库：覆盖生活场景/情绪关系/文化兴趣/时代热词，配合情感词典从「文案原文」实挖关键词。
+   只保留正文里真实出现的「已知好词」，避免 n-gram 碎片（如「营搭」「读苏轼读」）污染标签 */
+const CONTENT_VOCAB=[
+  '失眠','工位','加班','熬夜','通勤','租房','搬家','独居','合租','做饭','早餐','夜跑','读书','旅行','露营','帐篷','爬山','海边','城市','乡村','老家','宿舍','阳台','书桌','咖啡','奶茶','花','猫','狗','植物','雨天','晴天','雪天','周末','假期','毕业','考研','高考','就业','实习','离职','创业','结婚','备孕','带娃','健身','减肥','护肤','追剧','游戏','摄影','手账','书法','画画','朋友','同事','同学','邻居','家人',
+  '内耗','焦虑','孤独','治愈','释然','遗憾','心动','暗恋','异地','分手','失恋','友情','亲情','爱情','婚姻','婆媳','职场','同龄人','比较','自卑','自信','勇敢','软弱','懂事','委屈','崩溃','平静','温柔','烟火气','安全感','归属感','仪式感','边界感','松弛感','钝感力','配得感','掌控感','emo','emo文学',
+  '苏轼','李白','杜甫','纳兰','王维','诗词','古诗','宋词','唐诗','诗经','国风','古风','国画','戏曲','民乐','老歌','歌单','单曲循环','演唱会','电影','台词','名场面','影视','综艺','二刷','动漫','小说','散文',
+  '内卷','躺平','打工人','牛马','班味','电子榨菜','精神状态','发疯','嘴硬','反矫情','清醒','人间清醒','情绪价值','氛围感','高级感','松弛','慢生活','断舍离','极简','小确幸','精神离职','数字游民','自我成长','成长','人生感悟','生活记录','正能量','暖心'
+];
+const BODY_KNOWN=new Set([...SELF_TAG_DICT, ...CONTENT_VOCAB]);
+function extractBodyTags(text){
+  const blob=(text||'');
+  if(blob.length<2) return [];
+  const out=[]; const seen=new Set();
+  const hit=w=>{ if(w && BODY_KNOWN.has(w) && !seen.has(w)){ seen.add(w); out.push(w); } };
+  // 长词优先扫描：先 4/3 字再 2 字，滑动窗口（i+L 为结束下标），避免短词截断重复计入
+  for(const L of [4,3,2]){
+    for(let i=0;i+L<=blob.length;i++){ const g=blob.slice(i,i+L); if(g) hit(g); }
+  }
+  return out;
+}
 /* 文案 → 实时热门标签（self）：每次保存文案重算「我的主题」；命中实时热点标记 hitLive，形成闭环 */
 function syncTagPoolFromSelf(title, text, col, manualTags, now){
   if(!now) now=Date.now();
@@ -2238,9 +2258,13 @@ function refreshAllLive(silent){
   });
 }
 
-function syncTagPoolFromHot(words, now){
+function syncTagPoolFromHot(items, now){
   if(!now) now=Date.now();
-  const gen=words.map(w=>({plat:'通用',col:guessCol(w),tag:hotToTag(w),live:true,fetchedAt:now})).filter(x=>x.tag&&x.tag.length>=2);
+  const words=[...new Set((items||[]).map(it=>it.t))].filter(Boolean).slice(0,30);
+  /* 热度：标签在实时条目中出现条数（跨条目出现越多 = 越热），作为「热度最高」排序依据 */
+  const heatOf={};
+  (items||[]).forEach(it=>{ const t=(it.t||''); words.forEach(w=>{ const tw=hotToTag(w); if(tw && t.indexOf(tw)!==-1) heatOf[tw]=(heatOf[tw]||0)+1; }); });
+  const gen=words.map(w=>{ const tag=hotToTag(w); return {plat:'通用',col:guessCol(w),tag,live:true,fetchedAt:now,heat:heatOf[tag]||1}; }).filter(x=>x.tag&&x.tag.length>=2);
   const keep=(state.tagPool||[]).filter(x=>!x.live);
   const seen=new Set(keep.map(x=>x.plat+'|'+x.col+'|'+x.tag));
   gen.forEach(x=>{ const k=x.plat+'|'+x.col+'|'+x.tag; if(!seen.has(k)){ seen.add(k); keep.push(x); } });
@@ -2302,29 +2326,38 @@ function insertTag(t){
 function themePickTags(colKey, plats, title, text, n){
   const blob=((title||'')+' '+(text||'')).toLowerCase();
   const titleNorm=(title||'').replace(/[<>&"'，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim().slice(0,12).toLowerCase();
+  const bodyTags=new Set(extractBodyTags(text).map(t=>t.toLowerCase()));   // 文案原文实挖关键词（最贴合实际内容）
   const m=new Map();
-  const add=(tag,live,self,hitLive)=>{
+  const add=(tag,live,self,hitLive,heat)=>{
     tag=(tag||'').trim(); if(tag.length<2||tag.length>12) return;
     const kl=tag.toLowerCase();
     if(kl===titleNorm) return;                                       // 跳过「整条标题」这种过长伪标签
     const ex=m.get(kl);
-    if(ex){ ex.live=ex.live||live; ex.self=ex.self||self; ex.hitLive=ex.hitLive||hitLive; return; }
-    m.set(kl,{tag,col:guessCol(tag),live,self,hitLive});
+    if(ex){ ex.live=ex.live||live; ex.self=ex.self||self; ex.hitLive=ex.hitLive||hitLive; if(heat) ex.heat=Math.max(ex.heat||0,heat); return; }
+    m.set(kl,{tag,col:guessCol(tag),live,self,hitLive,heat:heat||0});
   };
-  extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false));            // ① 文案主题直接提取（最贴合当前主题）
-  (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive));   // ② 实时热门
-  (state.tagPool||[]).filter(x=>x.self).forEach(x=>add(x.tag,false,true,!!x.hitLive));    // ③ 我的文案主题池
-  (state.tagPool||[]).filter(x=>!x.live&&!x.self).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x.tag,false,false,false); }); // ④ 离线种子
+  extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false,0));            // ① 情感主题词典（氛围向）
+  extractBodyTags(text).forEach(t=>add(t,false,false,false,0));                       // ② 文案原文实挖（内容向，最贴合）
+  (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive,x.heat||1));   // ③ 实时热门（带热度）
+  (state.tagPool||[]).filter(x=>x.self).forEach(x=>add(x.tag,false,true,!!x.hitLive,x.heat||0));    // ④ 我的文案主题池
+  (state.tagPool||[]).filter(x=>!x.live&&!x.self).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x.tag,false,false,false,0); }); // ⑤ 离线种子
   const grams=g=>{const a=(g||'').split('');const o=[];for(let i=0;i<a.length-1;i++)o.push(a[i]+a[i+1]);return o;};
   const bgSet=new Set(grams(blob));
-  return [...m.values()].map(o=>{
-    let s=0; const t=o.tag.toLowerCase();
-    if(blob.indexOf(t)!==-1) s+=6;                                   // 标签直接出现在当前文案
-    else { const tg=grams(t); if(tg.length){ let hit=0; tg.forEach(g=>{if(bgSet.has(g))hit++;}); s+=3*(hit/tg.length); } } // 字符级重叠
-    if(o.col===colKey) s+=3;                                         // 合集契合
-    if(o.live) s+=1.5; if(o.self) s+=1; if(o.hitLive) s+=1.5;        // 热度/我的主题加成
-    return {tag:o.tag, s};
-  }).filter(x=>x.s>2).sort((a,b)=>b.s-a.s).slice(0,n).map(x=>x.tag);  // 仅取真正契合主题/合集的标签，不塞无关热词
+  const cands=[...m.values()].map(o=>{
+    const t=o.tag.toLowerCase();
+    let content=0, linked=false;
+    if(blob.indexOf(t)!==-1){ content=6; linked=true; }                       // 标签直接出现在当前文案（最强契合）
+    else { const tg=grams(t); if(tg.length){ let hit=0; tg.forEach(g=>{if(bgSet.has(g))hit++;}); const r=hit/tg.length; if(r>0){ content=3*r; linked=true; } } } // 字符级重叠
+    if(bodyTags.has(t)){ content+=2; linked=true; }                          // 来自文案原文实挖
+    if(o.self){ linked=true; }                                               // 我的文案主题，视为相关
+    const colBoost=(o.col===colKey)?3:0;                                     // 合集契合（加成，但不足以单独入选）
+    const heatBoost=o.heat?Math.min(o.heat,5)*0.8:0;                         // 热度最高：仅在相关标签中提升排序
+    const s=content+colBoost+(o.self?0.5:0)+(o.live?1:0)+(o.hitLive?1.5:0)+heatBoost;
+    return {tag:o.tag, s, heat:o.heat||0, linked};
+  });
+  return cands.filter(x=>x.linked && x.s>2)                                  // 仅取与「文案原文/我的主题」真正相关的标签
+    .sort((a,b)=> (b.s-a.s) || (b.heat-a.heat))                              // 先按契合度，再按实时热度排
+    .slice(0,n).map(x=>x.tag);
 }
 function refreshTagPool(){
   const btn=document.querySelector('#tagSuggest .btn-soft');
@@ -2339,7 +2372,7 @@ function refreshTagPool(){
       picks.forEach(t=>{ if(have.indexOf(t)===-1) have.push(t); });   // 合并而非覆盖，保留手写标签
       el.value=have.slice(0,8).join(', ');
       if(typeof liveDupCheck==='function') liveDupCheck();
-      flashToast('已根据主题匹配 '+picks.length+' 个标签：'+picks.join('、'));
+      flashToast('已按文案原文匹配 '+picks.length+' 个标签（契合度+实时热度排序）：'+picks.join('、'));
     } else if(el){
       flashToast('当前主题暂无可匹配标签，已保留原标签');
     }
@@ -2347,8 +2380,7 @@ function refreshTagPool(){
   };
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
   fetchLiveItems().then(items=>{
-    const words=[...new Set(items.map(it=>it.t))].filter(Boolean).slice(0,30);
-    if(words.length){ syncTagPoolFromHot(words, Date.now()); recomputeSelfHit(); save(); }
+    if(items && items.length){ syncTagPoolFromHot(items, Date.now()); recomputeSelfHit(); save(); }
     if(btn){ btn.disabled=false; btn.textContent='↻ 刷新标签'; }
     runPick();
   }).catch(e=>{
