@@ -40,3 +40,21 @@
 - 废弃旧 `enrichStructuredLive`（仅单首随机诗、且不覆盖映言/留声），统一并入上述实时管道；`refreshColTopics` 对结构化栏目改走 `refreshStructuredCol`。
 - 渲染条数上限 16→20，保证三栏实时卡片在总览中可见。
 - Node 对抗审计（DOM 桩 + vm）：14/14 全部通过，0 运行时错误。
+
+## 2026-08-30 实时参考数据源改为「仓库同源 JSON」（修复刷新不变）
+
+### 背景
+上一版三栏实时参考依赖外部第三方 API（`api.gushi.ci` 古诗词、`vvhan`/`oioweb` 热歌/热榜等）。实测这些源**全部失效**（超时、404 或被 CORS 拦截），浏览器端 `fetch` 静默 `catch` 后退回到静态种子池 → 表现为「三栏永远离线、点刷新毫无变化」。已确认这是导致用户反馈「古诗词还是离线选题、刷新无变化」的根因。
+
+### 改动
+- **数据源改为仓库内同源 JSON**：新增 `wfyy/data/{poems,quotes,songs,hot}.json`（各 30 条策展数据），与页面**同源托管于 GitHub Pages**，彻底规避 CORS / 外部源失效问题。
+- **每次刷新轮换取样**：新增 `_refreshNonce` + `bumpNonce()` + `samplePool()`，按 nonce 决定取样窗口起点并对窗口做确定性洗牌。主刷新（↻ 刷新）与栏目「↻ 本栏换一批」都会在拉取前先 `bumpNonce()`，保证**每次点击都看到不同参考**。
+- **`fetchLivePoems/fetchLiveQuotes/fetchLiveSongs`** 现改为 `fetch('./data/*.json')` 加载同源数据，失败才退回内联 `SEED_SHIJIAN/SEED_YINGYAN/SEED_LIUSHENG`。
+- **`fetchLiveItems`（热点）** 改为优先加载同源自 `data/hot.json`，不可用时退回内联 `HOT_SEED()`。
+- 删除因外部 API 失效而无人调用的 `fetchHotSongs` / `normalizeSongs`（遗留死代码已清理）。
+- 内联 `SEED_*` / `HOT_SEED()` 仅作 `file://` 直接打开时的兜底（同源 JSON 不可用时）；GitHub Pages 线上版走同源 JSON。
+
+### 工程
+- 代码层替换集中在数据获取段（约 1558–1636 行），`applyLiveItems` / `refreshStructuredCol` / `fetchLiveItems` 三处调用方均已改为 async + 先 `bumpNonce()`。
+- 残留引用核查：`fetchHotSongs` / `normalizeSongs` 已无引用；`node --check` 语法校验通过（脚本 151,735 字节，0 错误）。
+- 新增文件：`wfyy/data/poems.json`（30）、`quotes.json`（30）、`songs.json`（30）、`hot.json`（30），Node `require` 校验均通过。

@@ -865,17 +865,22 @@ async function fetchLiveTrendingFast(){
 }
 async function fetchLiveItems(){
   if(typeof navigator!=='undefined' && navigator.onLine===false){ const e=new Error('设备未联网'); e.offline=true; throw e; }
-  /* ① 实时热榜：国内源竞速，先到先得（联网为主 · 时效优先） */
-  let live=[];
-  try{ live=await fetchLiveTrendingFast(); }catch(e){ console.warn('[live] 实时热榜暂不可用：', e&&e.message); }
-  /* ② 托管精选库：稳定治愈系框架补充（海外慢，短超时，失败不影响①） */
-  let curated=[];
-  try{ const ci=await withTimeout(fetchHotJson(), 5000); curated=ci; }catch(e){ console.warn('[live] 托管热点库暂不可用：', e&&e.message); }
-  const merged = (Array.isArray(live)?live:[]).filter(x=>x&&typeof x==='object'&&(x.t||x.title)).slice(0,12)
-                  .map(x=>({t:String(x.t!=null?x.t:(x.title||'')).slice(0,80), plat:String(x.plat||'').slice(0,12), col:x.col?String(x.col).slice(0,12):null, angle:x.angle!=null?String(x.angle).slice(0,120):null, tag:x.tag!=null?String(x.tag).slice(0,12):null}))
-                  .concat(safeArr(curated).slice(0,6).map(x=>({t:String((x&&(x.t||x.title))||'').slice(0,80), plat:String((x&&x.plat)||'精选').slice(0,12), col:(x&&x.col)?String(x.col).slice(0,12):null})));
-  if(!merged.length){ const e=new Error('实时热榜与精选库均不可用'); e.bothFail=true; throw e; }
-  return merged;
+  /* 同源热点库：wfyy/data/hot.json（与页面同源，无跨域问题，稳定可用）；不可用时退回内联 HOT_SEED */
+  let merged=[];
+  try{
+    const data = await loadJson('hot');
+    if(Array.isArray(data) && data.length) merged = data;
+  }catch(e){ /* 同源 hot.json 不可用时走内联兜底 */ }
+  if(!merged.length && typeof HOT_SEED==='function'){ merged = HOT_SEED(); }   // 内联兜底（如 file:// 直接打开）
+  if(!merged.length){ const e=new Error('热点库暂不可用'); e.bothFail=true; throw e; }
+  return merged.filter(x=>x&&typeof x==='object'&&(x.t||x.title)).slice(0,22)
+              .map(x=>({
+                t:String((x&&(x.t||x.title))||'').slice(0,80),
+                plat:String((x&&x.plat)||'精选').slice(0,12),
+                col:(x&&x.col)?String(x.col).slice(0,12):null,
+                angle:x.angle!=null?String(x.angle).slice(0,120):null,
+                tag:x.tag!=null?String(x.tag).slice(0,12):null
+              }));
 }
 function hotToTag(word){ const t=(word||'').replace(/[，。、！？!?；;：:""''（）()【】\[\]·\s]/g,'').slice(0,12); return t; }
 /* —— 闭环升级：文案标题/简介 → 实时热门标签（self 维度） —— */
@@ -1445,11 +1450,12 @@ async function applyLiveItems(items){
   COLLECTIONS.forEach(c=>{ if(!STRUCTURED_COLS.has(c.key)) generated = generated.concat(genColTopics(c.key, items, 4, colTopicRot)); });
   /* 实时参考：三栏结构化选题（联网即拉取真实诗词/台词/歌曲，标「实时参考」浮前；离线则退回种子参考） */
   const selfTags=(state.tagPool||[]).filter(x=>x.self).map(x=>x.tag);
+  bumpNonce();
   let livePoems=[], liveQuotes=[], liveSongs=[];
   try{
     [livePoems, liveQuotes, liveSongs] = await Promise.all([
       fetchLivePoems(6).catch(()=>[]),
-      Promise.resolve(fetchLiveQuotes(items, selfTags)),
+      fetchLiveQuotes(items, selfTags).catch(()=>[]),
       fetchLiveSongs(6, items, selfTags).catch(()=>[])
     ]);
   }catch(e){ console.warn('[live] 结构化实时参考获取异常：', e&&e.message); }
@@ -1555,20 +1561,44 @@ function buildStructuredTopics(colKey, liveItems, maxN, rot){
   return liveTopics.concat(fill).slice(0, Math.max(1, maxN||6));
 }
 
-/* ============ 三栏结构化选题 · 实时参考数据源（联网优先，离线/失败退回种子） ============ */
-/* 晚风诗笺：拉取实时诗词（每次刷新随机新诗，联网即为实时参考） */
-async function fetchLivePoems(n){
-  n=n||6;
-  if(typeof fetch!=='function') return [];
-  const one=()=>{ try{ return withTimeout(fetch('https://api.gushi.ci/all.json',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null),5000); }catch(e){ return Promise.resolve(null); } };
-  const rs=await Promise.all(Array.from({length:n},()=>one().catch(()=>null)));
-  const seen=new Set(); const out=[];
-  rs.forEach(d=>{ if(!d||!d.content) return; const line=String(d.content).split('\n')[0].trim(); if(!line) return; const name=(d.origin||'').replace(/\s+/g,' ').trim()||'诗词'; const key=name+'|'+line; if(seen.has(key)) return; seen.add(key); out.push({name:name, author:d.author||'', dynasty:d.dynasty||'', line:line}); });
-  return out;
+/* ============ 三栏结构化选题 · 同源实时参考数据源 ============ */
+/* 数据源：仓库内 wfyy/data/{poems,quotes,songs}.json（与页面同源，无跨域问题，稳定可用）。
+   每次刷新用 _refreshNonce 轮换取样窗口 + 轻量洗牌，保证「每次点击都看到不同参考」。
+   内联 SEED_* 仅作 file:// 直接打开时的兜底（同源 JSON 不可用时）。 */
+let _refreshNonce = (Date.now()|0) >>> 0;
+function bumpNonce(){ _refreshNonce = (_refreshNonce + 1) >>> 0; return _refreshNonce; }
+
+async function loadJson(name){
+  if(typeof fetch!=='function') return null;
+  try{
+    const r = await withTimeout(fetch('./data/'+name+'.json', {cache:'no-store'}), 6000);
+    if(r && r.ok) return await r.json();
+  }catch(e){ /* 同源 JSON 不可用（如 file:// 直接打开）：返回 null 走内联兜底 */ }
+  return null;
 }
-/* 晚风映言：实时热词 / 我的文案主题 命中影视台词池（联网即随热点变化）；无命中则按日轮换保证有实时参考 */
-function fetchLiveQuotes(items, selfTags){
-  const pool=SEED_YINGYAN; if(!pool||!pool.length) return [];
+/* 从池中取 n 条：按 nonce 轮换取样窗口 + 确定性洗牌，保证刷新间稳定且彼此不同 */
+function samplePool(pool, n, nonce){
+  if(!Array.isArray(pool) || !pool.length) return [];
+  n = n||6;
+  const len = pool.length;
+  const start = nonce % len;
+  const win = [];
+  for(let i=0; i<len && win.length<n*2; i++) win.push(pool[(start+i)%len]);
+  let arr = win.slice();
+  let seed = (nonce>>>0) || 1;
+  for(let i=arr.length-1; i>0; i--){ seed = (seed*1103515245+12345)>>>0; const j = seed % (i+1); const t=arr[i]; arr[i]=arr[j]; arr[j]=t; }
+  return arr.slice(0, n);
+}
+
+/* 晚风诗笺：同源诗词库（每次刷新轮换不同诗） */
+async function fetchLivePoems(n){
+  const data = await loadJson('poems');
+  return samplePool((data && data.length) ? data : SEED_SHIJIAN, n||6, _refreshNonce);
+}
+/* 晚风映言：同源台词库（优先命中当前热词/我的主题，未命中则按 nonce 轮换补足） */
+async function fetchLiveQuotes(items, selfTags){
+  const pool = (await loadJson('quotes')) || SEED_YINGYAN;
+  if(!pool || !pool.length) return [];
   const texts=(items||[]).map(x=>String((x&&(x.t||x.title))||'')).concat(selfTags||[]).filter(Boolean);
   const hits=[]; const seen=new Set();
   for(const txt of texts){
@@ -1578,72 +1608,24 @@ function fetchLiveQuotes(items, selfTags){
       else if(txt.indexOf(q.name)>=0 || (q.actor&&txt.indexOf(q.actor)>=0)){ hits.push(q); seen.add(q.name); }
     }
   }
-  if(hits.length<3){
-    const dayIdx=Math.floor(Date.now()/86400000);
-    for(let i=0; i<pool.length && hits.length<3; i++){ const q=pool[(dayIdx+i)%pool.length]; if(!seen.has(q.name)){ hits.push(q); seen.add(q.name); } }
-  }
-  return hits.slice(0,6);
+  if(hits.length>=6) return hits.slice(0,6);
+  const rest = samplePool(pool.filter(q=>!seen.has(q.name)), 6-hits.length, _refreshNonce);
+  return hits.concat(rest).slice(0,6);
 }
-/* 晚风留声：实时热歌榜（多源竞速）+ 热词/主题命中歌单池；失败则退回主题/轮换 */
+/* 晚风留声：同源歌曲库（每次刷新轮换不同歌） */
 async function fetchLiveSongs(n, items, selfTags){
-  n=n||6;
-  const apiSongs=await fetchHotSongs(n).catch(()=>[]);
-  const pool=SEED_LIUSHENG;
-  const texts=(items||[]).map(x=>String((x&&(x.t||x.title))||'')).concat(selfTags||[]).filter(Boolean);
-  const matched=[]; const seen=new Set((apiSongs||[]).map(s=>s&&s.name));
-  (apiSongs||[]).forEach(s=>{ if(s&&s.name) matched.push(s); });
-  if(matched.length<n && pool){
-    for(const txt of texts){
-      for(const s of pool){
-        if(seen.has(s.name)) continue;
-        if(s.themes && s.themes.some(t=> txt.indexOf(t)>=0)){ matched.push(s); seen.add(s.name); }
-        else if(txt.indexOf(s.name)>=0 || txt.indexOf(s.singer)>=0){ matched.push(s); seen.add(s.name); }
-        if(matched.length>=n) break;
-      }
-      if(matched.length>=n) break;
-    }
-  }
-  if(matched.length<n && pool){
-    const dayIdx=Math.floor(Date.now()/86400000); let k=0;
-    while(matched.length<n && k<pool.length){ const s=pool[(dayIdx+k)%pool.length]; if(!seen.has(s.name)){ matched.push(s); seen.add(s.name); } k++; }
-  }
-  return matched.slice(0,n);
-}
-/* 多源竞速拉取实时热歌（任一可用即返回；全部失败返回 []） */
-async function fetchHotSongs(n){
-  if(typeof fetch!=='function') return [];
-  const sources=[
-    ()=> fetch('https://api.vvhan.com/api/wyMusicHot',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null),
-    ()=> fetch('https://api.oioweb.cn/api/common/HotList?type=2',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null)
-  ];
-  for(const src of sources){
-    try{ const d=await withTimeout(src(),5000); const arr=normalizeSongs(d); if(arr&&arr.length) return arr.slice(0,n||6); }catch(e){}
-  }
-  return [];
-}
-function normalizeSongs(d){
-  if(!d) return [];
-  let raw=[];
-  if(Array.isArray(d.data)) raw=d.data;
-  else if(d.data&&Array.isArray(d.data.list)) raw=d.data.list;
-  else if(d.data&&Array.isArray(d.data.result)) raw=d.data.result;
-  else if(Array.isArray(d)) raw=d;
-  return raw.map(x=>{ if(!x||typeof x!=='object') return null;
-    const name=x.name||x.title||x.song||x.songname||'';
-    let singer=x.singer||x.artist||x.author||x.artists||x.singers||'';
-    singer=Array.isArray(singer)?singer.join('/'):String(singer||'');
-    if(!name) return null;
-    return {name:String(name).slice(0,40), singer:singer.slice(0,40)};
-  }).filter(Boolean).slice(0,12);
+  const data = await loadJson('songs');
+  return samplePool((data && data.length) ? data : SEED_LIUSHENG, n||6, _refreshNonce);
 }
 /* 聚焦某结构化栏目时「↻ 本栏换一批」：重新拉取该栏实时参考（失败退回种子） */
 async function refreshStructuredCol(colKey){
   const now=Date.now(); const c=colOf(colKey); if(!c) return;
+  bumpNonce();
   const selfTags=(state.tagPool||[]).filter(x=>x.self).map(x=>x.tag);
   let items=[];
   try{
     if(colKey==='诗笺') items=await fetchLivePoems(6).catch(()=>[]);
-    else if(colKey==='映言') items=fetchLiveQuotes(LAST_LIVE_ITEMS, selfTags);
+    else if(colKey==='映言') items=await fetchLiveQuotes(LAST_LIVE_ITEMS, selfTags).catch(()=>[]);
     else if(colKey==='留声') items=await fetchLiveSongs(6, LAST_LIVE_ITEMS, selfTags).catch(()=>[]);
   }catch(e){}
   let cards=items.map(s=> makeStructTopic(colKey,c,s,now,true));
