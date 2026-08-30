@@ -1002,6 +1002,8 @@ function extractBodyTags(text){
   for(const L of [4,3,2]){
     for(let i=0;i+L<=blob.length;i++){ const g=blob.slice(i,i+L); if(g) hit(g); }
   }
+  // 单字词库成员（如 猫/海/雨/花/雪）逐字命中，避免被 2~4 字窗口漏掉
+  for(const ch of blob){ if(ch && BODY_KNOWN.has(ch) && !seen.has(ch)){ seen.add(ch); out.push(ch); } }
   return out;
 }
 /* 文案 → 实时热门标签（self）：每次保存文案重算「我的主题」；命中实时热点标记 hitLive，形成闭环 */
@@ -2271,6 +2273,52 @@ function syncTagPoolFromHot(items, now){
   state.tagPool=keep.slice(-200);
   state.tagUpdated=now;
 }
+/* 抖音/全网实时热词 → 候选标签（经本机/Worker 代理拉取，带真实热度） */
+/* 实时热词多为长句描述（如「毕业季租房避坑指南」），需拆成干净短话题标签（≤8字），
+   不能整句截断成垃圾。策略：拉丁/数字串直取 → 去虚词整体(≤8) → 连词切分取各段 → 汉字 n-gram 兜底 */
+function extractHotTags(phrase){
+  const raw=(phrase||'').replace(/\s+/g,' ').trim();
+  const s=raw.replace(/[，。、！？!?；;：:"'（）()【】\[\]·…—~～\s\p{P}\p{S}]/gu,''); // 去标点/空格/符号
+  if(!s) return [];
+  const out=new Set();
+  const push=x=>{ x=(x||'').trim(); if(x.length>=2&&x.length<=8) out.add(x); };
+  (s.match(/[a-zA-Z0-9]+/g)||[]).forEach(x=>{ if(x.length>=2&&x.length<=8) push(x); }); // 拉丁/数字串（meme/city/00）
+  // 话题核心：整句≤8字直接用；否则取「连词之前的片段」(最干净)；再否则截前8字去尾虚词——避免切到词中间
+  const seg=((s.split(/(了|的|让|把|给|和|与|跟|引发|导致|造成|如何|怎么|怎样|为什么|为何|是什么|啥是|曝光|后续|盘点|来了|出现|网友|当事人|专家|官方|最新|突发|紧急|通知|提醒|注意|千万别|一定要|建议|原来|这才|终于|居然|竟然|万万没想到|细思极恐|太真实|真实了|人间清醒|冲上|登上|热搜|爆了|炸了|破防|泪目|上头|硬核|深度|揭秘|内幕|实拍|发酵|反转|走红|爆火|火了)/u)[0])||s);
+  let core = (s.length<=8) ? s : (seg.length<=8 ? seg : s.slice(0,8).replace(/(了|的|吗|呢|啊|哦|哈|呀|哇|呗|咯|哒|嘞|么|撒|捏)$/u,''));
+  if(core.length>=2) push(core);
+  if(out.size===0){
+    for(const L of [4,3,2]) for(let i=0;i+L<=s.length;i++){ const g=s.slice(i,i+L); if(/[一-龥]{2,}/.test(g)) push(g); if(out.size>=6) break; }
+  }
+  return [...out].filter(x=>x.length>=2&&x.length<=8).slice(0,6);
+}
+async function fetchLiveTagCandidates(){
+  const map=new Map();
+  const grab=async(plat)=>{
+    const d=await fetchLiveHotViaProxy(plat);
+    (d&&d.items||[]).forEach(it=>{
+      extractHotTags(it.t).forEach(tag=>{
+        const kl=tag.toLowerCase();
+        const ex=map.get(kl);
+        if(ex){ ex.heat=Math.max(ex.heat||0, Number(it.heat)||0); ex.plat=ex.plat+'/'+platName(plat); }
+        else map.set(kl,{tag,heat:Number(it.heat)||0,plat:platName(plat)});
+      });
+    });
+  };
+  // 抖音为主，全网综合补充；并行拉取，任一成功即带真实热度
+  await Promise.all([ grab('douyin').catch(()=>{}), grab('all').catch(()=>{}) ]);
+  return [...map.values()];
+}
+function syncTagPoolFromHotLive(cands, now){
+  if(!now) now=Date.now();
+  if(!cands||!cands.length) return;
+  const gen=cands.map(c=>({plat:c.plat||'抖音',col:guessCol(c.tag),tag:c.tag,live:true,fetchedAt:now,heat:Number(c.heat)||1,hitLive:false})).filter(x=>x.tag&&x.tag.length>=2&&x.tag.length<=14);
+  const keep=(state.tagPool||[]).filter(x=>!x.live);   // live 维度每次重算，不无限堆积
+  const seen=new Set(keep.map(x=>x.plat+'|'+x.col+'|'+x.tag));
+  gen.forEach(x=>{ const k=x.plat+'|'+x.col+'|'+x.tag; if(!seen.has(k)){ seen.add(k); keep.push(x); } });
+  state.tagPool=keep.slice(-200);
+  state.tagUpdated=now;
+}
 function tagPoolNote(){
   if(state.tagUpdated) return '已实时更新 · '+new Date(state.tagUpdated).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
   return '离线标签库 · 抓取于 '+TAG_FETCHED+'（打开时自动实时更新，也可点「↻ 刷新标签」）';
@@ -2286,6 +2334,13 @@ function getTagSuggest(colKey, plats){
   pool.filter(x=>x.live && !x.hitLive && x.col===colKey).forEach(add); // ② 实时热点（未命中我的主题）
   pool.filter(x=>x.self && !x.hitLive && x.col===colKey).forEach(add); // ③ 我的文案主题（未命中热点）
   pool.filter(x=>!x.live && !x.self && x.col===colKey).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x); }); // ④ 离线种子（按平台）
+  /* ⑤ 抖音/全网实时热词中与「当前主题」真正相关的（跨合集也纳入，标🔥），让建议面板也是实时热标而非只用内置 */
+  try{
+    const th=themeProfile(fieldVal('f_title'), fieldVal('f_text'));
+    const liveRest=pool.filter(x=>x.live && !map.has(x.col+'|'+x.tag));
+    liveRest.map(x=>({x,sim:themeSimScore(x.tag,th)})).filter(o=>o.sim>=0.18)
+      .sort((a,b)=>b.sim-a.sim).slice(0,8).forEach(o=>{ const x=o.x; if(!map.has(x.col+'|'+x.tag)){ const o2={tag:x.tag,col:x.col,live:true,self:false,hitLive:false}; map.set(x.col+'|'+x.tag,o2); out.push(o2); } });
+  }catch(e){}
   return out.slice(0,30);
 }
 function refreshTagSuggest(){
@@ -2323,40 +2378,65 @@ function insertTag(t){
   if(typeof liveDupCheck==='function') liveDupCheck();
   if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
-function themePickTags(colKey, plats, title, text, n){
-  const blob=((title||'')+' '+(text||'')).toLowerCase();
-  const titleNorm=(title||'').replace(/[<>&"'，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim().slice(0,12).toLowerCase();
-  const bodyTags=new Set(extractBodyTags(text).map(t=>t.toLowerCase()));   // 文案原文实挖关键词（最贴合实际内容）
-  const m=new Map();
-  const add=(tag,live,self,hitLive,heat)=>{
-    tag=(tag||'').trim(); if(tag.length<2||tag.length>12) return;
+/* 从「标题+文案」构建主题画像：内置词典/词库命中 + 原文实挖 + 全文二元/三元字符特征，
+   用于和实时热词算「语义相似度」（不要求逐字出现，相关即可匹配） */
+function themeProfile(title, text){
+  const blob=(title||'')+' '+(text||'');
+  const norm=(blob||'').replace(/[\s\p{P}\p{S}]/gu,'').toLowerCase();
+  // 仅取汉字序列做字符特征，避免拉丁/数字互相比对造成伪匹配（如 meme↔emo 共享 em）
+  const han=norm.replace(/[^一-龥]/g,'');
+  const grams=new Set();
+  for(const L of [3,2]) for(let i=0;i+L<=han.length;i++) grams.add(han.slice(i,i+L));
+  const hits=new Set();
+  SELF_TAG_DICT.forEach(k=>{ if(blob.indexOf(k)!==-1) hits.add(k.toLowerCase()); });
+  CONTENT_VOCAB.forEach(k=>{ if(blob.indexOf(k)!==-1) hits.add(k.toLowerCase()); });
+  extractBodyTags(text).forEach(t=>hits.add(t.toLowerCase()));
+  if(title){ const tl=title.replace(/[\s\p{P}\p{S}]/gu,'').toLowerCase().slice(0,14); if(tl) hits.add(tl); }
+  return {norm, han, grams, hits};
+}
+function themeSimScore(tag, th){
+  const t=String(tag||'').replace(/[\s\p{P}\p{S}]/gu,'').toLowerCase();
+  if(!t.length) return 0;
+  if(th.hits.has(t)) return 1;
+  for(const h of th.hits){ if(h && (t.indexOf(h)!==-1 || h.indexOf(t)!==-1)) return 1; }
+  const hasHan=/[一-龥]/.test(t);
+  if(!hasHan) return (th.norm.indexOf(t)!==-1) ? 1 : 0;   // 纯拉丁/数字标签：仅原文逐字命中才算相关
+  const hanT=t.replace(/[^一-龥]/g,'');
+  const tg=[]; for(const L of [3,2]) for(let i=0;i+L<=hanT.length;i++) tg.push(hanT.slice(i,i+L));
+  if(!tg.length) return 0;
+  let hit=0; tg.forEach(g=>{ if(th.grams.has(g)) hit++; });
+  return hit/tg.length;
+}
+function themePickTags(colKey, plats, title, text, n, extraLive){
+  const th=themeProfile(title,text);
+  const titleNorm=(title||'').replace(/[<>&"'，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim().slice(0,14).toLowerCase();
+  const candMap=new Map();
+  const add=(tag,live,self,hitLive,heat,src)=>{
+    tag=(tag||'').trim().slice(0,14); if(!tag||tag.length<1) return;   // 允许单字（猫/海/雨等词库单字标签）
     const kl=tag.toLowerCase();
     if(kl===titleNorm) return;                                       // 跳过「整条标题」这种过长伪标签
-    const ex=m.get(kl);
+    const ex=candMap.get(kl);
     if(ex){ ex.live=ex.live||live; ex.self=ex.self||self; ex.hitLive=ex.hitLive||hitLive; if(heat) ex.heat=Math.max(ex.heat||0,heat); return; }
-    m.set(kl,{tag,col:guessCol(tag),live,self,hitLive,heat:heat||0});
+    candMap.set(kl,{tag,col:guessCol(tag),live,self,hitLive,heat:heat||0,src:src||''});
   };
-  extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false,0));            // ① 情感主题词典（氛围向）
-  extractBodyTags(text).forEach(t=>add(t,false,false,false,0));                       // ② 文案原文实挖（内容向，最贴合）
-  (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive,x.heat||1));   // ③ 实时热门（带热度）
-  (state.tagPool||[]).filter(x=>x.self).forEach(x=>add(x.tag,false,true,!!x.hitLive,x.heat||0));    // ④ 我的文案主题池
-  (state.tagPool||[]).filter(x=>!x.live&&!x.self).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x.tag,false,false,false,0); }); // ⑤ 离线种子
-  const grams=g=>{const a=(g||'').split('');const o=[];for(let i=0;i<a.length-1;i++)o.push(a[i]+a[i+1]);return o;};
-  const bgSet=new Set(grams(blob));
-  const cands=[...m.values()].map(o=>{
-    const t=o.tag.toLowerCase();
-    let content=0, linked=false;
-    if(blob.indexOf(t)!==-1){ content=6; linked=true; }                       // 标签直接出现在当前文案（最强契合）
-    else { const tg=grams(t); if(tg.length){ let hit=0; tg.forEach(g=>{if(bgSet.has(g))hit++;}); const r=hit/tg.length; if(r>0){ content=3*r; linked=true; } } } // 字符级重叠
-    if(bodyTags.has(t)){ content+=2; linked=true; }                          // 来自文案原文实挖
-    if(o.self){ linked=true; }                                               // 我的文案主题，视为相关
-    const colBoost=(o.col===colKey)?3:0;                                     // 合集契合（加成，但不足以单独入选）
-    const heatBoost=o.heat?Math.min(o.heat,5)*0.8:0;                         // 热度最高：仅在相关标签中提升排序
-    const s=content+colBoost+(o.self?0.5:0)+(o.live?1:0)+(o.hitLive?1.5:0)+heatBoost;
-    return {tag:o.tag, s, heat:o.heat||0, linked};
+  extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false,0,'self'));            // ① 情感主题词典（氛围向，天然相关）
+  extractBodyTags(text).forEach(t=>add(t,false,false,false,0,'body'));                       // ② 文案原文实挖（内容向，最贴合）
+  (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive,x.heat||1,'pool'));   // ③ 实时热门（含抖音真实热度）
+  (state.tagPool||[]).filter(x=>x.self).forEach(x=>add(x.tag,false,true,!!x.hitLive,x.heat||0,'self'));    // ④ 我的文案主题池
+  (state.tagPool||[]).filter(x=>!x.live&&!x.self).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x.tag,false,false,false,0,'seed'); }); // ⑤ 离线种子
+  if(extraLive && extraLive.length) extraLive.forEach(o=>add(o.tag,true,false,false,o.heat||1,'live'));     // ⑥ 本次抖音实时直拉候选
+  const maxHeat=Math.max(1,...[...candMap.values()].map(o=>o.heat||0));
+  const cands=[...candMap.values()].map(o=>{
+    const sim=themeSimScore(o.tag, th);                              // 与当前主题语义相似度 0~1
+    const builtin=(o.src==='self'||o.src==='body');                  // 内置/词典/原文命中，天然相关
+    const colBoost=(o.col===colKey)?1.5:0;                          // 合集契合（加成，但不足以单独入选）
+    const heatNorm=(o.heat?Math.min(o.heat,maxHeat)/maxHeat:0);     // 抖音真实热度归一
+    const eligible = builtin || o.hitLive || sim>=0.12;             // 入选：内置命中 / 命中实时 / 与主题语义相关
+    const s = (builtin?5:0) + sim*5 + colBoost + heatNorm*3 + (o.live?0.5:0) + (o.hitLive?1.2:0);
+    return {tag:o.tag, s, heat:o.heat||0, eligible};
   });
-  return cands.filter(x=>x.linked && x.s>2)                                  // 仅取与「文案原文/我的主题」真正相关的标签
-    .sort((a,b)=> (b.s-a.s) || (b.heat-a.heat))                              // 先按契合度，再按实时热度排
+  return cands.filter(x=>x.eligible && x.s>0)                        // 仅取真正相关的标签，不塞无关热词
+    .sort((a,b)=> (b.s-a.s) || (b.heat-a.heat))                     // 先按契合度，再按抖音实时热度排
     .slice(0,n).map(x=>x.tag);
 }
 function refreshTagPool(){
@@ -2364,29 +2444,41 @@ function refreshTagPool(){
   const curCol=document.getElementById('f_col'); const colKey=curCol?curCol.value:'碎语';
   const curPlats=[...document.querySelectorAll('#f_plats input:checked')].map(i=>i.value);
   const title=fieldVal('f_title'), text=fieldVal('f_text');
-  const runPick=()=>{
-    const picks=themePickTags(colKey, curPlats, title, text, 5);
+  const runPick=(liveCands)=>{
+    const picks=themePickTags(colKey, curPlats, title, text, 6, (liveCands&&liveCands.length)?liveCands:null);
     const el=document.getElementById('f_tags');
     if(picks.length && el){
       const have=(el.value||'').split(',').map(s=>s.trim()).filter(Boolean);
       picks.forEach(t=>{ if(have.indexOf(t)===-1) have.push(t); });   // 合并而非覆盖，保留手写标签
       el.value=have.slice(0,8).join(', ');
       if(typeof liveDupCheck==='function') liveDupCheck();
-      flashToast('已按文案原文匹配 '+picks.length+' 个标签（契合度+实时热度排序）：'+picks.join('、'));
+      flashToast('已按主题匹配 '+picks.length+' 个标签（抖音实时热榜+文案原文）：'+picks.join('、'));
     } else if(el){
-      flashToast('当前主题暂无可匹配标签，已保留原标签');
+      // 兜底：未匹配到强相关时，附当前抖音热榜前 3 供手动挑选，避免「暂无可用标签」
+      const top=(liveCands||[]).slice().sort((a,b)=>(b.heat||0)-(a.heat||0)).slice(0,3).map(x=>x.tag).filter(Boolean);
+      if(top.length){
+        const have=(el.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+        top.forEach(t=>{ if(have.indexOf(t)===-1) have.push(t); });
+        el.value=have.slice(0,8).join(', ');
+        if(typeof liveDupCheck==='function') liveDupCheck();
+        flashToast('未匹配到强相关标签，已附当前抖音热榜前 3：'+top.join('、'));
+      } else {
+        flashToast('当前主题暂无可匹配标签，已保留原标签');
+      }
     }
     if(document.getElementById('tagSuggest')) refreshTagSuggest();
   };
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
-  fetchLiveItems().then(items=>{
-    if(items && items.length){ syncTagPoolFromHot(items, Date.now()); recomputeSelfHit(); save(); }
+  // 优先拉抖音/全网实时热词（经本机/Worker 代理）；失败则退回离线热点库按主题匹配
+  fetchLiveTagCandidates().then(cands=>{
+    if(cands && cands.length){ syncTagPoolFromHotLive(cands, Date.now()); recomputeSelfHit(); save(); }
     if(btn){ btn.disabled=false; btn.textContent='↻ 刷新标签'; }
-    runPick();
+    runPick(cands);
   }).catch(e=>{
     if(btn){ btn.disabled=false; btn.textContent='↻ 刷新标签'; }
-    flashToast('实时热词暂连不上，已按当前主题内容匹配标签');
-    runPick();   // 仍按当前主题内容匹配（离线池 + 文案提取）
+    flashToast('抖音实时代理暂连不上，已用离线热点库按主题匹配');
+    fetchLiveItems().then(items=>{ if(items&&items.length){ syncTagPoolFromHot(items, Date.now()); recomputeSelfHit(); save(); } runPick(null); })
+      .catch(()=>runPick(null));
   });
 }
 
