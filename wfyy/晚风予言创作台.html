@@ -364,6 +364,7 @@
 .tsg-empty{ font-size:12px; color:var(--ink2); }
 .tsg-tag.self{ background:#eaf1ff; color:#3a4a8a; border-color:#c9d6f5; }
 .tsg-tag.hit{ background:#fff0e6; color:#b5532e; border-color:#ffcf9e; font-weight:600; box-shadow:0 0 0 2px rgba(245,150,90,.14); }
+.tsg-tag.ent{ background:#ede7fb; color:#5b3aa6; border-color:#cdbcf2; font-weight:600; box-shadow:0 0 0 2px rgba(140,90,220,.12); }
 
 /* 全局刷新按钮旋转 */
 #globalRefresh.spin svg{ animation: spin 0.9s linear infinite; }
@@ -1004,6 +1005,139 @@ function extractBodyTags(text){
   }
   // 单字词库成员（如 猫/海/雨/花/雪）逐字命中，避免被 2~4 字窗口漏掉
   for(const ch of blob){ if(ch && BODY_KNOWN.has(ch) && !seen.has(ch)){ seen.add(ch); out.push(ch); } }
+  return out;
+}
+
+/* ============ 结构化实体抽取（实体词典匹配法，行业主用方案） ============
+   目标：从文案里直接析出 古诗词名·作者 / 剧名 / 角色·演员 / 歌名—歌手 这类「具体实体」，
+   让它们作为最高优先级标签（用户明确要求的：这些才该出现在推荐里）。
+   做法：书名号《》析出作品 + 相邻作者/歌手模式 + 复合分隔符「·」「—」+ 高频实体词典补全作者/歌手。 */
+const POEM_KB={ // 古诗词：作品名 → 作者
+  '定风波':'苏轼','定风波莫听穿林打叶声':'苏轼','念奴娇赤壁怀古':'苏轼','水调歌头':'苏轼','水调歌头明月几时有':'苏轼','江城子':'苏轼','江城子密州出猎':'苏轼','临江仙':'苏轼','浣溪沙':'苏轼',
+  '将进酒':'李白','静夜思':'李白','蜀道难':'李白','望庐山瀑布':'李白','早发白帝城':'李白','赠汪伦':'李白','黄鹤楼送孟浩然之广陵':'李白','行路难':'李白',
+  '春望':'杜甫','登高':'杜甫','茅屋为秋风所破歌':'杜甫','春夜喜雨':'杜甫','望岳':'杜甫','绝句':'杜甫',
+  '声声慢':'李清照','一剪梅':'李清照','如梦令':'李清照','醉花阴':'李清照','武陵春':'李清照',
+  '雨霖铃':'柳永','蝶恋花':'柳永','八声甘州':'柳永',
+  '青玉案元夕':'辛弃疾','永遇乐京口北固亭怀古':'辛弃疾','破阵子':'辛弃疾','西江月夜行黄沙道中':'辛弃疾',
+  '虞美人':'李煜','相见欢':'李煜','浪淘沙':'李煜',
+  '鹊桥仙':'秦观','苏幕遮':'范仲淹','菩萨蛮':'温庭筠',
+  '陋室铭':'刘禹锡','爱莲说':'周敦颐','酬乐天扬州初逢席上见赠':'刘禹锡',
+  '琵琶行':'白居易','长恨歌':'白居易','赋得古原草送别':'白居易','忆江南':'白居易',
+  '桃花源记':'陶渊明','归园田居':'陶渊明','饮酒':'陶渊明',
+  '离骚':'屈原','天净沙秋思':'马致远','山坡羊潼关怀古':'张养浩',
+  '锦瑟':'李商隐','无题':'李商隐','夜雨寄北':'李商隐',
+  '使至塞上':'王维','山居秋暝':'王维','相思':'王维',
+  '枫桥夜泊':'张继','登鹳雀楼':'王之涣','凉州词':'王之涣','春晓':'孟浩然',
+  '岳阳楼记':'范仲淹','醉翁亭记':'欧阳修',
+  '沁园春雪':'毛泽东','沁园春长沙':'毛泽东'
+};
+const DRAMA_KB={ // 影视：剧名 → {role:[角色], actor:[演员]}
+  '繁花':{role:['宝总','汪小姐','玲子','李李','爷叔'],actor:['胡歌','马伊琍','唐嫣','辛芷蕾']},
+  '琅琊榜':{role:['梅长苏','靖王','飞流','霓凰'],actor:['胡歌','王凯','刘涛']},
+  '甄嬛传':{role:['甄嬛','华妃','皇后','安陵容','沈眉庄'],actor:['孙俪','蒋欣','蔡少芬','斓曦']},
+  '庆余年':{role:['范闲','庆帝','王启年','司理理'],actor:['张若昀','陈道明','李沁']},
+  '庆余年2':{role:['范闲','言冰云'],actor:['张若昀','李一桐']},
+  '知否知否应是绿肥红瘦':{role:['盛明兰','顾廷烨','盛墨兰'],actor:['赵丽颖','冯绍峰','朱一龙']},
+  '山海情':{role:['马得福','水花'],actor:['黄轩','张嘉译','热依扎']},
+  '觉醒年代':{role:['陈独秀','李大钊','胡适'],actor:['于和伟','张桐']},
+  '狂飙':{role:['高启强','安欣','高启盛'],actor:['张颂文','张译','张志坚']},
+  '三体':{role:['汪淼','史强','叶文洁'],actor:['张鲁一','于和伟','陈瑾']},
+  '莲花楼':{role:['李莲花','方多病','笛飞声'],actor:['成毅','曾舜晞']},
+  '漫长的季节':{role:['王响','龚彪','傅卫军'],actor:['范伟','秦昊','陈明昊']},
+  '去有风的地方':{role:['许红豆','谢之遥'],actor:['刘亦菲','李现']},
+  '长安十二时辰':{role:['张小敬','李必'],actor:['雷佳音','易烊千玺']},
+  '武林外传':{role:['佟湘玉','白展堂','郭芙蓉','吕秀才'],actor:['闫妮','姚晨','沙溢']},
+  '红楼梦':{role:['林黛玉','贾宝玉','薛宝钗','王熙凤'],actor:['陈晓旭','欧阳奋强','邓婕']},
+  '还珠格格':{role:['小燕子','紫薇','尔康'],actor:['赵薇','林心如','苏有朋']},
+  '仙剑奇侠传':{role:['李逍遥','赵灵儿','林月如'],actor:['胡歌','刘亦菲','安以轩']},
+  '亮剑':{role:['李云龙','楚云飞'],actor:['李幼斌','何政军']},
+  '父母爱情':{role:['安杰','江德福'],actor:['梅婷','郭涛']},
+  '都挺好':{role:['苏明玉','苏大强'],actor:['姚晨','倪大红']},
+  '三十而已':{role:['顾佳','王漫妮','钟晓芹'],actor:['童瑶','江疏影','毛晓彤']},
+  '欢乐颂':{role:['樊胜美','安迪','曲筱绡'],actor:['蒋欣','刘涛','王子文']},
+  '我的阿勒泰':{role:['李文秀','巴太'],actor:['马伊琍','周依然']},
+  '玫瑰的故事':{role:['黄亦玫','方协文'],actor:['刘亦菲','佟大为']},
+  '与凤行':{role:[],actor:['赵丽颖','林更新']},
+  '折腰':{role:[],actor:['宋祖儿','刘宇宁']},
+  '唐朝诡事录':{role:['卢凌风','苏无名'],actor:['杨旭文','杨志刚']},
+  '苍兰诀':{role:['东方青苍','小兰花'],actor:['王鹤棣','虞书欣']},
+  '梦华录':{role:['赵盼儿','顾千帆'],actor:['刘亦菲','陈晓']},
+  '小敏家':{role:['刘小敏','金家骏'],actor:['周迅','黄磊']}
+};
+const SONG_KB={ // 音乐：歌名 → 歌手
+  '晴天':'周杰伦','七里香':'周杰伦','稻香':'周杰伦','青花瓷':'周杰伦','告白气球':'周杰伦','夜曲':'周杰伦','以父之名':'周杰伦','千里之外':'周杰伦','东风破':'周杰伦','枫':'周杰伦','搁浅':'周杰伦',
+  '孤勇者':'陈奕迅','十年':'陈奕迅','富士山下':'陈奕迅','单车':'陈奕迅','浮夸':'陈奕迅','K歌之王':'陈奕迅','爱情转移':'陈奕迅',
+  '红豆':'王菲','传奇':'王菲','如愿':'王菲','匆匆那年':'王菲',
+  '平凡之路':'朴树','那些花儿':'朴树','生如夏花':'朴树',
+  '后来':'刘若英','很爱很爱你':'刘若英','原来你也在这里':'刘若英',
+  '勇气':'梁静茹','可惜不是你':'梁静茹','无条件为你':'梁静茹','分手快乐':'梁静茹',
+  '大鱼':'周深','化身孤岛的鲸':'周深','灯火':'周深','化身孤岛':'周深',
+  '起风了':'买辣椒也用券','体面':'于文文','说散就散':'JC陈泳彤',
+  '演员':'薛之谦','丑八怪':'薛之谦','绅士':'薛之谦','认真的雪':'薛之谦',
+  '光年之外':'邓紫棋','泡沫':'邓紫棋','来自天堂的魔鬼':'邓紫棋','句号':'邓紫棋',
+  '成都':'赵雷','南山南':'马頔','理想':'赵雷','画':'赵雷',
+  '小幸运':'田馥甄','魔鬼中的天使':'田馥甄',
+  '一次就好':'杨宗纬','凉凉':'张碧晨',
+  '年少有为':'李荣浩','模特':'李荣浩','李白':'李荣浩',
+  '江南':'林俊杰','一千年以后':'林俊杰','修炼爱情':'林俊杰','曹操':'林俊杰',
+  '知足':'五月天','温柔':'五月天','倔强':'五月天','突然好想你':'五月天',
+  '夜空中最亮的星':'逃跑计划',
+  '贝加尔湖畔':'李健','风吹麦浪':'李健',
+  '美丽的神话':'孙楠',
+  '隐形的翅膀':'张韶涵','破茧':'张韶涵',
+  '追梦赤子心':'GALA',
+  '错位时空':'艾辰','白月光与朱砂痣':'大籽',
+  '漠河舞厅':'柳爽','可可托海的牧羊人':'王琪',
+  '可能':'程响','只是太爱你':'张振宇',
+  '红色高跟鞋':'蔡健雅','达尔文':'蔡健雅',
+  '默':'那英','征服':'那英',
+  'DreamItPossible':'Delacey','Youth':'TroyeSivan'
+};
+// 反向索引：人名 → 作品/剧目，用于「相邻作者/歌手」模式补全
+const PERSON_INDEX={}; // name → {type:'author'|'singer'|'actor', works:[...]}
+Object.entries(POEM_KB).forEach(([w,a])=>{ if(!a) return; (PERSON_INDEX[a]=PERSON_INDEX[a]||{author:[],singer:[],actor:[]}).author.push(w); });
+Object.entries(SONG_KB).forEach(([w,s])=>{ if(!s) return; (PERSON_INDEX[s]=PERSON_INDEX[s]||{author:[],singer:[],actor:[]}).singer.push(w); });
+Object.entries(DRAMA_KB).forEach(([d,v])=>{ (v.actor||[]).forEach(a=>{ (PERSON_INDEX[a]=PERSON_INDEX[a]||{author:[],singer:[],actor:[]}).actor.push(d); }); });
+function extractEntities(title, text, colKey){
+  const blob=(title||'')+' '+(text||'');
+  const out=[]; const seen=new Set();
+  const add=t=>{ t=(t||'').trim().replace(/[《》]/g,''); if(t && t.length>=2 && t.length<=14 && !seen.has(t)){ seen.add(t); out.push(t); } };
+  const works=[...blob.matchAll(/《([^《》]{1,15})》/g)].map(m=>m[1].trim()).filter(Boolean);
+  works.forEach(w=>{
+    add(w); // 作品名本身即优质标签
+    // 古诗词：作者补全（词典命中）
+    if(POEM_KB[w]){ const a=POEM_KB[w]; add(a); add(w+'·'+a); }
+    // 音乐：歌手补全（词典命中）
+    if(SONG_KB[w]){ const s=SONG_KB[w]; if(s){ add(s); add(w+'—'+s); } }
+    // 影视：角色/演员（仅当正文中出现才推，避免无关角色噪音）
+    const d=DRAMA_KB[w];
+    if(d){
+      (d.role||[]).forEach(r=>{ if(blob.indexOf(r)!==-1) add(r); });
+      (d.actor||[]).forEach(a=>{ if(blob.indexOf(a)!==-1) add(a); });
+      add(w);
+    }
+  });
+  // 相邻作者/歌手模式：「X《作品》」或「《作品》X」或「X的《作品》」(X=2~4字人名)
+  const adj=[...blob.matchAll(/([一-龥]{1,4})(?:的)?《([^《》]{1,15})》/g)].map(m=>[m[1].trim(),m[2].trim()])
+    .concat([...blob.matchAll(/《([^《》]{1,15})》([一-龥]{1,4})/g)].map(m=>[m[2].trim(),m[1].trim()]));
+  adj.forEach(([person,w])=>{
+    if(!person || !w || seen.has(person)) return;
+    const idx=PERSON_INDEX[person];
+    if(idx){
+      add(person);
+      if(idx.author.length && POEM_KB[w]) add(w+'·'+person);
+      if(idx.singer.length && SONG_KB[w]) add(w+'—'+person);
+      if(idx.actor.length) add(w); // 演员对应剧名已在 works 处理
+    }
+  });
+  // 显式复合：「歌名—歌手」或「歌名 - 歌手」（不依赖《》）
+  [...blob.matchAll(/([一-龥A-Za-z0-9]{1,10})\s*[—\-–]\s*([一-龥A-Za-z0-9]{1,8})/g)].forEach(m=>{
+    const a=m[1].trim(), b=m[2].trim(); if(!a||!b) return;
+    if(SONG_KB[a] && SONG_KB[a]===b){ add(a); add(b); add(a+'—'+b); }       // 歌名—歌手 完全命中
+    else if(SONG_KB[b] && SONG_KB[b]===a){ add(a); add(b); add(b+'—'+a); }  // 歌手—歌名
+    else if(SONG_KB[a]){ add(a); add(b); add(a+'—'+b); }                    // 歌名—歌手 歌手未知也推组合
+    else if(SONG_KB[b]){ add(a); add(b); add(b+'—'+a); }
+  });
   return out;
 }
 /* 文案 → 实时热门标签（self）：每次保存文案重算「我的主题」；命中实时热点标记 hitLive，形成闭环 */
@@ -2328,8 +2462,12 @@ function getTagSuggest(colKey, plats){
   const pool=state.tagPool||[];
   const map=new Map(); const out=[];
   const add=x=>{ const k=x.col+'|'+x.tag; const ex=map.get(k);
-    if(ex){ ex.live=ex.live||!!x.live; ex.self=ex.self||!!x.self; ex.hitLive=ex.hitLive||!!x.hitLive; }
-    else { const o={tag:x.tag,col:x.col,live:!!x.live,self:!!x.self,hitLive:!!x.hitLive}; map.set(k,o); out.push(o); } };
+    if(ex){ ex.live=ex.live||!!x.live; ex.self=ex.self||!!x.self; ex.hitLive=ex.hitLive||!!x.hitLive; ex.ent=ex.ent||!!x.ent; }
+    else { const o={tag:x.tag,col:x.col,live:!!x.live,self:!!x.self,hitLive:!!x.hitLive,ent:!!x.ent}; map.set(k,o); out.push(o); } };
+  /* 0) 当前文案里的结构化实体（最高优先，用户明确要的：古诗·作者 / 剧名 / 角色演员 / 歌名—歌手） */
+  try{
+    extractEntities(fieldVal('f_title'), fieldVal('f_text'), colKey).forEach(t=>{ const x={tag:t,col:guessCol(t),live:false,self:false,hitLive:false,ent:true}; const k=x.col+'|'+x.tag; if(!map.has(k)){ map.set(k,x); out.push(x); } });
+  }catch(e){}
   pool.filter(x=>x.hitLive && x.col===colKey).forEach(add);            // ① 高契合：命中实时热点（最优先推荐）
   pool.filter(x=>x.live && !x.hitLive && x.col===colKey).forEach(add); // ② 实时热点（未命中我的主题）
   pool.filter(x=>x.self && !x.hitLive && x.col===colKey).forEach(add); // ③ 我的文案主题（未命中热点）
@@ -2356,7 +2494,8 @@ function refreshTagSuggest(){
     sug.forEach(s=>{
       const used=cur.indexOf(s.tag)>=0;
       let prefix='', cls='';
-      if(s.hitLive){ prefix='🔥✨ '; cls='hit'; }
+      if(s.ent){ prefix='📌 '; cls='ent'; }
+      else if(s.hitLive){ prefix='🔥✨ '; cls='hit'; }
       else if(s.live){ prefix='🔥 '; cls='live'; }
       else if(s.self){ prefix='✍️ '; cls='self'; }
       tagsHtml+=`<span class="tsg-tag ${cls} ${used?'used':''}" onclick="insertTag('${jsAttr(s.tag)}')">${prefix}${esc(s.tag)}${used?' ✓':''}</span>`;
@@ -2419,20 +2558,22 @@ function themePickTags(colKey, plats, title, text, n, extraLive){
     if(ex){ ex.live=ex.live||live; ex.self=ex.self||self; ex.hitLive=ex.hitLive||hitLive; if(heat) ex.heat=Math.max(ex.heat||0,heat); return; }
     candMap.set(kl,{tag,col:guessCol(tag),live,self,hitLive,heat:heat||0,src:src||''});
   };
-  extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false,0,'self'));            // ① 情感主题词典（氛围向，天然相关）
-  extractBodyTags(text).forEach(t=>add(t,false,false,false,0,'body'));                       // ② 文案原文实挖（内容向，最贴合）
-  (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive,x.heat||1,'pool'));   // ③ 实时热门（含抖音真实热度）
-  (state.tagPool||[]).filter(x=>x.self).forEach(x=>add(x.tag,false,true,!!x.hitLive,x.heat||0,'self'));    // ④ 我的文案主题池
-  (state.tagPool||[]).filter(x=>!x.live&&!x.self).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x.tag,false,false,false,0,'seed'); }); // ⑤ 离线种子
-  if(extraLive && extraLive.length) extraLive.forEach(o=>add(o.tag,true,false,false,o.heat||1,'live'));     // ⑥ 本次抖音实时直拉候选
+  extractEntities(title,text,colKey).forEach(t=>add(t,false,false,false,0,'entity'));        // ① 结构化实体（古诗词·作者/剧名/角色演员/歌名—歌手）最高优先
+  extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false,0,'self'));            // ② 情感主题词典（氛围向，天然相关）
+  extractBodyTags(text).forEach(t=>add(t,false,false,false,0,'body'));                       // ③ 文案原文实挖（内容向，最贴合）
+  (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive,x.heat||1,'pool'));   // ④ 实时热门（含抖音真实热度）
+  (state.tagPool||[]).filter(x=>x.self).forEach(x=>add(x.tag,false,true,!!x.hitLive,x.heat||0,'self'));    // ⑤ 我的文案主题池
+  (state.tagPool||[]).filter(x=>!x.live&&!x.self).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x.tag,false,false,false,0,'seed'); }); // ⑥ 离线种子
+  if(extraLive && extraLive.length) extraLive.forEach(o=>add(o.tag,true,false,false,o.heat||1,'live'));     // ⑦ 本次抖音实时直拉候选
   const maxHeat=Math.max(1,...[...candMap.values()].map(o=>o.heat||0));
   const cands=[...candMap.values()].map(o=>{
     const sim=themeSimScore(o.tag, th);                              // 与当前主题语义相似度 0~1
-    const builtin=(o.src==='self'||o.src==='body');                  // 内置/词典/原文命中，天然相关
+    const builtin=(o.src==='self'||o.src==='body'||o.src==='entity');// 内置/词典/原文/实体，天然相关
     const colBoost=(o.col===colKey)?1.5:0;                          // 合集契合（加成，但不足以单独入选）
     const heatNorm=(o.heat?Math.min(o.heat,maxHeat)/maxHeat:0);     // 抖音真实热度归一
+    const entBoost=(o.src==='entity')?8:0;                          // 结构化实体强力置顶（用户明确要的）
     const eligible = builtin || o.hitLive || sim>=0.12;             // 入选：内置命中 / 命中实时 / 与主题语义相关
-    const s = (builtin?5:0) + sim*5 + colBoost + heatNorm*3 + (o.live?0.5:0) + (o.hitLive?1.2:0);
+    const s = (builtin?5:0) + sim*5 + colBoost + heatNorm*3 + entBoost + (o.live?0.5:0) + (o.hitLive?1.2:0);
     return {tag:o.tag, s, heat:o.heat||0, eligible};
   });
   return cands.filter(x=>x.eligible && x.s>0)                        // 仅取真正相关的标签，不塞无关热词
