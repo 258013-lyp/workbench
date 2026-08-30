@@ -170,7 +170,6 @@
   .hot-wrap{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px;box-shadow:var(--shadow);margin-bottom:12px}
   .hot-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .hot-title-main{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px}
-  .hot-note{font-size:12px;color:var(--ink2);margin:6px 0 10px}
   .hot-tracks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
   .hot-track{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink2);background:#f3f5fb;border:1px solid #e2e6f2;border-radius:999px;padding:3px 9px;line-height:1.4}
   .hot-track b{color:var(--c);font-weight:700}
@@ -228,7 +227,6 @@
   .raw-hot{border:1px dashed #e2c9c9;border-radius:12px;padding:8px 11px;margin-top:10px;background:#fffaf9}
   .raw-hot>summary{cursor:pointer;font-size:13px;font-weight:700;color:#a35050;outline:none}
   .five-empty{background:#fff;border:1px dashed #e2c9c9;border-radius:12px;padding:16px;color:var(--ink2);font-size:13px;line-height:1.7;text-align:center}
-  .five-empty-sub{margin-top:6px;font-size:12px;opacity:.8}
   .five-col{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:6px 0 4px}
   .fc-card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:120px}
   .fc-head{display:flex;flex-direction:column;gap:1px}
@@ -252,14 +250,10 @@
   .col-topic{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:11px;padding:10px 11px;display:flex;flex-direction:column;gap:7px}
   .col-topic-head{display:flex;align-items:flex-start;gap:7px;justify-content:space-between}
   .col-topic-title{font-size:13.5px;font-weight:800;color:#1f2430;line-height:1.4;word-break:break-word}
-  .col-topic-kind{font-size:10px;font-weight:800;flex:0 0 auto;padding:1px 7px;border-radius:20px;white-space:nowrap}
-  .col-topic-kind.live{color:#b8436a;background:#ffe9f0}
-  .col-topic-kind.stay{color:#6a7b52;background:#eef4e2}
   .col-topic-pts{display:flex;flex-direction:column;gap:4px}
   .col-pt{font-size:12px;color:#3a4151;line-height:1.5;background:#f7f8fc;border-radius:8px;padding:5px 8px;border-left:2px solid var(--c)}
   .col-topic-line{font-size:13px;color:#2a3140;line-height:1.6;background:#f7f8fc;border-radius:8px;padding:7px 9px;border-left:3px solid var(--c)}
   .col-topic-meta{font-size:12px;color:#5a6172;font-weight:700}
-  .col-topic-hint{font-size:11.5px;color:#6a7286;line-height:1.5;background:#fff7fb;border-radius:7px;padding:4px 8px}
   .col-empty{font-size:12px;color:var(--ink2);opacity:.8;padding:4px 0}
   .col-topic .mini{align-self:flex-start;margin-top:1px}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
@@ -1435,12 +1429,11 @@ function renderHotTopics(){
   const focusIntro = state.activeCol ? `<div class="hot-focus-intro" style="cursor:pointer" onclick="clearActiveCol()" title="点击取消聚焦，看全部栏目">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)} <span style="float:right;opacity:.65;font-weight:600">✕ 取消</span></div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
-      <div class="hot-title-main">✨ 五栏选题灵感 · 实时热点激发</div>
+      <div class="hot-title-main">✨ 五栏选题灵感</div>
       <button class="btn btn-primary" id="inspireGen" onclick="genInspiration('all')" style="min-height:36px;padding:6px 12px">🔄 生成选题灵感</button>
       <button class="btn btn-soft" id="inspireShuffle" onclick="genInspiration('all', false, true)" style="min-height:36px;padding:6px 12px">↻ 换一批</button>
       <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
     </div>
-    <div class="hot-note">五栏选题均为<b>真实作品数据</b>（<b>热榜不展示</b>）：<b>晚风诗笺</b>=真实古诗词（名·作者·朝代·名句）、<b>晚风映言</b>=真实影视台词（剧名·类型·台词·角色/演员）、<b>晚风留声</b>=<b>实时热歌榜</b>（歌名—歌手）。碎语/心事结合实时热点生成；诗笺/映言以实时热点做<b>当下相关性</b>加权，不编造常驻选题。</div>
     ${renderInspire()}
   </div>`;
 }
@@ -1533,7 +1526,7 @@ async function genInspiration(plat, cached, shuffle){
       state.liveHot.all = { items: items.map(x=>({t:x.t, heat:x.heat, src:x.src||'全网'})), updatedAt: Date.now() };
     } else {
       items = collectLiveItems();
-      if(items && items.length) flashToast('实时代理未连，已用缓存热榜生成');
+      if(items && items.length) flashToast('代理未连接，已用作品库生成选题');
     }
   }
   if(!items || !items.length){
@@ -1548,7 +1541,7 @@ async function genInspiration(plat, cached, shuffle){
   state.colTopics = data; save(); renderHotTopics();
   if(btn){ btn.disabled=false; btn.textContent='🔄 生成选题灵感'; }
   const total = Object.keys(data).reduce((s,k)=> s + (data[k]?data[k].length:0), 0);
-  flashToast('已为五栏生成 '+total+' 条选题（诗笺/映言/留声均为真实作品数据 · 留声实时热歌）');
+  flashToast('已为五栏生成 '+total+' 条选题');
 }
 async function fetchInspireTopics(plat){
   if(plat==='all'){
@@ -1616,8 +1609,7 @@ function renderInspire(){
   const data=state.colTopics||{};
   const hasAny=Object.keys(data).some(k=>data[k]&&data[k].length);
   if(!hasAny){
-    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」拉取实时数据，转化为五栏专属选题（<b>热榜不展示</b>）。</div>
-      <div class="five-empty-sub">需先连代理：点「⚙ 代理」确认本机代理 http://localhost:8787 正在运行（终端执行 node scripts/proxy.mjs）。未联网时自动用真实作品库填充诗笺/映言/留声三栏。</div></div>`;
+    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」生成五栏选题。</div></div>`;
   }
   return COLLECTIONS.map(c=>{
     const cards=(data[c.key]||[]).map((cd,ki)=> colTopicHtml(c, cd, ki)).join('');
@@ -1636,10 +1628,8 @@ function colTopicHtml(c, cd, ki){
     return `<div class="col-topic" style="--c:${c.color}">
       <div class="col-topic-head">
         <span class="col-topic-title">《${esc(cd.name)}》·${esc(cd.author)}（${esc(cd.dynasty)}）</span>
-        <span class="col-topic-kind ${cd.kind==='实时相关'?'live':'stay'}">${esc(cd.kind)}</span>
       </div>
       <div class="col-topic-line">${esc(cd.line)}</div>
-      <div class="col-topic-hint">${esc(cd.hint)}</div>
       <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
     </div>`;
   }
@@ -1647,11 +1637,9 @@ function colTopicHtml(c, cd, ki){
     return `<div class="col-topic" style="--c:${c.color}">
       <div class="col-topic-head">
         <span class="col-topic-title">《${esc(cd.name)}》[${esc(cd.genre)}]</span>
-        <span class="col-topic-kind ${cd.kind==='实时相关'?'live':'stay'}">${esc(cd.kind)}</span>
       </div>
       <div class="col-topic-line">${esc(cd.line)}</div>
       <div class="col-topic-meta">${esc(cd.role)} / ${esc(cd.actor)}</div>
-      <div class="col-topic-hint">${esc(cd.hint)}</div>
       <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
     </div>`;
   }
@@ -1659,17 +1647,14 @@ function colTopicHtml(c, cd, ki){
     return `<div class="col-topic" style="--c:${c.color}">
       <div class="col-topic-head">
         <span class="col-topic-title">「${esc(cd.name)}」—${esc(cd.singer)}</span>
-        <span class="col-topic-kind ${cd.kind==='实时热歌'?'live':'stay'}">${esc(cd.kind)}</span>
       </div>
-      <div class="col-topic-hint">${esc(cd.hint)}</div>
       <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
     </div>`;
   }
-  // 碎语 / 心事（原有结构）
+  // 碎语 / 心事
   return `<div class="col-topic" style="--c:${c.color}">
     <div class="col-topic-head">
       <span class="col-topic-title">${esc(cd.title)}</span>
-      <span class="col-topic-kind ${cd.kind==='实时'?'live':'stay'}">${cd.kind==='实时'?'实时':'常驻'}</span>
     </div>
     <div class="col-topic-pts">${cd.points.map(p=>`<div class="col-pt">${esc(p)}</div>`).join('')}</div>
     <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
@@ -1678,11 +1663,11 @@ function colTopicHtml(c, cd, ki){
 function adoptColTopic(col, idx){
   const arr=(state.colTopics||{})[col]||[]; const cd=arr[idx]; if(!cd) return;
   let content='';
-  if(cd.type==='poem') content=`《${cd.name}》·${cd.author}（${cd.dynasty}）\n${cd.line}\n${cd.hint}`;
-  else if(cd.type==='film') content=`《${cd.name}》[${cd.genre}]\n台词：${cd.line}\n${cd.role} / ${cd.actor}\n${cd.hint}`;
-  else if(cd.type==='song') content=`「${cd.name}」—${cd.singer}\n${cd.hint}`;
+  if(cd.type==='poem') content=`《${cd.name}》·${cd.author}（${cd.dynasty}）\n${cd.line}`;
+  else if(cd.type==='film') content=`《${cd.name}》[${cd.genre}]\n台词：${cd.line}\n${cd.role} / ${cd.actor}`;
+  else if(cd.type==='song') content=`「${cd.name}」—${cd.singer}`;
   else content=cd.title+'\n'+cd.points.join('\n');
-  const rec={id:uid(),collection:col,content:content,source:'五栏选题灵感·'+(cd.kind||''),tags:[cd.kind||'灵感'],status:0,planDate:'',createdAt:Date.now()};
+  const rec={id:uid(),collection:col,content:content,source:'五栏选题·'+colOf(col).name,tags:[colOf(col).name],status:0,planDate:'',createdAt:Date.now()};
   state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
   flashToast('已采用到 '+colOf(col).name);
 }
@@ -1909,18 +1894,14 @@ function genShiJian(items, shuffle){
   const scores = trendBoost('诗笺', items);
   const picks = pickReal(SHI_JIAN_LIB, scores, shuffle, 6);
   return picks.map(it=>({
-    type:'poem', name:it.name, author:it.author, dynasty:it.dynasty, line:it.line,
-    kind: (scores.find(s=>s.it===it && s.rel)?'实时相关':'库'),
-    hint:'创作方向：以「'+it.line.slice(0,12)+'…」破题，借'+it.author+'的笔写今天的事。'
+    type:'poem', name:it.name, author:it.author, dynasty:it.dynasty, line:it.line
   }));
 }
 function genYingYan(items, shuffle){
   const scores = trendBoost('映言', items);
   const picks = pickReal(YING_YAN_LIB, scores, shuffle, 6);
   return picks.map(it=>({
-    type:'film', name:it.name, genre:it.type, line:it.line, role:it.role, actor:it.actor,
-    kind: (scores.find(s=>s.it===it && s.rel)?'实时相关':'库'),
-    hint:'创作方向：用这句台词开场，落到你我都会遇到的那点心事。'
+    type:'film', name:it.name, genre:it.type, line:it.line, role:it.role, actor:it.actor
   }));
 }
 function genLiuSheng(music, shuffle){
@@ -1928,9 +1909,7 @@ function genLiuSheng(music, shuffle){
   if(shuffle) shuffleArr(list);
   const isLive = (music && music.length)>0;
   return list.slice(0,6).map(it=>({
-    type:'song', name:it.name, singer:it.singer,
-    kind: isLive?'实时热歌':'库',
-    hint:'创作方向：用这首歌当 BGM，情绪峰值处留白。'
+    type:'song', name:it.name, singer:it.singer
   }));
 }
 
