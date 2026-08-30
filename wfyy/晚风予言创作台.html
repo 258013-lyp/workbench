@@ -2299,20 +2299,62 @@ function insertTag(t){
   if(typeof liveDupCheck==='function') liveDupCheck();
   if(document.getElementById('tagSuggest')) refreshTagSuggest();
 }
+function themePickTags(colKey, plats, title, text, n){
+  const blob=((title||'')+' '+(text||'')).toLowerCase();
+  const titleNorm=(title||'').replace(/[<>&"'，。、！？!?；;：:"'（）()【】\[\]·\s\n\r]/g,'').trim().slice(0,12).toLowerCase();
+  const m=new Map();
+  const add=(tag,live,self,hitLive)=>{
+    tag=(tag||'').trim(); if(tag.length<2||tag.length>12) return;
+    const kl=tag.toLowerCase();
+    if(kl===titleNorm) return;                                       // 跳过「整条标题」这种过长伪标签
+    const ex=m.get(kl);
+    if(ex){ ex.live=ex.live||live; ex.self=ex.self||self; ex.hitLive=ex.hitLive||hitLive; return; }
+    m.set(kl,{tag,col:guessCol(tag),live,self,hitLive});
+  };
+  extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false));            // ① 文案主题直接提取（最贴合当前主题）
+  (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive));   // ② 实时热门
+  (state.tagPool||[]).filter(x=>x.self).forEach(x=>add(x.tag,false,true,!!x.hitLive));    // ③ 我的文案主题池
+  (state.tagPool||[]).filter(x=>!x.live&&!x.self).forEach(x=>{ if(plats.indexOf(x.plat)>=0) add(x.tag,false,false,false); }); // ④ 离线种子
+  const grams=g=>{const a=(g||'').split('');const o=[];for(let i=0;i<a.length-1;i++)o.push(a[i]+a[i+1]);return o;};
+  const bgSet=new Set(grams(blob));
+  return [...m.values()].map(o=>{
+    let s=0; const t=o.tag.toLowerCase();
+    if(blob.indexOf(t)!==-1) s+=6;                                   // 标签直接出现在当前文案
+    else { const tg=grams(t); if(tg.length){ let hit=0; tg.forEach(g=>{if(bgSet.has(g))hit++;}); s+=3*(hit/tg.length); } } // 字符级重叠
+    if(o.col===colKey) s+=3;                                         // 合集契合
+    if(o.live) s+=1.5; if(o.self) s+=1; if(o.hitLive) s+=1.5;        // 热度/我的主题加成
+    return {tag:o.tag, s};
+  }).filter(x=>x.s>2).sort((a,b)=>b.s-a.s).slice(0,n).map(x=>x.tag);  // 仅取真正契合主题/合集的标签，不塞无关热词
+}
 function refreshTagPool(){
   const btn=document.querySelector('#tagSuggest .btn-soft');
+  const curCol=document.getElementById('f_col'); const colKey=curCol?curCol.value:'碎语';
+  const curPlats=[...document.querySelectorAll('#f_plats input:checked')].map(i=>i.value);
+  const title=fieldVal('f_title'), text=fieldVal('f_text');
+  const runPick=()=>{
+    const picks=themePickTags(colKey, curPlats, title, text, 5);
+    const el=document.getElementById('f_tags');
+    if(picks.length && el){
+      const have=(el.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+      picks.forEach(t=>{ if(have.indexOf(t)===-1) have.push(t); });   // 合并而非覆盖，保留手写标签
+      el.value=have.slice(0,8).join(', ');
+      if(typeof liveDupCheck==='function') liveDupCheck();
+      flashToast('已根据主题匹配 '+picks.length+' 个标签：'+picks.join('、'));
+    } else if(el){
+      flashToast('当前主题暂无可匹配标签，已保留原标签');
+    }
+    if(document.getElementById('tagSuggest')) refreshTagSuggest();
+  };
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
   fetchLiveItems().then(items=>{
     const words=[...new Set(items.map(it=>it.t))].filter(Boolean).slice(0,30);
-    if(!words.length){ flashToast('暂未拉到实时热词'); if(btn){btn.disabled=false;btn.textContent='↻ 刷新标签';} return; }
-    syncTagPoolFromHot(words, Date.now()); recomputeSelfHit();
-    save(); if(document.getElementById('tagSuggest')) refreshTagSuggest();
-    if(btn){btn.disabled=false;btn.textContent='↻ 刷新标签';}
-    flashToast('已更新 '+words.length+' 个实时热门标签');
+    if(words.length){ syncTagPoolFromHot(words, Date.now()); recomputeSelfHit(); save(); }
+    if(btn){ btn.disabled=false; btn.textContent='↻ 刷新标签'; }
+    runPick();
   }).catch(e=>{
-    const msg=(e&&e.offline)?'当前设备未联网，已保留离线标签库':'实时热词暂连不上，已保留离线标签库';
-    if(btn){btn.disabled=false;btn.textContent='↻ 刷新标签';}
-    flashToast(msg); if(document.getElementById('tagSuggest')) refreshTagSuggest();
+    if(btn){ btn.disabled=false; btn.textContent='↻ 刷新标签'; }
+    flashToast('实时热词暂连不上，已按当前主题内容匹配标签');
+    runPick();   // 仍按当前主题内容匹配（离线池 + 文案提取）
   });
 }
 
