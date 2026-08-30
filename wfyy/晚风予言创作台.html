@@ -211,6 +211,19 @@
   .live-row:hover .live-act{opacity:1}
   .proxy-help{margin-top:8px;font-size:12px;color:var(--ink2);line-height:1.7}
   .proxy-help code{background:#f2f3f7;border:1px solid #e3e6ee;border-radius:5px;padding:1px 5px;font-size:11.5px;color:#b23}
+  /* 选题灵感生成器 */
+  .inspire-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:6px}
+  .in-card{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:13px 14px;box-shadow:0 1px 3px rgba(20,30,60,.04)}
+  .in-card-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .in-heat{flex:0 0 auto;font-size:11px;font-weight:800;color:#fff;background:#e2557b;padding:2px 8px;border-radius:20px;white-space:nowrap}
+  .in-topic{flex:1 1 auto;font-size:14.5px;font-weight:800;color:#1f2430;line-height:1.35;word-break:break-word}
+  .in-meta{font-size:11.5px;color:#8b91a3;margin:5px 0 2px}
+  .in-padv{font-size:12.5px;color:#4a5163;line-height:1.5;background:#f6f7fb;border-radius:9px;padding:7px 9px;margin:4px 0 8px}
+  .in-cols{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .in-col{border:1px solid var(--line);border-left:3px solid var(--c,#ccc);border-radius:9px;padding:7px 8px;background:#fcfcfe}
+  .in-col-head{font-size:12px;font-weight:800;color:var(--c,#555);margin-bottom:3px}
+  .in-col-op{font-size:12px;color:#3a4151;line-height:1.45;min-height:34px}
+  .in-col .mini{margin-top:5px;padding:3px 9px;font-size:11.5px}
   .live-tabs-wrap{margin:4px 0 10px}
   .raw-hot{border:1px dashed #e2c9c9;border-radius:12px;padding:8px 11px;margin-top:10px;background:#fffaf9}
   .raw-hot>summary{cursor:pointer;font-size:13px;font-weight:700;color:#a35050;outline:none}
@@ -1021,7 +1034,7 @@ function HOT_SEED(){
 }
 
 /* ============ 状态 ============ */
-let state = { works:[], ideas:[], materials:[], hotTopics:[], tagPool:[], activeCol:null, liveHot:{}, activeHotPlat:'weibo', fiveColIdeas:{} };
+let state = { works:[], ideas:[], materials:[], hotTopics:[], tagPool:[], activeCol:null, liveHot:{}, activeHotPlat:'all', fiveColIdeas:{}, inspire:[] };
 let curTab = 'works';
 let editing = null; // {type, id}
 let cloud = loadCloud();
@@ -1078,7 +1091,7 @@ function load(){
       works: safeArr(d.works), ideas: safeArr(d.ideas), materials: safeArr(d.materials),
       hotTopics: safeArr(d.hotTopics), tagPool: safeArr(d.tagPool),
       activeCol: d.activeCol||null, tagUpdated: d.tagUpdated||null,
-      liveHot: d.liveHot||{}, activeHotPlat: d.activeHotPlat||'weibo', fiveColIdeas: d.fiveColIdeas||{}
+      liveHot: d.liveHot||{}, activeHotPlat: d.activeHotPlat||'all', fiveColIdeas: d.fiveColIdeas||{}, inspire: d.inspire||[]
     };
   }
   if(!state.hotTopics || !state.hotTopics.length) state.hotTopics = HOT_SEED();
@@ -1402,19 +1415,15 @@ function renderHotTopics(){
   const focusIntro = state.activeCol ? `<div class="hot-focus-intro" style="cursor:pointer" onclick="clearActiveCol()" title="点击取消聚焦，看全部栏目">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)} <span style="float:right;opacity:.65;font-weight:600">✕ 取消</span></div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
-      <div class="hot-title-main">🔥 热点选题灵感 · 实时热榜 → 五栏创作灵感</div>
-      <button class="btn btn-primary" id="liveHotPull" onclick="pullLiveHot(state.activeHotPlat||'weibo')" style="min-height:36px;padding:6px 12px">🔄 拉实时热榜</button>
-      <button class="btn btn-soft" id="genFive" onclick="generateFiveCol()" style="min-height:36px;padding:6px 12px">✨ 生成五栏选题灵感</button>
-      <button class="btn btn-soft" id="hotRefresh" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px">↻ 刷新选题库</button>
+      <div class="hot-title-main">✨ 选题灵感 · 实时热点驱动创作</div>
+      <button class="btn btn-primary" id="inspireGen" onclick="genInspiration(state.activeHotPlat||'all')" style="min-height:36px;padding:6px 12px">🔄 生成选题灵感</button>
+      <button class="btn btn-soft" id="inspireShuffle" onclick="genInspiration(state.activeHotPlat||'all', false, true)" style="min-height:36px;padding:6px 12px">↻ 换一批</button>
+      <button class="btn btn-soft" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px" title="用定时热榜生成（无需代理）">↻ 用定时热榜</button>
       <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
     </div>
-    <div class="hot-note">${note}</div>
-    <div class="live-tabs-wrap">${liveTabsHtml()}</div>
-    ${renderFiveColIdeas()}
-    <details class="raw-hot" open>
-      <summary>📋 原始热榜（选题原料 · 点条目转灵感 / 复制）</summary>
-      ${liveHotBoardHtml()}
-    </details>
+    <div class="hot-note">实时拉取各平台高热度 / 高关注 / 高话题量话题，结合五栏创作方向，生成可落地的创作意见。热榜仅作选题参考，不展示原列表。</div>
+    <div class="live-tabs-wrap">${inspireTabsHtml()}</div>
+    ${renderInspire()}
   </div>`;
 }
 function hotToIdea(idx){
@@ -1448,7 +1457,7 @@ function refreshHotTopics(){
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
   fetchLiveItems().then(items=>{
     applyLiveItems(items);
-    generateFiveCol();
+    genInspiration(state.activeHotPlat||'all', true);
     if(btn){ btn.disabled=false; btn.textContent='↻ 刷新'; }
   }).catch(e=>{
     const msg=(e&&e.offline)?'当前设备未联网，已保留离线热点库':'精选库与实时热榜都连不上，已保留离线热点库';
@@ -1488,147 +1497,135 @@ async function fetchLiveHotViaProxy(plat){
     return { plat:plat, items: items.map(it=>({t:String(it.t||it.title||'').replace(/\s+/g,' ').trim().slice(0,80), heat:Number(it.heat||it.hot||0)||0})).filter(x=>x.t.length>=2), updatedAt:d.updatedAt||Date.now() };
   } finally { clearTimeout(to); }
 }
-async function pullLiveHot(plat){
-  const btn=document.getElementById('liveHotPull');
-  if(btn){ btn.disabled=true; btn.textContent='拉取中…'; }
-  try{
-    const data=await fetchLiveHotViaProxy(plat);
-    state.liveHot=state.liveHot||{};
-    state.liveHot[plat]={ items:data.items, updatedAt:data.updatedAt };
-    state.activeHotPlat=plat; save(); renderHotTopics();
-    flashToast('已拉取「'+platName(plat)+'」实时热榜 '+data.items.length+' 条');
-    generateFiveCol();
-  }catch(e){
-    state.liveHot=state.liveHot||{};
-    state.liveHot[plat]={ items:[], updatedAt:Date.now(), error:((e&&e.message)||'代理不可达') };
-    state.activeHotPlat=plat; save(); renderHotTopics();
-    flashToast('实时代理未连接：'+((e&&e.message)||'')+'（面板内有配置说明）');
-  } finally { if(btn){ btn.disabled=false; btn.textContent='🔄 拉实时热榜'; } }
+/* ===== 选题灵感引擎：拉实时热点 → 按高热度筛选 → 结合五栏创作方向生成创作意见 =====
+   浏览器直连各平台接口会被 CORS 挡死，必须经「你掌控的代理」服务端抓取（proxy.mjs / CF Worker）。
+   页面自动尝试：已配置 Worker URL → 本机 localhost:8787 → 否则提示配置。热榜本身不展示，仅作选题参考。 */
+const INSPIRE_TABS = [...LIVE_PLATFORMS, {key:'all', name:'全网综合', note:'跨平台'}];
+async function genInspiration(plat, cached, shuffle){
+  plat = plat || state.activeHotPlat || 'all';
+  state.activeHotPlat = plat;
+  const btn=document.getElementById('inspireGen');
+  if(btn){ btn.disabled=true; btn.textContent='生成中…'; }
+  let items;
+  if(cached){
+    items = collectLiveItems();
+  } else {
+    try{ items = await fetchInspireTopics(plat); }catch(e){ items=null; }
+    if(items && items.length){
+      state.liveHot = state.liveHot||{};
+      state.liveHot[plat] = { items: items.map(x=>({t:x.t, heat:x.heat, src:x.src})), updatedAt: Date.now() };
+    } else {
+      items = collectLiveItems();
+      if(items && items.length) flashToast('实时代理未连，已用缓存热榜生成');
+      else flashToast('请先在「⚙ 代理」连接本机代理，或点「↻ 用定时热榜」');
+    }
+  }
+  if(!items || !items.length){
+    if(btn){ btn.disabled=false; btn.textContent='🔄 生成选题灵感'; }
+    renderHotTopics(); return;
+  }
+  const cards = buildInspireCards(items, plat, shuffle);
+  state.inspire = cards; save(); renderHotTopics();
+  if(btn){ btn.disabled=false; btn.textContent='🔄 生成选题灵感'; }
+  flashToast('已生成 '+cards.length+' 条选题灵感（'+platName(plat)+'·高热度创作意见）');
 }
-function fmtHeat(n){ n=Number(n)||0; if(n>=100000000) return (n/100000000).toFixed(1)+'亿'; if(n>=10000) return (n/10000).toFixed(1)+'万'; return String(n); }
+async function fetchInspireTopics(plat){
+  if(plat==='all'){
+    const d = await fetchLiveHotViaProxy('all');
+    return (d.items||[]).map(it=>({ t:it.t, heat:Number(it.heat)||0, src:it.src||'全网' }));
+  }
+  const d = await fetchLiveHotViaProxy(plat);
+  return (d.items||[]).map(it=>({ t:it.t, heat:Number(it.heat)||0, src:platName(plat) }));
+}
+function buildInspireCards(topics, plat, shuffle){
+  // 高热度筛选：按 heat 降序取前 20，「换一批」时洗牌取不同组合
+  const ranked = topics.slice().sort((a,b)=> (Number(b.heat)||0)-(Number(a.heat)||0));
+  let pool = ranked.slice(0, 20);
+  if(shuffle && pool.length>10){ for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=pool[i]; pool[i]=pool[j]; pool[j]=x; } }
+  const top = pool.slice(0, 10);
+  return top.map(t=>{
+    const heat = Number(t.heat)||0;
+    const profile = PLAT_PROFILE[plat] || PLAT_PROFILE.all;
+    const padv = '【'+profile.name+'】'+profile.style+' '+profile.tip;
+    const cols = COLLECTIONS.map(c=>({ key:c.key, name:c.name, color:c.color, opinion: COL_OPINION[c.key](t.t, plat) }));
+    return { t:t.t, heat, label:inspireHeatLabel(heat), src:t.src||profile.name, padv, cols };
+  });
+}
+function renderInspire(){
+  const cards = state.inspire||[];
+  if(!cards.length){
+    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」拉取实时高热度话题，结合五栏方向自动生成创作意见。</div>
+      <div class="five-empty-sub">也可点「↻ 用定时热榜」用定时热榜生成（无需代理）。</div></div>`;
+  }
+  return `<div class="inspire-grid">`+cards.map((c,ci)=>{
+    const colRows = c.cols.map((col,ki)=>`
+      <div class="in-col" style="--c:${col.color}">
+        <div class="in-col-head"><b>${esc(col.name)}</b></div>
+        <div class="in-col-op">${esc(col.opinion)}</div>
+        <button class="mini" onclick="adoptInspire(${ci},${ki})">＋ 采用</button>
+      </div>`).join('');
+    return `<div class="in-card">
+      <div class="in-card-top">
+        <span class="in-heat">${esc(c.label)}</span>
+        <span class="in-topic">${esc(c.t)}</span>
+      </div>
+      <div class="in-meta">来源：${esc(c.src)}${c.heat?(' · 热度 '+fmtHeat(c.heat)):''}</div>
+      <div class="in-padv">💡 ${esc(c.padv)}</div>
+      <div class="in-cols">${colRows}</div>
+    </div>`;
+  }).join('')+`</div>`;
+}
+function adoptInspire(ci, ki){
+  const c=(state.inspire||[])[ci]; if(!c) return;
+  const col=c.cols[ki]; if(!col) return;
+  const content='【'+c.t+'｜'+c.src+'】'+col.opinion;
+  const rec={id:uid(),collection:col.key,content:content,source:'选题灵感·'+col.name,tags:[c.src, c.t.slice(0,12)],status:0,planDate:'',createdAt:Date.now()};
+  state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
+  flashToast('已采用到 '+col.name);
+}
+const PLAT_PROFILE = {
+  weibo:{name:'微博', style:'话题性强、情绪浓度高，适合观点输出与金句，短平快。', tip:'开头抛共鸣/争议点，带 #话题# 引发讨论。'},
+  douyin:{name:'抖音', style:'强节奏、强情绪、前3秒钩子，口语化、重反转。', tip:'用「你有没有发现…」式开头，情绪峰值处给观点。'},
+  xhs:{name:'小红书', style:'第一人称、情感共鸣、生活方式，温柔治愈。', tip:'清单体/故事体，标题带情绪词，配治愈画面。'},
+  zhihu:{name:'知乎', style:'深度分析、观点碰撞、长文逻辑。', tip:'用「结论先行 + 故事佐证」结构，建立专业感。'},
+  bili:{name:'B站', style:'深度、考据、梗、二创，年轻人语境。', tip:'中长视频，开头抛问题，信息密度高、有梗。'},
+  shipinhao:{name:'视频号', style:'温情、正能量、家庭社会向，转发率高。', tip:'故事化叙事，结尾落点温暖，适合家庭群传播。'},
+  kuaishou:{name:'快手', style:'接地气、真实、普通人视角、烟火气。', tip:'用真实镜头讲普通人的故事，方言更亲切。'},
+  all:{name:'全网综合', style:'跨平台高热度话题，经多平台验证的安全牌。', tip:'多平台分发时优先选这类已验证话题。'}
+};
+const COL_OPINION = {
+  碎语:(t)=>`把「${t}」收束成一句对人温柔的提醒。方向：用日常比喻、避免说教；示例金句：「${t}里，藏着慢慢来的勇气。」`,
+  心事:(t)=>`以第一人称讲「${t}」带来的心理波动。方向：用具体细节代替宏大叙事，让观众看见自己；开场：「那天刷到${t}，我忽然…」`,
+  诗笺:(t)=>`为「${t}」写一段诗意文案。方向：意象化、留白、可化用诗词；示例：「${t}退去，人间仍有暖灯。」`,
+  映言:(t)=>`借经典台词切入「${t}」。方向：用电影名场面作开场，落到人性共通处；开场：「有句台词一直记得——『…』」`,
+  留声:(t)=>`为「${t}」做配乐方案。方向：温暖/治愈向BGM卡点情绪峰值；推荐风格参考《如愿》《人间》类。`
+};
+function inspireHeatLabel(h){
+  h=Number(h)||0;
+  if(h>=1e8) return '🔥 爆款热度';
+  if(h>=1e7) return '🔥 高热度';
+  if(h>=1e6) return '👀 高关注';
+  if(h>=1e4) return '💬 热话题';
+  return '🔸 话题';
+}
 function setHotPlat(k){
   state.activeHotPlat=k;
-  if(!(state.liveHot && state.liveHot[k] && state.liveHot[k].items && state.liveHot[k].items.length)){
-    renderHotTopics(); pullLiveHot(k); return;
-  }
-  renderHotTopics();
+  genInspiration(k);
 }
-function liveTabsHtml(){
-  return LIVE_PLATFORMS.map(p=>{
+function inspireTabsHtml(){
+  const tabs = INSPIRE_TABS.map(p=>{
     const cnt=(state.liveHot&&state.liveHot[p.key]&&state.liveHot[p.key].items)?state.liveHot[p.key].items.length:0;
     return `<span class="hot-plat${state.activeHotPlat===p.key?' on':''}" onclick="setHotPlat('${p.key}')"><b>${p.name}</b>${cnt?('<i>'+cnt+'</i>'):''}</span>`;
   }).join('');
+  return `<div class="live-tabs">${tabs}</div>`;
 }
-function liveHotBoardHtml(){
-  const plat=state.activeHotPlat||'weibo';
-  const data=(state.liveHot||{})[plat]||null;
-  const pname=platName(plat);
-  let body;
-  if(!data || !data.items || !data.items.length){
-    if(data && data.error){
-      body=`<div class="empty"><div>实时代理未连接：${esc(data.error)}</div>
-        <div class="proxy-help">
-          <b>三步开启「点一下就实时」：</b><br>
-          ① 本机代理（推荐·零账号）：在仓库目录运行 <code>node scripts/proxy.mjs</code>（默认 http://localhost:8787）<br>
-          ② 或用 Cloudflare Worker：部署 <code>worker/hot-proxy.js</code> 后点「⚙ 代理」填入 Worker 地址<br>
-          ③ 回到本页点「🔄 拉实时热榜」即可拉各平台热搜<br>
-          <button class="btn btn-soft" onclick="copyProxyCmd()">复制启动命令</button>
-        </div></div>`;
-    } else {
-      body=`<div class="empty"><div>还没有「${esc(pname)}」实时热榜，点「🔄 拉实时热榜」获取最新热门话题</div></div>`;
-    }
-  } else {
-    const ago=Math.max(0, Math.round((Date.now()-data.updatedAt)/60000));
-    const timeTxt=ago===0?'刚刚':(ago+' 分钟前');
-    const rows=data.items.slice(0,30).map((it,i)=>`
-      <div class="live-row" onclick="liveToIdea('${plat}', ${i})" title="点击转入灵感库">
-        <span class="live-rank">${i+1}</span>
-        <span class="live-t">${esc(it.t)}</span>
-        ${it.heat?('<span class="live-heat">'+fmtHeat(it.heat)+'</span>'):''}
-        <span class="live-act" onclick="event.stopPropagation();liveCopy('${plat}', ${i})">复制</span>
-      </div>`).join('');
-    body=`<div class="live-meta">${esc(pname)} · 实时热榜 · 更新于 ${timeTxt}（点条目转灵感 / 复制）</div>${rows}`;
-  }
-  return `<div class="live-board">${body}</div>`;
-}
-function liveToIdea(plat, i){
-  const data=(state.liveHot||{})[plat]; if(!data||!data.items) return;
-  const it=data.items[i]; if(!it) return;
-  const rec={id:uid(), collection:'碎语', content:it.t, source:'实时热榜·'+platName(plat), tags:[platName(plat)], status:0, planDate:'', createdAt:Date.now()};
-  state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
-  flashToast('已转入灵感库（'+platName(plat)+'热榜）');
-}
-async function liveCopy(plat, i){
-  const data=(state.liveHot||{})[plat]; if(!data||!data.items) return;
-  const it=data.items[i]; if(!it) return;
-  try{ await navigator.clipboard.writeText(it.t); flashToast('已复制：'+it.t); }catch(e){ flashToast('复制失败：'+it.t); }
-}
-/* ===== 五栏选题灵感生成器：把实时热榜/热门话题 → 五个栏目合集的创作灵感与选题 ===== */
+/* 兜底数据源：代理不可用时，用已缓存的 liveHot 或定时热榜 LAST_LIVE_ITEMS */
 function collectLiveItems(){
   const out=[]; const seen=new Set();
   const lh=state.liveHot||{};
-  Object.keys(lh).forEach(k=>{ (lh[k].items||[]).forEach(it=>{ const t=it&&it.t; if(t&&!seen.has(t)){ seen.add(t); out.push(it);} }); });
-  if(!out.length && LAST_LIVE_ITEMS && LAST_LIVE_ITEMS.length) return LAST_LIVE_ITEMS.slice();
+  Object.keys(lh).forEach(k=>{ (lh[k].items||[]).forEach(it=>{ const t=it&&it.t; if(t&&!seen.has(t)){ seen.add(t); out.push({t, heat:Number(it.heat)||0, src:it.src||platName(k)});} }); });
+  if(!out.length && LAST_LIVE_ITEMS && LAST_LIVE_ITEMS.length) return LAST_LIVE_ITEMS.slice().map(x=>({t:String((x&&(x.t||x.title))||''), heat:0, src:'定时热榜'}));
   return out;
-}
-function attachFromKw(items, liveItems){
-  const li=(liveItems||[]).map(x=>String((x&&(x.t||x.title))||''));
-  items.forEach(it=>{
-    if(it.fromKw) return;
-    const m=it.meta||{};
-    const hay=[it.title, m.name, m.author, m.singer, m.actor].filter(Boolean).join(' ');
-    const hit=li.find(t=> t && (hay.indexOf(t)>=0 || (m.name && t.indexOf(m.name)>=0)));
-    if(hit) it.fromKw=hit.slice(0,22);
-  });
-  return items;
-}
-function generateFiveCol(onlyCol){
-  const liveItems=collectLiveItems();
-  if(!liveItems.length){ flashToast('请先点「🔄 拉实时热榜」或「↻ 刷新选题库」获取实时话题'); return; }
-  const rot=bumpNonce();
-  const cols = onlyCol ? [colOf(onlyCol)] : COLLECTIONS;
-  cols.forEach(c=>{
-    let items;
-    if(STRUCTURED_COLS.has(c.key)) items = buildStructuredTopics(c.key, liveItems, 3, rot);
-    else items = genColTopics(c.key, liveItems, 3, rot);
-    items = attachFromKw(items, liveItems);
-    state.fiveColIdeas[c.key]=items;
-  });
-  save(); renderHotTopics();
-  flashToast(onlyCol ? ('已换一批「'+colOf(onlyCol).name+'」选题灵感') : '已生成五栏选题灵感（基于实时热榜）');
-}
-function renderFiveColIdeas(){
-  const f=state.fiveColIdeas||{};
-  const hasAny = COLLECTIONS.some(c=>(f[c.key]||[]).length);
-  if(!hasAny){
-    return `<div class="five-empty">
-      <div>还没有选题灵感。先点「🔄 拉实时热榜」抓各平台实时话题，再点「✨ 生成五栏选题灵感」。</div>
-      <div class="five-empty-sub">也可直接点「↻ 刷新选题库」用定时热榜生成（无需代理）。</div>
-    </div>`;
-  }
-  const cards=COLLECTIONS.map(c=>{
-    const items=f[c.key]||[];
-    const body = items.length ? items.map((it,i)=>`
-      <div class="fc-item">
-        <div class="fc-title">${topicDisplay(it)}</div>
-        ${it.fromKw?('<div class="fc-from">⟲ 灵感来源：'+esc(it.fromKw)+'</div>'):''}
-        ${it.angle?('<div class="fc-angle">💡 '+esc(it.angle)+'</div>'):''}
-        <button class="mini" style="margin-top:6px" onclick="adoptFiveCol('${c.key}',${i})">＋ 采用到「${esc(c.name)}」</button>
-      </div>`).join('')
-      : '<div class="fc-empty">暂无，点「↻ 本栏换一批」</div>';
-    return `<div class="fc-card" style="--c:${c.color}">
-      <div class="fc-head"><b>${esc(c.name)}</b><span>${esc(c.desc)}</span></div>
-      <div class="fc-body">${body}</div>
-      <button class="btn btn-soft fc-refresh" onclick="generateFiveCol('${c.key}')">↻ 本栏换一批</button>
-    </div>`;
-  }).join('');
-  return `<div class="five-col">${cards}</div>`;
-}
-function adoptFiveCol(col, i){
-  const f=state.fiveColIdeas||{}; const it=(f[col]||[])[i]; if(!it) return;
-  const rec={id:uid(),collection:col,content:it.title,source:it.source||('五栏选题·'+colOf(col).name),tags:(it.tags||[]).slice(),status:0,planDate:'',createdAt:Date.now()};
-  state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
-  flashToast('已采用到 '+colOf(col).name);
 }
 function configProxy(){
   const cur=(function(){try{return localStorage.getItem('LIVE_PROXY_URL')||''}catch(e){return ''}})();
@@ -1642,6 +1639,7 @@ async function copyProxyCmd(){
   const cmd='node scripts/proxy.mjs';
   try{ await navigator.clipboard.writeText(cmd); flashToast('已复制：'+cmd); }catch(e){ flashToast('复制失败：'+cmd); }
 }
+function fmtHeat(n){ n=Number(n)||0; if(n>=100000000) return (n/100000000).toFixed(1)+'亿'; if(n>=10000) return (n/10000).toFixed(1)+'万'; return String(n); }
 const HOT_TITLE_MAX=80, HOT_ANGLE_MAX=120, HOT_TAG_MAX=12;
 async function applyLiveItems(items){
   /* 清洗：兼容「{t,plat}」旧格式与「{title,col,plat,angle,tag}」托管格式；剔除空/非法、压缩空白、截断、去重 */

@@ -1,8 +1,8 @@
 // 晚风予言 · 实时热榜代理（本机版，零账号）
 // 作用：在「有真实外网、无浏览器 CORS 限制」的本地服务端抓取各平台热搜/热门话题，
-//       供页面在点击「🔄 拉实时热榜」时同源（或跨域带 CORS）调用。
+//       供页面在点击「🔄 生成选题灵感」时同源（或跨域带 CORS）调用。
 // 用法： node scripts/proxy.mjs   然后浏览器访问 http://localhost:8787/hot?plat=weibo
-// 平台： weibo / douyin / xhs / zhihu / bili / kuaishou / shipinhao
+// 平台： weibo / douyin / xhs / zhihu / bili / kuaishou / shipinhao / all(全网聚合)
 
 import http from 'node:http';
 
@@ -43,6 +43,7 @@ async function parseTopHub(url) {
   return rows.map(r => ({ t: r[1].trim(), heat: 0 })).filter(x => x.t.length >= 2);
 }
 
+const PLAT_NICE = { weibo:'微博', douyin:'抖音', xhs:'小红书', zhihu:'知乎', bili:'B站', kuaishou:'快手', shipinhao:'视频号' };
 // —— 各平台抓取器（server-side，真实外网）——
 const SOURCES = {
   weibo: async () => raceFirst([
@@ -95,12 +96,21 @@ async function fetchPlat(plat) {
   const fn = SOURCES[plat];
   if (!fn) return { items: [], error: '未知平台: ' + plat };
   try {
-    const items = await fn();
-    return { items: (items || []).filter(x => x && x.t && x.t.length >= 2).slice(0, 30), error: null };
+    let items = await fn();
+    items = (items || []).filter(x => x && x.t && x.t.length >= 2).slice(0, 30);
+    // 热度归一化：确保数值化；缺失时按排名反推，使跨平台按热度排序可靠
+    items = items.map((x, i) => {
+      let h = Number(x.heat) || 0;
+      if (!h) h = Math.max(1, 9000000 - i * 30000);
+      return { t: x.t, heat: h };
+    });
+    return { items, error: null };
   } catch (e) {
     return { items: [], error: (e && e.message) || '抓取失败' };
   }
 }
+
+const ALL_KEYS = ['weibo', 'douyin', 'xhs', 'zhihu', 'bili', 'shipinhao', 'kuaishou'];
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -110,11 +120,26 @@ const server = http.createServer(async (req, res) => {
   try {
     if (u.pathname === '/health') return send(200, { ok: true });
     if (u.pathname === '/hot') {
-      const plat = u.searchParams.get('plat') || 'weibo';
+      const plat = (u.searchParams.get('plat') || 'weibo');
+      if (plat === 'all') {
+        const merged = [];
+        for (const k of ALL_KEYS) {
+          try { const r = await fetchPlat(k); (r.items || []).forEach(it => merged.push({ ...it, src: PLAT_NICE[k] || k })); } catch (e) {}
+        }
+        // 去重（按标题）
+        const seen = new Set(); const ded = [];
+        for (const it of merged) { const t = (it.t || '').trim(); if (t && !seen.has(t)) { seen.add(t); ded.push(it); } }
+        // 每平台取热度前 4，再全局按热度排序，保证跨平台多样性
+        const bySrc = {}; ded.forEach(it => { (bySrc[it.src] = bySrc[it.src] || []).push(it); });
+        let out = [];
+        Object.values(bySrc).forEach(arr => { arr.sort((a, b) => b.heat - a.heat); out = out.concat(arr.slice(0, 4)); });
+        out.sort((a, b) => b.heat - a.heat);
+        return send(200, { plat: 'all', items: out.slice(0, 40), updatedAt: Date.now(), error: null });
+      }
       const r = await fetchPlat(plat);
       return send(200, { plat, items: r.items, updatedAt: Date.now(), error: r.error });
     }
-    return send(200, { name: '晚风予言实时热榜代理', usage: '/hot?plat=weibo|douyin|xhs|zhihu|bili|kuaishou|shipinhao' });
+    return send(200, { name: '晚风予言实时热榜代理', usage: '/hot?plat=weibo|douyin|xhs|zhihu|bili|kuaishou|shipinhao|all' });
   } catch (e) {
     return send(500, { error: (e && e.message) || 'server error' });
   }
