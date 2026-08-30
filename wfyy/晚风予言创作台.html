@@ -3161,6 +3161,27 @@ function saveCloud(){ try{ localStorage.setItem(CLOUD_KEY, JSON.stringify(cloud)
 function b64encode(s){ return btoa(unescape(encodeURIComponent(s))); }
 function b64decode(s){ return decodeURIComponent(escape(atob((s||'').replace(/\s/g,'')))); }
 function encPath(p){ return (p||'').split('/').map(encodeURIComponent).join('/'); }
+/* 隐私防护：检测云同步仓库是否为「公开仓库」（无需 token 即可读取 = 个人数据裸奔）。
+   公开仓库通过 raw.githubusercontent.com 任何人都能下载 data/wfyy.json 并解码出全部作品/灵感。 */
+async function checkRepoPublic(repo){
+  try{
+    const res = await fetch('https://api.github.com/repos/'+repo, { method:'GET', headers:{'Accept':'application/vnd.github+json'} });
+    return res.status===200; // 200 = 公开可读（无 token）；404 = 私有/无权限
+  }catch(e){ return false; }
+}
+/* 推测当前 Pages 所在的仓库（用于警告"不要拿托管页面的公开仓库当同步仓"） */
+function guessPagesRepo(){
+  try{
+    const h=location.hostname, p=location.pathname;
+    if(h.endsWith('.github.io')){
+      const owner=h.replace(/\.github\.io$/,'');
+      const seg=(p||'/').split('/').filter(Boolean)[0];
+      if(seg) return owner+'/'+seg; // 项目页：owner/首个路径段
+      return owner+'.github.io';     // 用户页
+    }
+  }catch(e){}
+  return '';
+}
 /* 安全 JSON 解析：统一抛清晰错误，避免裸 JSON.parse 暴露 InvalidCharacterError 等底层异常 */
 function safeJSONParse(s, label){ try{ return JSON.parse(s); }catch(e){ throw new Error((label||'数据')+'解析失败（可能已损坏或格式不对）'); } }
 function nowHM(){ return new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
@@ -3258,7 +3279,12 @@ async function cloudTest(){
   try{
     const r=await ghFetch('/repos/'+cloud.repo,'GET');
     cloud.lastSync=nowHM(); saveCloud();
-    setCloudStatus('连接成功：'+(r.full_name||cloud.repo),'ok');
+    let extra='';
+    if(await checkRepoPublic(cloud.repo)){
+      extra=' ⚠️ 该仓库为【公开仓库】，你的作品/灵感等全部个人数据会被任何人读取，请改用私有仓库';
+      if(guessPagesRepo() && cloud.repo.trim().toLowerCase()===guessPagesRepo().toLowerCase()) extra=' ⚠️ 你正在用托管本页面的公开仓库做同步！个人数据将完全公开，请新建一个私有仓库';
+    }
+    setCloudStatus('连接成功：'+(r.full_name||cloud.repo)+extra, extra?'warn':'ok');
   }catch(e){ setCloudStatus('连接失败：'+(e.message||('HTTP '+(e.status||''))),'err'); }
 }
 
@@ -3268,12 +3294,23 @@ function cloudToggle(){
   setCloudStatus(cloud.enabled?'已启用：填好令牌与仓库后点「立即上传」开始同步':'已关闭云同步（本机数据保留）','warn');
 }
 
-function saveCloudConfig(){
+async function saveCloudConfig(){
   cloud.token=document.getElementById('cloudToken').value.trim();
   cloud.repo=document.getElementById('cloudRepo').value.trim();
   cloud.path=document.getElementById('cloudPath').value.trim()||'data/wfyy.json';
   saveCloud();
-  setCloudStatus('配置已保存，可点「立即上传 / 下载」','ok');
+  setCloudStatus('配置已保存，正在检测仓库可见性…','warn');
+  // 保存后异步检测公开性，避免用户拿公开仓库当同步仓导致个人数据裸奔
+  try{
+    if(await checkRepoPublic(cloud.repo)){
+      const samePages = guessPagesRepo() && cloud.repo.trim().toLowerCase()===guessPagesRepo().toLowerCase();
+      setCloudStatus(samePages
+        ? '⚠️ 危险：你正在用托管本页面的公开仓库同步！个人数据将完全公开，请新建一个私有仓库后再同步'
+        : '⚠️ 该仓库为【公开仓库】，个人数据会被任何人读取，请改用私有仓库', 'err');
+    } else {
+      setCloudStatus('配置已保存，可点「立即上传 / 下载」','ok');
+    }
+  }catch(e){ setCloudStatus('配置已保存，可点「立即上传 / 下载」','ok'); }
 }
 
 /* ============ 每日自动更新热点库 ============
