@@ -85,6 +85,14 @@
   .search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--ink2)}
   .select{border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;font-family:inherit;min-height:44px;color:var(--ink)}
 
+  /* 库数量统计条 */
+  .lib-stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center}
+  .lib-stats .st-total{font-size:13px;font-weight:700;color:var(--ink);background:var(--bg2);padding:4px 11px;border-radius:999px}
+  .lib-stats .st-col{font-size:12px;font-weight:600;color:#fff;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .lib-stats .st-col b{font-weight:800;font-size:13px}
+  .lib-stats .st-col.active{outline:2px solid var(--ink);outline-offset:1px}
+  .lib-stats .st-sep{font-size:12px;color:var(--ink3);margin:0 2px}
+
   /* cards / items */
   .list{display:flex;flex-direction:column;gap:10px}
   .item{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;box-shadow:var(--shadow)}
@@ -550,6 +558,7 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>记作品
       </button>
     </div>
+    <div class="lib-stats" id="workStats"></div>
     <div class="list" id="workList"></div>
   </section>
 
@@ -594,6 +603,7 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>收素材
       </button>
     </div>
+    <div class="lib-stats" id="matStats"></div>
     <div class="list" id="materialList"></div>
   </section>
 
@@ -1224,6 +1234,7 @@ function renderWorks(){
   const $=(id)=>document.getElementById(id);
   const q=(($('workSearch')&&$('workSearch').value)||'').trim().toLowerCase();
   const cf=($('workColFilter')&&$('workColFilter').value)||'';
+  const stEl=document.getElementById('workStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.works, cf);
   const pf=($('workPlatFilter')&&$('workPlatFilter').value)||'';
   let list = safeArr(state.works);
   if(cf) list=list.filter(w=>w.collection===cf);
@@ -2363,10 +2374,20 @@ function flashToast(msg){
   clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1900);
 }
 
+/* 库数量统计：总数 + 各合集分布（带合集专属色） */
+function libStatsHtml(arr, activeCol){
+  const total = arr.length;
+  const byCol = {};
+  COLLECTIONS.forEach(c=>byCol[c.key]=0);
+  arr.forEach(x=>{ const k=(x.collection && byCol[x.collection]!==undefined)?x.collection:COLLECTIONS[0].key; byCol[k]++; });
+  const cols = COLLECTIONS.map(c=>`<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}">${c.key}<b>${byCol[c.key]}</b></span>`).join('');
+  return `<span class="st-total">共 ${total} 条</span><span class="st-sep">·</span>${cols}`;
+}
 /* ============ 素材库 ============ */
 function renderMaterials(){
-  const q=(document.getElementById('matSearch').value||'').trim().toLowerCase();
   const cf=document.getElementById('matColFilter').value;
+  const stEl=document.getElementById('matStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.materials, cf);
+  const q=(document.getElementById('matSearch').value||'').trim().toLowerCase();
   let list=state.materials.slice();
   if(cf) list=list.filter(m=>m.collection===cf);
   if(q) list=list.filter(m=>
@@ -2442,7 +2463,7 @@ function openMaterialModal(id){
   openModal(html);
   document.getElementById('m_col').addEventListener('change',e=>{
     const def=MAT_TYPE_DEFAULT[e.target.value]||'金句';
-    const sel=document.getElementById('m_type'); if(!m) sel.value=def;
+    const sel=document.getElementById('m_type'); sel.value=def;
   });
   if(m) liveMatCheck();
 }
