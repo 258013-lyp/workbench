@@ -87,10 +87,12 @@
 
   /* 库数量统计条 */
   .lib-stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center}
-  .lib-stats .st-total{font-size:13px;font-weight:700;color:var(--ink);background:var(--bg2);padding:4px 11px;border-radius:999px}
-  .lib-stats .st-col{font-size:12px;font-weight:600;color:#fff;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+  .lib-stats .st-total{font-size:13px;font-weight:700;color:var(--ink);background:var(--bg2);padding:4px 11px;border-radius:999px;cursor:pointer;transition:.15s}
+  .lib-stats .st-total.active{background:var(--ink);color:#fff}
+  .lib-stats .st-col{font-size:12px;font-weight:600;color:#fff;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;transition:.15s;opacity:.78}
+  .lib-stats .st-col:hover{opacity:1}
   .lib-stats .st-col b{font-weight:800;font-size:13px}
-  .lib-stats .st-col.active{outline:2px solid var(--ink);outline-offset:1px}
+  .lib-stats .st-col.active{outline:2px solid var(--ink);outline-offset:1px;opacity:1}
   .lib-stats .st-sep{font-size:12px;color:var(--ink3);margin:0 2px}
 
   /* cards / items */
@@ -539,9 +541,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="workSearch" placeholder="搜索标题 / 文案 / 标签 / 合集，重复项标红…" oninput="renderWorks()">
       </div>
-      <select class="select" id="workColFilter" onchange="renderWorks()">
-        <option value="">全部合集</option>
-      </select>
       <select class="select" id="workPlatFilter" onchange="renderWorks()">
         <option value="">全部平台</option>
         <option value="__ALL__">🌐 全平台发布</option>
@@ -596,9 +595,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="matSearch" placeholder="搜索素材原文 / 出处 / 标签 / 合集…" oninput="renderMaterials()">
       </div>
-      <select class="select" id="matColFilter" onchange="renderMaterials()">
-        <option value="">全部合集</option>
-      </select>
       <button class="btn btn-primary" onclick="openMaterialModal()">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>收素材
       </button>
@@ -1233,8 +1229,8 @@ function workCardMetrics(w, plat){
 function renderWorks(){
   const $=(id)=>document.getElementById(id);
   const q=(($('workSearch')&&$('workSearch').value)||'').trim().toLowerCase();
-  const cf=($('workColFilter')&&$('workColFilter').value)||'';
-  const stEl=document.getElementById('workStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.works, cf);
+  const cf=(state.workColFilter)||'';
+  const stEl=document.getElementById('workStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.works, cf, 'work');
   const pf=($('workPlatFilter')&&$('workPlatFilter').value)||'';
   let list = safeArr(state.works);
   if(cf) list=list.filter(w=>w.collection===cf);
@@ -2375,18 +2371,23 @@ function flashToast(msg){
 }
 
 /* 库数量统计：总数 + 各合集分布（带合集专属色） */
-function libStatsHtml(arr, activeCol){
+function libStatsHtml(arr, activeCol, kind){
   const total = arr.length;
   const byCol = {};
   COLLECTIONS.forEach(c=>byCol[c.key]=0);
   arr.forEach(x=>{ const k=(x.collection && byCol[x.collection]!==undefined)?x.collection:COLLECTIONS[0].key; byCol[k]++; });
-  const cols = COLLECTIONS.map(c=>`<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}">${c.key}<b>${byCol[c.key]}</b></span>`).join('');
-  return `<span class="st-total">共 ${total} 条</span><span class="st-sep">·</span>${cols}`;
+  const totalChip = `<span class="st-total${activeCol?'':' active'}" onclick="setColFilter('${kind}','')">共 ${total} 条</span>`;
+  const cols = COLLECTIONS.map(c=>`<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')">${c.key}<b>${byCol[c.key]}</b></span>`).join('');
+  return totalChip + '<span class="st-sep">·</span>' + cols;
+}
+function setColFilter(kind, key){
+  if(kind==='work'){ state.workColFilter = (state.workColFilter===key)? '' : key; renderWorks(); }
+  else { state.matColFilter = (state.matColFilter===key)? '' : key; renderMaterials(); }
 }
 /* ============ 素材库 ============ */
 function renderMaterials(){
-  const cf=document.getElementById('matColFilter').value;
-  const stEl=document.getElementById('matStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.materials, cf);
+  const cf=(state.matColFilter)||'';
+  const stEl=document.getElementById('matStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.materials, cf, 'mat');
   const q=(document.getElementById('matSearch').value||'').trim().toLowerCase();
   let list=state.materials.slice();
   if(cf) list=list.filter(m=>m.collection===cf);
@@ -3711,13 +3712,8 @@ function switchTab(tab){
   if(tab==='calendar') renderCalendar();
 }
 
-/* 初始化 */
-function initFilters(){
-  const cf=document.getElementById('workColFilter');
-  cf.innerHTML='<option value="">全部合集</option>'+COLLECTIONS.map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
-  const mf=document.getElementById('matColFilter');
-  if(mf) mf.innerHTML='<option value="">全部合集</option>'+COLLECTIONS.map(c=>`<option value="${c.key}">${c.name}</option>`).join('');
-}
+/* 合集筛选已合并进数量统计条，无需独立下拉 */
+function initFilters(){}
 function renderAll(){ renderToday(); renderWorks(); renderIdeas(); renderMaterials(); renderData(); renderCalendar(); }
 
 /* 内联 onclick 只允许调用 act(动作名, 编码id)，动作白名单在此登记 */
