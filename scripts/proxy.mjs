@@ -2,7 +2,7 @@
 // 作用：在「有真实外网、无浏览器 CORS 限制」的本地服务端抓取各平台热搜/热门话题，
 //       供页面在点击「🔄 拉实时热榜」时同源（或跨域带 CORS）调用。
 // 用法： node scripts/proxy.mjs   然后浏览器访问 http://localhost:8787/hot?plat=weibo
-// 平台： weibo / douyin / xhs / zhihu / bili / baidu / toutiao
+// 平台： weibo / douyin / xhs / zhihu / bili / kuaishou / shipinhao
 
 import http from 'node:http';
 
@@ -33,6 +33,14 @@ async function raceFirst(fetchers) {
   const settled = await Promise.allSettled(fetchers.map(f => f().then(arr => (arr && arr.length) ? arr : Promise.reject(new Error('empty')))));
   for (const s of settled) if (s.status === 'fulfilled' && s.value && s.value.length) return s.value;
   return [];
+}
+// tophub 聚合站 HTML 解析（视频号/快手无官方开放接口，tophub 稳定可抓）
+async function parseTopHub(url) {
+  const html = await getText(url);
+  const tb = html.match(/<tbody>([\s\S]*?)<\/tbody>/);
+  if (!tb) return [];
+  const rows = [...tb[1].matchAll(/<td[^>]*>\d+\.<\/td>\s*<td><a[^>]*>([^<]+)<\/a>/g)];
+  return rows.map(r => ({ t: r[1].trim(), heat: 0 })).filter(x => x.t.length >= 2);
 }
 
 // —— 各平台抓取器（server-side，真实外网）——
@@ -75,27 +83,11 @@ const SOURCES = {
       return arr.slice(0, 30).map(x => ({ t: x.title || '', heat: Number(x.stat && x.stat.view) || 0 }));
     },
   ]),
-  baidu: async () => raceFirst([
-    async () => {
-      const html = await getText('https://top.baidu.com/board?tab=realtime');
-      const m = html.match(/<!--s-data:([\s\S]*?)-->/);
-      if (!m) return [];
-      const obj = JSON.parse(m[1]);
-      const cards = (obj && obj.data && obj.data.cards) || [];
-      for (const c of cards) {
-        if (Array.isArray(c.content) && c.content.length) {
-          return c.content.slice(0, 30).map(x => ({ t: x.word || '', heat: Number(x.hotScore) || 0 }));
-        }
-      }
-      return [];
-    },
+  kuaishou: async () => raceFirst([
+    async () => parseTopHub('https://tophub.today/n/MZd7PrPerO'),
   ]),
-  toutiao: async () => raceFirst([
-    async () => {
-      const d = await getJSON('https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc', { Referer: 'https://www.toutiao.com/' });
-      const arr = (d && d.data) || [];
-      return arr.slice(0, 30).map(x => ({ t: x.Title || '', heat: Number(x.HotValue) || 0 }));
-    },
+  shipinhao: async () => raceFirst([
+    async () => parseTopHub('https://tophub.today/n/W1VdJPZoLQ'),
   ]),
 };
 
@@ -122,7 +114,7 @@ const server = http.createServer(async (req, res) => {
       const r = await fetchPlat(plat);
       return send(200, { plat, items: r.items, updatedAt: Date.now(), error: r.error });
     }
-    return send(200, { name: '晚风予言实时热榜代理', usage: '/hot?plat=weibo|douyin|xhs|zhihu|bili|baidu|toutiao' });
+    return send(200, { name: '晚风予言实时热榜代理', usage: '/hot?plat=weibo|douyin|xhs|zhihu|bili|kuaishou|shipinhao' });
   } catch (e) {
     return send(500, { error: (e && e.message) || 'server error' });
   }

@@ -211,6 +211,24 @@
   .live-row:hover .live-act{opacity:1}
   .proxy-help{margin-top:8px;font-size:12px;color:var(--ink2);line-height:1.7}
   .proxy-help code{background:#f2f3f7;border:1px solid #e3e6ee;border-radius:5px;padding:1px 5px;font-size:11.5px;color:#b23}
+  .live-tabs-wrap{margin:4px 0 10px}
+  .raw-hot{border:1px dashed #e2c9c9;border-radius:12px;padding:8px 11px;margin-top:10px;background:#fffaf9}
+  .raw-hot>summary{cursor:pointer;font-size:13px;font-weight:700;color:#a35050;outline:none}
+  .five-empty{background:#fff;border:1px dashed #e2c9c9;border-radius:12px;padding:16px;color:var(--ink2);font-size:13px;line-height:1.7;text-align:center}
+  .five-empty-sub{margin-top:6px;font-size:12px;opacity:.8}
+  .five-col{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:6px 0 4px}
+  .fc-card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+  .fc-head{display:flex;flex-direction:column;gap:1px}
+  .fc-head b{font-size:13.5px;font-weight:800;color:var(--c)}
+  .fc-head span{font-size:11px;color:var(--ink2)}
+  .fc-body{display:flex;flex-direction:column;gap:8px;flex:1}
+  .fc-item{background:#fafbff;border:1px solid #eef0f6;border-radius:9px;padding:7px 8px}
+  .fc-title{font-size:13px;font-weight:700;line-height:1.4;color:#2b2740}
+  .fc-from{font-size:11px;color:#a35050;margin-top:3px}
+  .fc-angle{font-size:11.5px;color:var(--ink2);margin-top:3px;line-height:1.45}
+  .fc-empty{font-size:12px;color:var(--ink2);opacity:.8}
+  .fc-refresh{font-size:11.5px;padding:4px 8px;align-self:flex-start}
+  @media(max-width:920px){ .five-col{grid-template-columns:repeat(2,1fr)} }
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .hot-live{font-size:10px;font-weight:700;color:#fff;background:var(--red);border-radius:10px;padding:2px 7px}
   .hot-ref{font-size:10px;font-weight:700;color:#7a8194;background:#eef0f5;border:1px solid #dfe3ee;border-radius:10px;padding:2px 7px}
@@ -1003,7 +1021,7 @@ function HOT_SEED(){
 }
 
 /* ============ 状态 ============ */
-let state = { works:[], ideas:[], materials:[], hotTopics:[], tagPool:[], activeCol:null, liveHot:{}, activeHotPlat:'weibo' };
+let state = { works:[], ideas:[], materials:[], hotTopics:[], tagPool:[], activeCol:null, liveHot:{}, activeHotPlat:'weibo', fiveColIdeas:{} };
 let curTab = 'works';
 let editing = null; // {type, id}
 let cloud = loadCloud();
@@ -1060,7 +1078,7 @@ function load(){
       works: safeArr(d.works), ideas: safeArr(d.ideas), materials: safeArr(d.materials),
       hotTopics: safeArr(d.hotTopics), tagPool: safeArr(d.tagPool),
       activeCol: d.activeCol||null, tagUpdated: d.tagUpdated||null,
-      liveHot: d.liveHot||{}, activeHotPlat: d.activeHotPlat||'weibo'
+      liveHot: d.liveHot||{}, activeHotPlat: d.activeHotPlat||'weibo', fiveColIdeas: d.fiveColIdeas||{}
     };
   }
   if(!state.hotTopics || !state.hotTopics.length) state.hotTopics = HOT_SEED();
@@ -1384,17 +1402,19 @@ function renderHotTopics(){
   const focusIntro = state.activeCol ? `<div class="hot-focus-intro" style="cursor:pointer" onclick="clearActiveCol()" title="点击取消聚焦，看全部栏目">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)} <span style="float:right;opacity:.65;font-weight:600">✕ 取消</span></div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
-      <div class="hot-title-main">🔥 热点选题 · 联网实时 + 各栏目赛道</div>
-      ${state.activeCol?'<button class="btn btn-soft" onclick="refreshColTopics(\''+state.activeCol+'\')" style="min-height:36px;padding:6px 12px">↻ 本栏换一批</button>':''}
-      <button class="btn btn-soft" id="hotRefresh" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px">↻ 刷新选题库</button>
+      <div class="hot-title-main">🔥 热点选题灵感 · 实时热榜 → 五栏创作灵感</div>
       <button class="btn btn-primary" id="liveHotPull" onclick="pullLiveHot(state.activeHotPlat||'weibo')" style="min-height:36px;padding:6px 12px">🔄 拉实时热榜</button>
+      <button class="btn btn-soft" id="genFive" onclick="generateFiveCol()" style="min-height:36px;padding:6px 12px">✨ 生成五栏选题灵感</button>
+      <button class="btn btn-soft" id="hotRefresh" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px">↻ 刷新选题库</button>
       <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
     </div>
     <div class="hot-note">${note}</div>
-    ${focusIntro}
-    ${liveHotBoardHtml()}
-    <div class="hot-tracks">${trackStrip}</div>
-    <div class="hot-scroll">${cards}</div>
+    <div class="live-tabs-wrap">${liveTabsHtml()}</div>
+    ${renderFiveColIdeas()}
+    <details class="raw-hot" open>
+      <summary>📋 原始热榜（选题原料 · 点条目转灵感 / 复制）</summary>
+      ${liveHotBoardHtml()}
+    </details>
   </div>`;
 }
 function hotToIdea(idx){
@@ -1428,6 +1448,7 @@ function refreshHotTopics(){
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
   fetchLiveItems().then(items=>{
     applyLiveItems(items);
+    generateFiveCol();
     if(btn){ btn.disabled=false; btn.textContent='↻ 刷新'; }
   }).catch(e=>{
     const msg=(e&&e.offline)?'当前设备未联网，已保留离线热点库':'精选库与实时热榜都连不上，已保留离线热点库';
@@ -1447,8 +1468,8 @@ const LIVE_PLATFORMS = [
   {key:'xhs', name:'小红书', note:'热帖'},
   {key:'zhihu', name:'知乎', note:'热榜'},
   {key:'bili', name:'B站', note:'热门'},
-  {key:'baidu', name:'百度', note:'实时'},
-  {key:'toutiao', name:'头条', note:'热榜'}
+  {key:'shipinhao', name:'视频号', note:'热榜'},
+  {key:'kuaishou', name:'快手', note:'热榜'}
 ];
 function liveProxyBase(){
   try{ const u=localStorage.getItem('LIVE_PROXY_URL'); if(u && u.trim()) return u.trim().replace(/\/+$/,''); }catch(e){}
@@ -1476,6 +1497,7 @@ async function pullLiveHot(plat){
     state.liveHot[plat]={ items:data.items, updatedAt:data.updatedAt };
     state.activeHotPlat=plat; save(); renderHotTopics();
     flashToast('已拉取「'+platName(plat)+'」实时热榜 '+data.items.length+' 条');
+    generateFiveCol();
   }catch(e){
     state.liveHot=state.liveHot||{};
     state.liveHot[plat]={ items:[], updatedAt:Date.now(), error:((e&&e.message)||'代理不可达') };
@@ -1491,14 +1513,16 @@ function setHotPlat(k){
   }
   renderHotTopics();
 }
+function liveTabsHtml(){
+  return LIVE_PLATFORMS.map(p=>{
+    const cnt=(state.liveHot&&state.liveHot[p.key]&&state.liveHot[p.key].items)?state.liveHot[p.key].items.length:0;
+    return `<span class="hot-plat${state.activeHotPlat===p.key?' on':''}" onclick="setHotPlat('${p.key}')"><b>${p.name}</b>${cnt?('<i>'+cnt+'</i>'):''}</span>`;
+  }).join('');
+}
 function liveHotBoardHtml(){
   const plat=state.activeHotPlat||'weibo';
   const data=(state.liveHot||{})[plat]||null;
   const pname=platName(plat);
-  const tabs=LIVE_PLATFORMS.map(p=>{
-    const cnt=(state.liveHot&&state.liveHot[p.key]&&state.liveHot[p.key].items)?state.liveHot[p.key].items.length:0;
-    return `<span class="hot-plat${state.activeHotPlat===p.key?' on':''}" onclick="setHotPlat('${p.key}')"><b>${p.name}</b>${cnt?('<i>'+cnt+'</i>'):''}</span>`;
-  }).join('');
   let body;
   if(!data || !data.items || !data.items.length){
     if(data && data.error){
@@ -1525,10 +1549,7 @@ function liveHotBoardHtml(){
       </div>`).join('');
     body=`<div class="live-meta">${esc(pname)} · 实时热榜 · 更新于 ${timeTxt}（点条目转灵感 / 复制）</div>${rows}`;
   }
-  return `<div class="live-hot">
-    <div class="live-tabs">${tabs}</div>
-    <div class="live-board">${body}</div>
-  </div>`;
+  return `<div class="live-board">${body}</div>`;
 }
 function liveToIdea(plat, i){
   const data=(state.liveHot||{})[plat]; if(!data||!data.items) return;
@@ -1541,6 +1562,73 @@ async function liveCopy(plat, i){
   const data=(state.liveHot||{})[plat]; if(!data||!data.items) return;
   const it=data.items[i]; if(!it) return;
   try{ await navigator.clipboard.writeText(it.t); flashToast('已复制：'+it.t); }catch(e){ flashToast('复制失败：'+it.t); }
+}
+/* ===== 五栏选题灵感生成器：把实时热榜/热门话题 → 五个栏目合集的创作灵感与选题 ===== */
+function collectLiveItems(){
+  const out=[]; const seen=new Set();
+  const lh=state.liveHot||{};
+  Object.keys(lh).forEach(k=>{ (lh[k].items||[]).forEach(it=>{ const t=it&&it.t; if(t&&!seen.has(t)){ seen.add(t); out.push(it);} }); });
+  if(!out.length && LAST_LIVE_ITEMS && LAST_LIVE_ITEMS.length) return LAST_LIVE_ITEMS.slice();
+  return out;
+}
+function attachFromKw(items, liveItems){
+  const li=(liveItems||[]).map(x=>String((x&&(x.t||x.title))||''));
+  items.forEach(it=>{
+    if(it.fromKw) return;
+    const m=it.meta||{};
+    const hay=[it.title, m.name, m.author, m.singer, m.actor].filter(Boolean).join(' ');
+    const hit=li.find(t=> t && (hay.indexOf(t)>=0 || (m.name && t.indexOf(m.name)>=0)));
+    if(hit) it.fromKw=hit.slice(0,22);
+  });
+  return items;
+}
+function generateFiveCol(onlyCol){
+  const liveItems=collectLiveItems();
+  if(!liveItems.length){ flashToast('请先点「🔄 拉实时热榜」或「↻ 刷新选题库」获取实时话题'); return; }
+  const rot=bumpNonce();
+  const cols = onlyCol ? [colOf(onlyCol)] : COLLECTIONS;
+  cols.forEach(c=>{
+    let items;
+    if(STRUCTURED_COLS.has(c.key)) items = buildStructuredTopics(c.key, liveItems, 3, rot);
+    else items = genColTopics(c.key, liveItems, 3, rot);
+    items = attachFromKw(items, liveItems);
+    state.fiveColIdeas[c.key]=items;
+  });
+  save(); renderHotTopics();
+  flashToast(onlyCol ? ('已换一批「'+colOf(onlyCol).name+'」选题灵感') : '已生成五栏选题灵感（基于实时热榜）');
+}
+function renderFiveColIdeas(){
+  const f=state.fiveColIdeas||{};
+  const hasAny = COLLECTIONS.some(c=>(f[c.key]||[]).length);
+  if(!hasAny){
+    return `<div class="five-empty">
+      <div>还没有选题灵感。先点「🔄 拉实时热榜」抓各平台实时话题，再点「✨ 生成五栏选题灵感」。</div>
+      <div class="five-empty-sub">也可直接点「↻ 刷新选题库」用定时热榜生成（无需代理）。</div>
+    </div>`;
+  }
+  const cards=COLLECTIONS.map(c=>{
+    const items=f[c.key]||[];
+    const body = items.length ? items.map((it,i)=>`
+      <div class="fc-item">
+        <div class="fc-title">${topicDisplay(it)}</div>
+        ${it.fromKw?('<div class="fc-from">⟲ 灵感来源：'+esc(it.fromKw)+'</div>'):''}
+        ${it.angle?('<div class="fc-angle">💡 '+esc(it.angle)+'</div>'):''}
+        <button class="mini" style="margin-top:6px" onclick="adoptFiveCol('${c.key}',${i})">＋ 采用到「${esc(c.name)}」</button>
+      </div>`).join('')
+      : '<div class="fc-empty">暂无，点「↻ 本栏换一批」</div>';
+    return `<div class="fc-card" style="--c:${c.color}">
+      <div class="fc-head"><b>${esc(c.name)}</b><span>${esc(c.desc)}</span></div>
+      <div class="fc-body">${body}</div>
+      <button class="btn btn-soft fc-refresh" onclick="generateFiveCol('${c.key}')">↻ 本栏换一批</button>
+    </div>`;
+  }).join('');
+  return `<div class="five-col">${cards}</div>`;
+}
+function adoptFiveCol(col, i){
+  const f=state.fiveColIdeas||{}; const it=(f[col]||[])[i]; if(!it) return;
+  const rec={id:uid(),collection:col,content:it.title,source:it.source||('五栏选题·'+colOf(col).name),tags:(it.tags||[]).slice(),status:0,planDate:'',createdAt:Date.now()};
+  state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
+  flashToast('已采用到 '+colOf(col).name);
 }
 function configProxy(){
   const cur=(function(){try{return localStorage.getItem('LIVE_PROXY_URL')||''}catch(e){return ''}})();
