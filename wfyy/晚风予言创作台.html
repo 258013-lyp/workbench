@@ -192,6 +192,25 @@
   .hot-focus-intro{font-size:12.5px;color:var(--ink);background:var(--primary-soft);border:1px solid #dfe3f5;border-radius:10px;padding:7px 10px;margin:0 0 8px;line-height:1.5}
   .hot-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .hot-card{flex:0 0 auto;width:230px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  /* 实时热榜（点一下就拉 · 各平台热搜/热门话题） */
+  .live-hot{background:#fff;border:1px solid #ffd9d9;border-radius:12px;padding:10px 11px;margin:8px 0 4px;box-shadow:0 1px 4px rgba(220,40,40,.06)}
+  .live-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .hot-plat{cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:700;color:#7a8194;background:#f4f5f9;border:1px solid #e4e7f0;border-radius:20px;padding:4px 11px;transition:.15s}
+  .hot-plat i{font-style:normal;font-size:10px;font-weight:700;color:#b23;background:#ffe9ef;border-radius:8px;padding:0 5px}
+  .hot-plat:hover{border-color:#ffb3b3}
+  .hot-plat.on{color:#fff;background:var(--red);border-color:var(--red)}
+  .hot-plat.on i{color:#fff;background:rgba(255,255,255,.28)}
+  .live-board{max-height:340px;overflow-y:auto;padding-right:2px}
+  .live-meta{font-size:11.5px;font-weight:700;color:#b23;margin-bottom:6px;letter-spacing:.2px}
+  .live-row{display:flex;align-items:center;gap:9px;padding:7px 6px;border-radius:8px;cursor:pointer;transition:.12s}
+  .live-row:hover{background:#fff4f4}
+  .live-rank{width:20px;height:20px;flex:0 0 20px;border-radius:6px;background:#ffe1e1;color:#c0392b;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .live-t{flex:1;font-size:13.5px;color:#2b2740;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .live-heat{font-size:11px;font-weight:700;color:#e07b39;flex:0 0 auto}
+  .live-act{flex:0 0 auto;font-size:11px;font-weight:700;color:#3a6ec0;background:#eef3fc;border-radius:8px;padding:2px 8px;opacity:0;transition:.12s}
+  .live-row:hover .live-act{opacity:1}
+  .proxy-help{margin-top:8px;font-size:12px;color:var(--ink2);line-height:1.7}
+  .proxy-help code{background:#f2f3f7;border:1px solid #e3e6ee;border-radius:5px;padding:1px 5px;font-size:11.5px;color:#b23}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .hot-live{font-size:10px;font-weight:700;color:#fff;background:var(--red);border-radius:10px;padding:2px 7px}
   .hot-ref{font-size:10px;font-weight:700;color:#7a8194;background:#eef0f5;border:1px solid #dfe3ee;border-radius:10px;padding:2px 7px}
@@ -984,7 +1003,7 @@ function HOT_SEED(){
 }
 
 /* ============ 状态 ============ */
-let state = { works:[], ideas:[], materials:[], hotTopics:[], tagPool:[], activeCol:null };
+let state = { works:[], ideas:[], materials:[], hotTopics:[], tagPool:[], activeCol:null, liveHot:{}, activeHotPlat:'weibo' };
 let curTab = 'works';
 let editing = null; // {type, id}
 let cloud = loadCloud();
@@ -1040,7 +1059,8 @@ function load(){
     state = {
       works: safeArr(d.works), ideas: safeArr(d.ideas), materials: safeArr(d.materials),
       hotTopics: safeArr(d.hotTopics), tagPool: safeArr(d.tagPool),
-      activeCol: d.activeCol||null, tagUpdated: d.tagUpdated||null
+      activeCol: d.activeCol||null, tagUpdated: d.tagUpdated||null,
+      liveHot: d.liveHot||{}, activeHotPlat: d.activeHotPlat||'weibo'
     };
   }
   if(!state.hotTopics || !state.hotTopics.length) state.hotTopics = HOT_SEED();
@@ -1366,10 +1386,13 @@ function renderHotTopics(){
     <div class="hot-head">
       <div class="hot-title-main">🔥 热点选题 · 联网实时 + 各栏目赛道</div>
       ${state.activeCol?'<button class="btn btn-soft" onclick="refreshColTopics(\''+state.activeCol+'\')" style="min-height:36px;padding:6px 12px">↻ 本栏换一批</button>':''}
-      <button class="btn btn-soft" id="hotRefresh" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px">↻ 刷新</button>
+      <button class="btn btn-soft" id="hotRefresh" onclick="refreshHotTopics()" style="min-height:36px;padding:6px 12px">↻ 刷新选题库</button>
+      <button class="btn btn-primary" id="liveHotPull" onclick="pullLiveHot(state.activeHotPlat||'weibo')" style="min-height:36px;padding:6px 12px">🔄 拉实时热榜</button>
+      <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
     </div>
     <div class="hot-note">${note}</div>
     ${focusIntro}
+    ${liveHotBoardHtml()}
     <div class="hot-tracks">${trackStrip}</div>
     <div class="hot-scroll">${cards}</div>
   </div>`;
@@ -1411,6 +1434,125 @@ function refreshHotTopics(){
     if(btn){ btn.disabled=false; btn.textContent='↻ 刷新'; }
     flashToast(msg); renderHotTopics();
   });
+}
+/* ===== 实时热榜（点一下就拉 · 各平台热搜/热门话题，作选题灵感） =====
+   浏览器直连各平台接口会被 CORS 挡死，故必须经「你掌控的代理」服务端抓取。
+   代理契约： GET {base}/hot?plat=weibo  →  { plat, items:[{t,heat}], updatedAt }
+   两种代理任选：① 本机 Node 代理 node scripts/proxy.mjs（零账号，http://localhost:8787）
+               ② Cloudflare Worker（部署 worker/hot-proxy.js，手机也能用，填 Worker 地址）
+   页面自动尝试：已配置 Worker URL → 本机 localhost:8787 → 否则提示配置。 */
+const LIVE_PLATFORMS = [
+  {key:'weibo', name:'微博', note:'热搜'},
+  {key:'douyin', name:'抖音', note:'热点'},
+  {key:'xhs', name:'小红书', note:'热帖'},
+  {key:'zhihu', name:'知乎', note:'热榜'},
+  {key:'bili', name:'B站', note:'热门'},
+  {key:'baidu', name:'百度', note:'实时'},
+  {key:'toutiao', name:'头条', note:'热榜'}
+];
+function liveProxyBase(){
+  try{ const u=localStorage.getItem('LIVE_PROXY_URL'); if(u && u.trim()) return u.trim().replace(/\/+$/,''); }catch(e){}
+  return 'http://localhost:8787';
+}
+function platName(key){ const p=LIVE_PLATFORMS.find(x=>x.key===key); return p?p.name:key; }
+async function fetchLiveHotViaProxy(plat){
+  const base=liveProxyBase();
+  const url=base+'/hot?plat='+encodeURIComponent(plat)+'&_='+Date.now();
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 8000);
+  try{
+    const r=await fetch(url,{signal:ctrl.signal});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const items=Array.isArray(d.items)?d.items:(Array.isArray(d)?d:[]);
+    return { plat:plat, items: items.map(it=>({t:String(it.t||it.title||'').replace(/\s+/g,' ').trim().slice(0,80), heat:Number(it.heat||it.hot||0)||0})).filter(x=>x.t.length>=2), updatedAt:d.updatedAt||Date.now() };
+  } finally { clearTimeout(to); }
+}
+async function pullLiveHot(plat){
+  const btn=document.getElementById('liveHotPull');
+  if(btn){ btn.disabled=true; btn.textContent='拉取中…'; }
+  try{
+    const data=await fetchLiveHotViaProxy(plat);
+    state.liveHot=state.liveHot||{};
+    state.liveHot[plat]={ items:data.items, updatedAt:data.updatedAt };
+    state.activeHotPlat=plat; save(); renderHotTopics();
+    flashToast('已拉取「'+platName(plat)+'」实时热榜 '+data.items.length+' 条');
+  }catch(e){
+    state.liveHot=state.liveHot||{};
+    state.liveHot[plat]={ items:[], updatedAt:Date.now(), error:((e&&e.message)||'代理不可达') };
+    state.activeHotPlat=plat; save(); renderHotTopics();
+    flashToast('实时代理未连接：'+((e&&e.message)||'')+'（面板内有配置说明）');
+  } finally { if(btn){ btn.disabled=false; btn.textContent='🔄 拉实时热榜'; } }
+}
+function fmtHeat(n){ n=Number(n)||0; if(n>=100000000) return (n/100000000).toFixed(1)+'亿'; if(n>=10000) return (n/10000).toFixed(1)+'万'; return String(n); }
+function setHotPlat(k){
+  state.activeHotPlat=k;
+  if(!(state.liveHot && state.liveHot[k] && state.liveHot[k].items && state.liveHot[k].items.length)){
+    renderHotTopics(); pullLiveHot(k); return;
+  }
+  renderHotTopics();
+}
+function liveHotBoardHtml(){
+  const plat=state.activeHotPlat||'weibo';
+  const data=(state.liveHot||{})[plat]||null;
+  const pname=platName(plat);
+  const tabs=LIVE_PLATFORMS.map(p=>{
+    const cnt=(state.liveHot&&state.liveHot[p.key]&&state.liveHot[p.key].items)?state.liveHot[p.key].items.length:0;
+    return `<span class="hot-plat${state.activeHotPlat===p.key?' on':''}" onclick="setHotPlat('${p.key}')"><b>${p.name}</b>${cnt?('<i>'+cnt+'</i>'):''}</span>`;
+  }).join('');
+  let body;
+  if(!data || !data.items || !data.items.length){
+    if(data && data.error){
+      body=`<div class="empty"><div>实时代理未连接：${esc(data.error)}</div>
+        <div class="proxy-help">
+          <b>三步开启「点一下就实时」：</b><br>
+          ① 本机代理（推荐·零账号）：在仓库目录运行 <code>node scripts/proxy.mjs</code>（默认 http://localhost:8787）<br>
+          ② 或用 Cloudflare Worker：部署 <code>worker/hot-proxy.js</code> 后点「⚙ 代理」填入 Worker 地址<br>
+          ③ 回到本页点「🔄 拉实时热榜」即可拉各平台热搜<br>
+          <button class="btn btn-soft" onclick="copyProxyCmd()">复制启动命令</button>
+        </div></div>`;
+    } else {
+      body=`<div class="empty"><div>还没有「${esc(pname)}」实时热榜，点「🔄 拉实时热榜」获取最新热门话题</div></div>`;
+    }
+  } else {
+    const ago=Math.max(0, Math.round((Date.now()-data.updatedAt)/60000));
+    const timeTxt=ago===0?'刚刚':(ago+' 分钟前');
+    const rows=data.items.slice(0,30).map((it,i)=>`
+      <div class="live-row" onclick="liveToIdea('${plat}', ${i})" title="点击转入灵感库">
+        <span class="live-rank">${i+1}</span>
+        <span class="live-t">${esc(it.t)}</span>
+        ${it.heat?('<span class="live-heat">'+fmtHeat(it.heat)+'</span>'):''}
+        <span class="live-act" onclick="event.stopPropagation();liveCopy('${plat}', ${i})">复制</span>
+      </div>`).join('');
+    body=`<div class="live-meta">${esc(pname)} · 实时热榜 · 更新于 ${timeTxt}（点条目转灵感 / 复制）</div>${rows}`;
+  }
+  return `<div class="live-hot">
+    <div class="live-tabs">${tabs}</div>
+    <div class="live-board">${body}</div>
+  </div>`;
+}
+function liveToIdea(plat, i){
+  const data=(state.liveHot||{})[plat]; if(!data||!data.items) return;
+  const it=data.items[i]; if(!it) return;
+  const rec={id:uid(), collection:'碎语', content:it.t, source:'实时热榜·'+platName(plat), tags:[platName(plat)], status:0, planDate:'', createdAt:Date.now()};
+  state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
+  flashToast('已转入灵感库（'+platName(plat)+'热榜）');
+}
+async function liveCopy(plat, i){
+  const data=(state.liveHot||{})[plat]; if(!data||!data.items) return;
+  const it=data.items[i]; if(!it) return;
+  try{ await navigator.clipboard.writeText(it.t); flashToast('已复制：'+it.t); }catch(e){ flashToast('复制失败：'+it.t); }
+}
+function configProxy(){
+  const cur=(function(){try{return localStorage.getItem('LIVE_PROXY_URL')||''}catch(e){return ''}})();
+  const u=prompt('实时代理地址：\n• 留空 = 使用本机代理 http://localhost:8787（需先运行 node scripts/proxy.mjs）\n• 或填 Cloudflare Worker 地址（如 https://xxx.workers.dev）', cur);
+  if(u===null) return;
+  try{ localStorage.setItem('LIVE_PROXY_URL', u.trim()); }catch(e){}
+  flashToast(u.trim()?('已保存代理：'+u.trim()):'已切换为本机代理 localhost:8787');
+  renderHotTopics();
+}
+async function copyProxyCmd(){
+  const cmd='node scripts/proxy.mjs';
+  try{ await navigator.clipboard.writeText(cmd); flashToast('已复制：'+cmd); }catch(e){ flashToast('复制失败：'+cmd); }
 }
 const HOT_TITLE_MAX=80, HOT_ANGLE_MAX=120, HOT_TAG_MAX=12;
 async function applyLiveItems(items){
