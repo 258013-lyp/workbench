@@ -1569,6 +1569,7 @@ function renderWorks(){
       ${hasD?`<div class="metrics">${workCardMetrics(w, pf)}</div>`:`<div class="metric-wait">⏳ 发布后回填各平台数据</div>`}
       <div class="item-actions">
         <button class="mini" onclick="act('openWorkModal','${encId(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16 4l4 4-11 11-4 1 1-4z"/></svg>编辑</button>
+        ${w.link?`<a class="mini" href="${esc(w.link)}" target="_blank" rel="noopener">🔗 原作品</a>`:''}
         <button class="mini" onclick="act('openFillMetrics','${encId(w.id)}')">回填数据</button>
         <button class="mini" onclick="act('delWork','${encId(w.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>删除</button>
         ${w.date?`<button class="mini" onclick="jumpToCalendar('${esc(w.date)}')">📅 日历</button>`:''}
@@ -3985,19 +3986,21 @@ function importJSON(e){
 /* ===== 批量导入各平台作品 ===== */
 let impData=[]; // 当前解析的数据行
 const IMP_FIELDS=[
-  {key:'collection',label:'合集',req:true, aliases:['合集','栏目','分类','collection','板块','合集/栏目']},
-  {key:'title',label:'标题/文案',req:true, aliases:['标题','文案','主题','题目','title','name','名称']},
-  {key:'text',label:'文案/简介',req:false, aliases:['文案','简介','描述','正文','text','desc','description','内容']},
+  {key:'collection',label:'合集/分类',req:false, aliases:['合集','栏目','分类','专栏','专辑','系列','collection','板块','合集/栏目']},
+  {key:'title',label:'标题/文案',req:true, aliases:['标题','作品标题','视频标题','笔记标题','文案','主题','题目','title','name','名称']},
+  {key:'text',label:'文案/简介',req:false, aliases:['文案','作品描述','视频简介','笔记内容','视频文案','简介','描述','正文','text','desc','description','内容']},
   {key:'form',label:'形式',req:false, aliases:['形式','类型','form','type']},
-  {key:'platforms',label:'发布平台',req:false, aliases:['平台','发布平台','platform','platforms']},
-  {key:'date',label:'发布日期',req:false, aliases:['日期','发布日期','发布时间','date','time','时间']},
-  {key:'plays',label:'播放量',req:false, aliases:['播放','播放量','播放数','plays','views','展现','阅读','阅读量']},
-  {key:'likes',label:'点赞',req:false, aliases:['点赞','赞','likes','赞数']},
-  {key:'favs',label:'收藏',req:false, aliases:['收藏','赞藏','favs','favorites','收藏数']},
-  {key:'comments',label:'评论',req:false, aliases:['评论','评论数','comments']},
-  {key:'duration',label:'时长',req:false, aliases:['时长','duration']},
+  {key:'platforms',label:'发布平台',req:false, aliases:['平台','发布平台','投放平台','渠道','platform','platforms','渠道来源']},
+  {key:'date',label:'发布时间',req:false, aliases:['日期','发布日期','发布时间','创建时间','发布于','date','time','时间']},
+  {key:'plays',label:'播放/阅读量',req:false, aliases:['播放','播放量','播放次数','播放数','浏览','浏览量','阅读','阅读量','展现','展现量','曝光','曝光量','plays','views']},
+  {key:'likes',label:'点赞',req:false, aliases:['点赞','点赞量','点赞数','赞','红心','赞数','likes']},
+  {key:'favs',label:'收藏',req:false, aliases:['收藏','收藏量','收藏数','赞藏','favs','favorites']},
+  {key:'comments',label:'评论',req:false, aliases:['评论','评论量','评论数','comments']},
+  {key:'shares',label:'转发/分享',req:false, aliases:['分享','分享量','分享数','转发','转发量','转发数','shares','reposts']},
+  {key:'duration',label:'时长',req:false, aliases:['时长','视频时长','作品时长','duration']},
   {key:'bgm',label:'配乐/BGM',req:false, aliases:['bgm','配乐','音乐','背景音乐']},
-  {key:'tags',label:'标签',req:false, aliases:['标签','tags','keywords','关键字']}
+  {key:'link',label:'作品链接',req:false, aliases:['链接','作品链接','视频链接','笔记链接','详情页','地址','url','link','href']},
+  {key:'tags',label:'标签',req:false, aliases:['标签','话题','tags','keywords','关键字']}
 ];
 function parseCSV(text){
   const lines=text.split(/\r?\n/);
@@ -4048,16 +4051,48 @@ function autoMap(header){
 function buildImpPreview(text){
   if(!text || !text.trim()){ alert('没有可解析的内容'); return; }
   const rows=parseCSV(text);
-  if(rows.length<2){ alert('没解析到数据，至少要有表头 + 1 行内容'); return; }
-  const header=rows[0].map(h=>h.trim());
+  buildImpPreviewFromRows(rows);
+}
+function buildImpPreviewFromRows(rows){
+  if(!rows || rows.length<2){ alert('没解析到数据，至少要有表头 + 1 行内容'); return; }
+  const header=rows[0].map(h=>String(h==null?'':h).trim());
   impData=rows.slice(1);
   const map=autoMap(header);
   if(map.title<0){ alert('没找到「标题」列，请确认表头包含 标题/文案/主题 等。也可点「下载导入模板」对照。'); }
   renderImpMap(map, header, impData);
 }
+/* ===== Excel(xlsx) 解析：按需从 CDN 动态加载 SheetJS ===== */
+let _xlsxLoading=null;
+function ensureXLSX(){
+  if(window.XLSX) return Promise.resolve();
+  if(_xlsxLoading) return _xlsxLoading;
+  _xlsxLoading=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload=()=>resolve();
+    s.onerror=()=>reject(new Error('无法加载 Excel 解析库（需联网）。离线时请改用平台导出的 CSV 再导入。'));
+    document.head.appendChild(s);
+  });
+  return _xlsxLoading;
+}
+async function readXLSX(file){
+  await ensureXLSX();
+  const buf=await file.arrayBuffer();
+  const wb=window.XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=window.XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  const clean=rows.filter(r=>Array.isArray(r)&&r.some(c=>String(c).trim()!==''));
+  if(!clean.length){ alert('Excel 里没解析到数据，请确认第一个工作表有表头 + 内容。'); return; }
+  buildImpPreviewFromRows(clean);
+}
 function readImpFile(){
   const f=document.getElementById('impFile').files[0];
   if(!f) return;
+  const name=(f.name||'').toLowerCase();
+  if(name.endsWith('.xlsx')||name.endsWith('.xls')||name.endsWith('.xlsm')){
+    ensureXLSX().then(()=>readXLSX(f)).catch(e=>alert('Excel 解析失败：'+(e&&e.message||e)));
+    return;
+  }
   const r=new FileReader();
   r.onload=()=>buildImpPreview(r.result);
   r.readAsText(f);
@@ -4075,17 +4110,19 @@ function rowToRec(row, map, srcPlat){
   let platforms=(col('platforms')||'').split(/[,，;；、]/).map(s=>s.trim()).filter(Boolean).filter(p=>PLATFORMS.indexOf(p)>=0);
   if(!platforms.length) platforms= srcPlat? [srcPlat] : ['抖音'];
   const tags=(col('tags')||'').split(/[,，;；、]/).map(s=>s.trim()).filter(Boolean);
-  const num=k=>{ const v=(col(k)||'').replace(/[,\s，]/g,'').replace(/万$/,'0000'); const n=Number(v); return isNaN(n)?0:Math.max(0,n); };
-  const plays=num('plays'), likes=num('likes'), favs=num('favs'), comments=num('comments');
+  /* 数值解析：去掉千分位/空格，识别「万 / 亿」单位（各平台后台导出常用：1.2万、3.4亿） */
+  const num=k=>{ let v=(col(k)||'').trim().replace(/[,\s，]/g,''); let mult=1; if(/亿/.test(v)){mult=1e8; v=v.replace(/亿/g,'');} if(/万/.test(v)){mult=1e4; v=v.replace(/万/g,'');} v=parseFloat(v); if(isNaN(v)) return 0; return Math.max(0, Math.round(v*mult)); };
+  const plays=num('plays'), likes=num('likes'), favs=num('favs'), comments=num('comments'), shares=num('shares');
+  const link=(col('link')||'').trim();
   /* 一行数据只来自一个平台的后台导出，因此指标只落到「数据归属平台」，
      其余平台留空（否则总量会被重复计入 N 次，KPI 虚高 N 倍） */
   let mp = (srcPlat && PLATFORMS.indexOf(srcPlat)>=0) ? srcPlat : platforms[0];
   if(platforms.indexOf(mp)<0) mp = platforms[0];
-  const metrics={}; platforms.forEach(p=>{ metrics[p] = (p===mp) ? {plays:plays, likes:likes, favs:favs, comments:comments} : {}; });
+  const metrics={}; platforms.forEach(p=>{ metrics[p] = (p===mp) ? {plays:plays, likes:likes, favs:favs, comments:comments, shares:shares} : {}; });
   return {
     collection, title, text:col('text'), form, platforms, date:col('date')||todayStr(),
-    duration:col('duration'), bgm:col('bgm'), tags,
-    plays:plays, likes:likes, favs:favs, comments:comments,
+    duration:col('duration'), bgm:col('bgm'), tags, link,
+    plays:plays, likes:likes, favs:favs, comments:comments, shares:shares,
     metrics:metrics
   };
 }
@@ -4144,9 +4181,9 @@ function importWorks(skip){
   alert('导入完成：新增 '+added+' 条'+(skipped?('，跳过 '+skipped+' 条（空标题或重复）'):'')+'。');
 }
 function downloadImpTemplate(){
-  const head='合集,标题/文案,形式,发布平台,发布日期,播放,点赞,收藏,评论,时长,BGM,标签';
+  const head='合集,标题,形式,发布平台,发布日期,播放,点赞,收藏,评论,转发,时长,BGM,标签,作品链接';
   /* 多值单元格（发布平台）必须加引号，否则列会错位 */
-  const demo='诗笺,"示例：苏轼《定风波》·一蓑烟雨任平生",视频,"抖音,小红书",2026-08-01,12000,800,300,50,1:05,遇见,古诗 豁达';
+  const demo='诗笺,"示例：苏轼《定风波》·一蓑烟雨任平生",视频,"抖音,小红书",2026-08-01,12000,800,300,50,30,1:05,遇见,古诗 豁达,https://v.douyin.com/example';
   const csv='\uFEFF'+head+'\r\n'+demo+'\r\n';
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
@@ -4155,11 +4192,11 @@ function downloadImpTemplate(){
 }
 function openImportModal(){
   const html=''
-    +'<h3>批量导入作品（各平台）</h3>'
-    +'<div class="warn-box show" id="impNote">支持从抖音 / 小红书 / 视频号 / B站 / 快手 导出的数据。标准列：合集, 标题, 形式, 发布平台, 发布日期, 播放, 点赞, 收藏, 评论, 时长, BGM, 标签。各平台列名不同也能自动匹配。</div>'
+    +'<h3>批量导入作品（各平台 Excel / CSV）</h3>'
+    +'<div class="warn-box show" id="impNote">支持抖音 / 小红书 / 视频号 / B站 / 快手 后台<b>导出的 Excel(.xlsx) 或 CSV</b>。用于<b>回填已发布作品</b>：系统会自动识别各平台列名（作品标题、发布时间、播放/阅读、点赞、评论、转发/分享、收藏、作品链接…），一键填入作品库对应字段，无需逐个手填。列名不同也能自动匹配。</div>'
     +'<div class="field"><label>本次数据来源平台（数据里没平台列时，给所有作品默认打此标）</label><select id="impSource"><option value="">通用（用数据里的平台列）</option>'+PLATFORMS.map(p=>'<option value="'+p+'">'+p+'</option>').join('')+'</select></div>'
     +'<div class="row2">'
-    +'<div class="field"><label>① 上传 CSV 文件</label><input type="file" id="impFile" accept=".csv,text/csv" onchange="readImpFile()"></div>'
+    +'<div class="field"><label>① 上传 Excel / CSV 文件</label><input type="file" id="impFile" accept=".xlsx,.xls,.xlsm,.csv,text/csv" onchange="readImpFile()"></div>'
     +'<div class="field" style="justify-content:flex-end"><button class="btn btn-soft" onclick="downloadImpTemplate()" style="margin-top:18px">下载导入模板</button></div>'
     +'</div>'
     +'<div class="field"><label>② 或直接粘贴（从平台复制的表格，逗号 / Tab 分隔）</label><textarea id="impPaste" rows="4" placeholder="把从平台后台复制的表格粘贴到这里，第一行为表头"></textarea><button class="btn btn-line" onclick="buildImpPreviewFromPaste()">解析粘贴内容</button></div>'
