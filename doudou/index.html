@@ -45,16 +45,18 @@
   }
   /* 通用屏容器 */
   .screen{display:flex; flex-direction:column; flex:1 1 auto; min-height:0; padding:0 14px 14px; overflow-y:auto;}
-  .screen[hidden]{display:none;}
+  .screen[hidden]{display:none!important;}
+  /* 编辑屏左右边距收窄：把每一像素都让给拼豆板（其他屏保持 14px 舒适边距） */
+  #editorScreen{padding:0 8px 6px;}
   .screen::-webkit-scrollbar{width:0;}
 
   /* 顶栏 */
-  .topbar{display:flex; align-items:center; gap:10px; padding:4px 0 10px; flex:0 0 auto;}
-  .icon-btn{width:38px;height:38px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:12px;cursor:pointer;background:var(--bg-card);border:1px solid var(--border-subtle);}
+  .topbar{display:flex; align-items:center; gap:8px; padding:2px 0 4px; flex:0 0 auto;}
+  .icon-btn{width:32px;height:32px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;border-radius:11px;cursor:pointer;background:var(--bg-card);border:1px solid var(--border-subtle);}
   .icon-btn:active{transform:scale(.94);}
   .title-col{flex:1 1 auto;min-width:0;}
-  .title-col .name{font-size:19px;font-weight:700;line-height:1.2;}
-  .title-col .sub{font-size:12px;color:var(--text-muted);margin-top:2px;}
+  .title-col .name{font-size:17px;font-weight:700;line-height:1.2;}
+  .title-col .sub{font-size:11px;color:var(--text-muted);margin-top:1px;}
   .top-actions{display:flex;gap:6px;flex:0 0 auto;}
   .text-btn{
     font-family:var(--font);font-size:13px;font-weight:600;color:var(--wood);
@@ -71,7 +73,7 @@
   .seg{display:flex;background:var(--bg-paper);border-radius:14px;padding:4px;gap:4px;flex:0 0 auto;}
   .seg-btn{
     flex:1 1 0;font-family:var(--font);font-size:13px;font-weight:600;color:var(--text-secondary);
-    background:transparent;border:none;border-radius:10px;padding:8px 0;cursor:pointer;
+    background:transparent;border:none;border-radius:10px;padding:5px 0;cursor:pointer;
   }
   .seg-btn.active{background:var(--bg-card);color:var(--wood);box-shadow:var(--shadow-card);}
   .seg.sm .seg-btn{font-size:12px;padding:6px 0;}
@@ -79,15 +81,21 @@
   .seg.wrap .seg-btn{flex:1 1 auto;padding:8px 10px;white-space:nowrap;}
 
   /* 拼豆板 */
-  .board-wrap{position:relative;display:flex;flex-direction:column;align-items:center;padding-top:6px;}
+  /* 板区 flex:1 吃掉编辑屏所有剩余空间（拼豆板是页面绝对主角）。
+     min-height:0 必须保留，否则 flex 子项不肯收缩会把板子撑出屏幕。 */
+  .board-wrap{position:relative;display:flex;flex-direction:column;align-items:center;padding-top:4px;flex:1 1 auto;min-height:0;}
   .board-frame{
     position:relative;background:var(--bg-board);border-radius:var(--radius-card);
-    box-shadow:var(--shadow-soft);padding:12px;transition:width .18s ease;
+    box-shadow:var(--shadow-soft);padding:3px;transition:width .18s ease;
+    flex:1 1 auto;min-height:0;min-width:0;width:100%;
+    display:flex;align-items:center;justify-content:center;
   }
   .board{
     display:grid;grid-template-columns:repeat(16,1fr);grid-auto-rows:1fr;gap:2px;
-    width:calc(min(94vw, 56vh, 540px) * var(--bz, 1));
-    aspect-ratio:1/1; touch-action:none;user-select:none;-webkit-user-select:none;
+    width:calc(min(96vw, 64vh, 580px) * var(--bz, 1));
+    height:calc(min(96vw, 64vh, 580px) * var(--bz, 1));
+    max-width:100%;max-height:100%;min-width:120px;min-height:120px;
+    touch-action:none;user-select:none;-webkit-user-select:none;
   }
   .cell{border-radius:4px;position:relative;background:var(--bg-paper);box-shadow:inset 0 0 0 1px rgba(31,27,22,.04);}
   .cell.empty{background:radial-gradient(circle at 50% 50%, rgba(31,27,22,.10) 0 18%, transparent 19%), var(--bg-paper);}
@@ -132,9 +140,10 @@
   .cb-tip{font-size:12px;color:var(--text-secondary);line-height:1.5;}
   .cb-done{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--wood);}
   .cb-done .nc-chip{width:22px;height:22px;border-radius:7px;background:var(--sage);flex:0 0 auto;}
-  .lp-hint{margin-top:8px;text-align:center;font-size:11px;color:var(--text-muted);}
+  /* 提示行隐藏：省 16px 给拼豆板（长按擦除的用法在「手册」里仍有说明） */
+  .lp-hint{display:none;margin-top:8px;text-align:center;font-size:11px;color:var(--text-muted);}
   .lp-hint b{color:var(--wood);}
-  .zoom-bar{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:12px;}
+  .zoom-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px;}
   .zoom-btn{
     width:40px;height:40px;border-radius:20px;background:var(--bg-card);border:1px solid var(--border-subtle);
     color:var(--text-secondary);font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
@@ -144,8 +153,14 @@
   .zoom-val{font-size:13px;font-weight:600;color:var(--text-secondary);min-width:48px;text-align:center;font-variant-numeric:tabular-nums;}
 
   /* 工具栏 */
-  .toolbar{display:flex;justify-content:space-between;gap:8px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-card);padding:8px;box-shadow:var(--shadow-card);}
-  .tool{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;border-radius:var(--radius-inner);cursor:pointer;color:var(--text-secondary);background:transparent;border:none;font-family:var(--font);font-size:11px;}
+  .toolbar{display:flex;justify-content:space-between;gap:6px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-card);padding:4px;box-shadow:var(--shadow-card);}
+  /* 用豆统计紧凑条（原 150px 卡片的压缩版，数据一个不丢） */
+  .stat-strip{position:relative;overflow:hidden;flex:0 0 auto;display:flex;align-items:center;gap:14px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-card);padding:5px 12px;box-shadow:var(--shadow-card);margin-top:6px;}
+  .stat-strip .ss{display:flex;flex-direction:column;line-height:1.15;}
+  .stat-strip .ss b{font-size:14px;font-weight:800;color:var(--wood);font-variant-numeric:tabular-nums;}
+  .stat-strip .ss span{font-size:10px;color:var(--text-muted);margin-top:1px;}
+  .stat-strip .ss-bar{position:absolute;left:0;bottom:0;height:3px;background:var(--wood);border-radius:2px;transition:width .3s ease;}
+  .tool{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;border-radius:var(--radius-inner);cursor:pointer;color:var(--text-secondary);background:transparent;border:none;font-family:var(--font);font-size:10px;}
   .tool svg{width:22px;height:22px;}
   .tool.active{background:var(--wood-soft);color:var(--wood);font-weight:600;}
 
@@ -210,9 +225,9 @@
   .more-menu button:active{background:var(--bg-paper);}
 
   /* 底部 Tab */
-  .tabbar-wrap{padding:10px 16px calc(14px + env(safe-area-inset-bottom));flex:0 0 auto;background:var(--bg-canvas);}
-  .tabbar{display:flex;justify-content:space-between;gap:6px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:36px;padding:6px;box-shadow:var(--shadow-soft);}
-  .tab{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0;border-radius:26px;cursor:pointer;color:var(--text-muted);font-size:11px;background:none;border:none;font-family:var(--font);}
+  .tabbar-wrap{padding:4px 10px calc(6px + env(safe-area-inset-bottom));flex:0 0 auto;background:var(--bg-canvas);}
+  .tabbar{display:flex;justify-content:space-between;gap:4px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:28px;padding:4px;box-shadow:var(--shadow-soft);}
+  .tab{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;border-radius:22px;cursor:pointer;color:var(--text-muted);font-size:10px;background:none;border:none;font-family:var(--font);}
   .tab svg{width:22px;height:22px;}
   .tab.active{background:var(--wood);color:#fff;font-weight:600;}
 
@@ -476,7 +491,7 @@
     .topbar{padding:8px 0 14px;}
     .title-col .name{font-size:22px;}
     .title-col .sub{font-size:13px;}
-    .board{width:calc(min(90vw, 60vh, 680px) * var(--bz, 1));gap:3px;}
+    .board{width:calc(min(90vw, 60vh, 680px) * var(--bz, 1));height:calc(min(90vw, 60vh, 680px) * var(--bz, 1));gap:3px;}
     .cell{border-radius:6px;}
     .palette .swatch .nm{font-size:13px;}
     .toolbar{gap:10px;}
@@ -488,6 +503,55 @@
     .brand{font-size:30px;}
     .slogan{font-size:15px;}
   }
+
+  /* 横屏（矮屏）：纵向堆叠放不下 → 改左右分栏（左板区 / 右控件列），板子吃满屏高 */
+  @media (orientation:landscape) and (max-height:620px){
+    #editorScreen{
+      display:grid;
+      grid-template-columns:1fr minmax(196px,264px);
+      grid-template-rows:auto auto 1fr auto auto;
+      grid-template-areas:
+        "top    top"
+        "seg    seg"
+        "board  tools"
+        "board  stat"
+        "board  palette";
+      column-gap:8px; overflow:hidden; padding:0 8px 4px;
+    }
+    .topbar{grid-area:top;}
+    #modeSeg{grid-area:seg;}
+    .board-wrap{grid-area:board; flex:1 1 auto; min-height:0; padding-top:2px;}
+    .toolbar{grid-area:tools;}
+    .stat-strip{grid-area:stat; margin-top:4px;padding:2px 8px;}
+    .palette-dock{grid-area:palette; margin-top:4px;}
+    .lp-hint{display:none;}
+    /* 右侧窄列里色盘要更矮：色块缩到 32px、隐藏色名，给板子多留高度 */
+    .palette-head{padding:0 2px;gap:4px;}
+    .palette{padding:2px;gap:5px;}
+    .palette .swatch{width:32px;height:32px;}
+    .palette .swatch .nm{display:none;}
+    .companion-card{display:none!important;}
+    /* 横屏控件放右侧窄列，收紧内边距 */
+    .toolbar{padding:3px;gap:4px;}
+    .tool{padding:3px 0;font-size:9px;}
+    .stat-strip{padding:3px 8px;gap:8px;}
+  }
+
+  /* 极矮竖屏（如 360×560）：再压一轮，保证拼豆板至少有 200px 可用 */
+  @media (max-height:600px) and (orientation:portrait){
+    .topbar{padding:1px 0 2px;}
+    .title-col .name{font-size:15px;}
+    .title-col .sub{font-size:10px;}
+    .seg-btn{padding:3px 0;font-size:12px;}
+    .toolbar{padding:2px;gap:4px;}
+    .tool{padding:2px 0;font-size:9px;gap:1px;}
+    .tool svg{width:16px;height:16px;}
+    .stat-strip{padding:3px 8px;gap:8px;margin-top:4px;}
+    .stat-strip .ss b{font-size:12px;}
+    .stat-strip .ss span{font-size:9px;}
+    .palette{padding:2px 2px 4px;}
+  }
+
   /* 桌面：还原设备外框预览，避免被拉伸成巨屏 */
   @media (min-width:900px) and (pointer:fine){
     body{
@@ -526,6 +590,20 @@
   .spend-btn:disabled{background:var(--bg-paper);color:var(--text-muted);box-shadow:none;cursor:default;}
   .spend-btn.return{background:var(--clay);}
   .budget-note{font-size:11px;color:var(--clay);background:var(--warn-bg);border:1px solid var(--warn);border-radius:10px;padding:7px 9px;margin-top:8px;line-height:1.5;}
+
+  /* 预算卡片折叠：默认只显示标题+verdict单行，点击展开完整内容，给板子让空间 */
+  #budgetCard.budget-collapsed .budget-list,
+  #budgetCard.budget-collapsed .budget-note,
+  #budgetCard.budget-collapsed .spend-wrap{display:none!important;}
+  #budgetCard.budget-collapsed .budget-verdict{
+    -webkit-line-clamp:1!important;line-clamp:1!important;
+    display:-webkit-box!important;-webkit-box-orient:vertical!important;
+    overflow:hidden!important;padding:6px 10px!important;margin-bottom:0!important;
+    font-size:12px!important;white-space:nowrap!important;text-overflow:ellipsis!important;
+  }
+  #budgetCard.budget-collapsed{cursor:pointer;}
+  #budgetCard.budget-collapsed .card-title::after{content:'▸';font-size:11px;margin-left:auto;color:var(--text-muted);transition:transform .2s;}
+  #budgetCard .card-title::after{content:'▾';font-size:11px;margin-left:auto;color:var(--text-muted);transition:transform .2s;}
 
   /* 跨品牌采购清单 */
   .text-btn.ghost2{background:var(--bg-paper);color:var(--wood);border:1px solid var(--border-strong);}
@@ -801,26 +879,23 @@
     </div>
     <div class="lp-hint">画笔模式下 <b>长按板面</b> 即可擦除，拖动可连续擦除，不必切到橡皮。</div>
 
-    <!-- 色盘 -->
-    <div>
+    <!-- 色盘（加 palette-dock 类，供横屏分栏定位；线上版原为无 class 裸 div） -->
+    <div class="palette-dock">
       <div class="palette-head"><span class="t">色盘</span><button class="zone-btn" id="companionQuick">🤝 陪伴</button><button class="zone-btn" id="zoneBtn">色区放置</button><span class="s" id="paletteStock">暖橙 · 库存 —</span></div>
       <div class="zone-hint" id="zoneHint" style="display:none;"></div>
       <div class="palette" id="palette"></div>
     </div>
 
-    <!-- 用豆统计 -->
-    <div class="card">
-      <div class="card-title">用豆统计 <span class="tag">实时</span></div>
-      <div class="stats-row">
-        <div class="stat"><div class="v" id="stUsed">0</div><div class="l">已用豆</div></div>
-        <div class="stat"><div class="v" id="stColors">0</div><div class="l">用色数</div></div>
-        <div class="stat"><div class="v" id="stPct">0%</div><div class="l">拼摆进度</div></div>
-      </div>
-      <div class="progress"><i id="stBar" style="width:0%"></i></div>
+    <!-- 用豆统计（紧凑条：原为 150px 卡片，压缩为一行给拼豆板让位，数据一个不丢） -->
+    <div class="stat-strip">
+      <div class="ss"><b id="stUsed">0</b><span>已用豆</span></div>
+      <div class="ss"><b id="stColors">0</b><span>用色数</span></div>
+      <div class="ss"><b id="stPct">0%</b><span>拼摆进度</span></div>
+      <i class="ss-bar" id="stBar" style="width:0%"></i>
     </div>
 
-    <!-- 本图用豆预算（库存↔图案打通） -->
-    <div class="card" id="budgetCard">
+    <!-- 本图用豆预算（库存↔图案打通，线上版本就放在作画栏，紧跟用豆统计；默认折叠给板子让空间） -->
+    <div class="card budget-collapsed" id="budgetCard">
       <div class="card-title">本图用豆预算 <span class="tag">库存↔图案</span></div>
       <div class="budget-verdict" id="budgetVerdict"></div>
       <div class="budget-list" id="budgetList"></div>
@@ -839,7 +914,7 @@
     </div>
 
     <!-- 拼摆陪伴 -->
-    <div class="card companion-card" id="companionCard">
+    <div class="card companion-card" id="companionCard" style="display:none;">
       <div class="card-title">拼摆陪伴模式 <span class="tag">差异化 · 跟着拼</span></div>
       <div class="desc">开启后板面显示目标图案的「虚影提示」，并逐行高亮当前该行，像有人陪你一颗一颗摆。</div>
       <div class="switch-row">
@@ -850,19 +925,6 @@
         <div class="next-color"><span class="nc-chip" id="ncChip"></span><span class="nc-t">下一颗建议：<b id="ncName">—</b></span></div>
         <div class="tip" id="companionTip">从第一行开始，把高亮行里每一格摆上虚影提示的颜色就好。</div>
       </div>
-    </div>
-    <!-- 放置偏好（始终可用，不随陪伴模式禁用） -->
-    <div class="card place-pref-card">
-      <div class="card-title">放置偏好 <span class="tag">手感 · 防误触</span></div>
-      <div class="switch-row">
-        <span style="font-size:12.5px;color:var(--text-secondary);">📳 放置震动（轻微触感）</span>
-        <div class="switch" id="hapticSwitch"></div>
-      </div>
-      <div class="switch-row" style="margin-top:10px;">
-        <span style="font-size:12.5px;color:var(--text-secondary);">🛡️ 防误触（点按才落子）</span>
-        <div class="switch" id="antiMissSwitch"></div>
-      </div>
-      <div class="desc" style="margin-top:8px;">开启防误触后，只有「点一下」才放豆，手指滑动/拖动不会误画；想拖动连画时关闭本开关即可。</div>
     </div>
   </div>
 
@@ -879,6 +941,7 @@
       <div class="stat"><div class="v" id="cabLow">0</div><div class="l">需补货色</div></div>
     </div>
     <div class="cab-hint">此页实时显示「本图用 / 拼完剩」——作画与豆柜已打通，拼完点「扣减豆柜」即落库。</div>
+
     <div id="cabList"></div>
   </div>
 
@@ -924,6 +987,19 @@
       <div class="card"><div class="v" id="meWorks">0</div><div class="l">作品数</div></div>
       <div class="card"><div class="v" id="meDone">0</div><div class="l">已完成</div></div>
       <div class="card"><div class="v" id="meMaxColor">0</div><div class="l">最多用色</div></div>
+    </div>
+    <!-- 放置偏好（从编辑屏移入：编辑屏每一行都要留给拼豆板，开关类设置归「我的」） -->
+    <div class="card place-pref-card">
+      <div class="card-title">放置偏好 <span class="tag">手感 · 防误触</span></div>
+      <div class="switch-row">
+        <span style="font-size:12.5px;color:var(--text-secondary);">📳 放置震动（轻微触感）</span>
+        <div class="switch" id="hapticSwitch"></div>
+      </div>
+      <div class="switch-row" style="margin-top:10px;">
+        <span style="font-size:12.5px;color:var(--text-secondary);">🛡️ 防误触（点按才落子）</span>
+        <div class="switch" id="antiMissSwitch"></div>
+      </div>
+      <div class="desc" style="margin-top:8px;">开启防误触后，只有「点一下」才放豆，手指滑动/拖动不会误画；想拖动连画时关闭本开关即可。</div>
     </div>
     <div class="card-title">成就徽章</div>
     <div id="badgeList"></div>
@@ -2675,10 +2751,16 @@ function prepareBoard(w,h){
 }
 function fitBoard(){
   if(!boardEl) return;
-  var w = boardEl.offsetWidth;
-  if(!w) return;
-  var h = Math.round(w * ROWS / COLS);
-  boardEl.style.height = h + 'px';
+  var frame=document.getElementById('boardFrame');
+  if(!frame) return;
+  var cw=frame.clientWidth, ch=frame.clientHeight;
+  if(!cw||!ch){ requestAnimationFrame(fitBoard); return; }
+  var bz=parseFloat(getComputedStyle(boardEl).getPropertyValue('--bz'))||1;
+  var size=Math.min(cw,ch)-6;                  // 减去 board-frame 的 3px×2 内边距
+  if(!(size>0)) size=boardEl.offsetWidth||200;
+  var target=Math.max(120,size)*bz;            // 宽高双向取 min，矮屏自动收缩不再撑破屏幕
+  boardEl.style.width=Math.round(target)+'px';
+  boardEl.style.height=Math.round(target)+'px';
   if(typeof refreshOverlays==='function') refreshOverlays();
 }
 function load(){
@@ -3004,6 +3086,13 @@ function spendFromCabinet(){
 }
 document.getElementById('budgetSpend').addEventListener('click',spendFromCabinet);
 
+/* 预算卡片折叠/展开切换（点击标题区域切换，默认折叠给板子让空间） */
+document.getElementById('budgetCard').addEventListener('click',function(e){
+  /* 如果点的是按钮/开关等交互元素，不触发折叠切换 */
+  if(e.target.closest('.spend-btn,.switch,.text-btn,.b-plus')) return;
+  this.classList.toggle('budget-collapsed');
+});
+
 /* ===================== 跨品牌采购清单（③ 差异化：真实套装 vs 你的缺口） ===================== */
 /* 用 canBuild 的缺口，比对 BRANDS 各真实 kit 含色，算出每套能覆盖的色数/颗数/百分比，
    跨品牌排序，给出最优套装 + 该套装仍覆盖不到的"单独补色"清单。 */
@@ -3291,6 +3380,8 @@ function setCompanion(on){
   document.getElementById('companionSwitch').classList.toggle('on',on);
   document.getElementById('companionQuick').classList.toggle('on',on);
   document.getElementById('companionBody').classList.toggle('show',on);
+  /* 陪伴卡片默认收起，避免撑高编辑屏抢走拼豆板空间；点色盘头「🤝 陪伴」才展开 */
+  document.getElementById('companionCard').style.display=on?'block':'none';
   if(on){toast('拼摆陪伴已开启 · 板面显示整幅虚影');}
   else{placeMode=false;document.getElementById('zoneBtn').classList.remove('on');}
   render();
