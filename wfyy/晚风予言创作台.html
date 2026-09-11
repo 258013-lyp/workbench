@@ -596,7 +596,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="matSearch" placeholder="搜索素材原文 / 出处 / 标签 / 合集…" oninput="renderMaterials()">
       </div>
-      <button class="btn btn-primary" onclick="openMaterialModal()">
+      <button class="btn btn-primary" onclick="openMaterialModal(null, state.matColFilter)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>收素材
       </button>
     </div>
@@ -2806,10 +2806,10 @@ function flashToast(msg){
 function libStatsHtml(arr, activeCol, kind){
   const total = arr.length;
   const byCol = {};
-  COLLECTIONS.forEach(c=>byCol[c.key]=0);
-  arr.forEach(x=>{ const k=(x.collection && byCol[x.collection]!==undefined)?x.collection:COLLECTIONS[0].key; byCol[k]++; });
+  COLLECTIONS.forEach(c=>byCol[c.key]={total:0,used:0});
+  arr.forEach(x=>{ const k=(x.collection && byCol[x.collection]!==undefined)?x.collection:COLLECTIONS[0].key; byCol[k].total++; if(x.used) byCol[k].used++; });
   const totalChip = `<span class="st-total${activeCol?'':' active'}" onclick="setColFilter('${kind}','')">共 ${total} 条</span>`;
-  const cols = COLLECTIONS.map(c=>`<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')">${c.key}<b>${byCol[c.key]}</b></span>`).join('');
+  const cols = COLLECTIONS.map(c=>`<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')" title="已发 ${byCol[c.key].used} · 未发 ${byCol[c.key].total-byCol[c.key].used}">${c.key}<b>已${byCol[c.key].used}/未${byCol[c.key].total-byCol[c.key].used}</b></span>`).join('');
   return totalChip + '<span class="st-sep">·</span>' + cols;
 }
 function setColFilter(kind, key){
@@ -2829,7 +2829,11 @@ function renderMaterials(){
     (m.tags||[]).join(' ').toLowerCase().includes(q) ||
     colOf(m.collection).name.toLowerCase().includes(q)
   );
-  list.sort((a,b)=> (b.createdAt||0)-(a.createdAt||0));
+  list.sort((a,b)=>{
+    const au = a.used?1:0, bu = b.used?1:0;
+    if(au!==bu) return au-bu;            // 未发(0)在前，已发(1)在后
+    return (b.createdAt||0)-(a.createdAt||0);
+  });
   const box=document.getElementById('materialList');
   if(!list.length){
     box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><div>'+(q?'没有匹配的素材':'还没有素材，点「收素材」存一句诗词 / 台词 / 歌词 / 金句')+'</div></div>';
@@ -2873,15 +2877,16 @@ function findSimilarMaterial(inputContent, excludeId){
   });
 }
 
-function openMaterialModal(id){
+function openMaterialModal(id, defaultCol){
   editing={type:'material',id:id||null};
   const m=id? state.materials.find(x=>x.id===id):null;
-  const matTypeOpts = MAT_TYPES.map(t=>`<option value="${t}" ${(m&&m.type===t)||(!m&&MAT_TYPE_DEFAULT['诗笺']===t)?'selected':''}>${t}</option>`).join('');
+  const initCol = m? m.collection : (defaultCol||'诗笺');
+  const matTypeOpts = MAT_TYPES.map(t=>`<option value="${t}" ${(m&&m.type===t)||(!m&&MAT_TYPE_DEFAULT[initCol]===t)?'selected':''}>${t}</option>`).join('');
   const html=`
     <h3>${m?'编辑素材':'收一条素材'} <span style="font-size:12px;font-weight:500;color:var(--ink2)">· 弹药池</span></h3>
     <div class="warn-box" id="matWarn"></div>
     <div class="row2">
-      <div class="field"><label>归属合集</label><select id="m_col">${colOptions(m?m.collection:'诗笺')}</select></div>
+      <div class="field"><label>归属合集</label><select id="m_col">${colOptions(initCol)}</select></div>
       <div class="field"><label>素材类型</label><select id="m_type">${matTypeOpts}</select></div>
     </div>
     <div class="field"><label>素材原文（诗词句 / 台词 / 歌词 / 金句）</label><textarea id="m_content" placeholder="如：竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生" oninput="liveMatCheck()">${m?esc(m.content):''}</textarea></div>
@@ -3607,7 +3612,7 @@ function delWork(id){ if(!confirm('确定删除这条作品记录？'))return; s
 function delIdea(id){ if(!confirm('确定删除这条灵感？'))return; state.ideas=safeArr(state.ideas).filter(i=>i.id!==id); save(); renderIdeas(); renderToday(); renderCalendar(); updateCalBadge(); }
 
 /* 快速添加：根据当前 tab 打开对应弹窗 */
-function quickAdd(){ if(curTab==='ideas') openIdeaModal(); else if(curTab==='materials') openMaterialModal(); else openWorkModal(); }
+function quickAdd(){ if(curTab==='ideas') openIdeaModal(); else if(curTab==='materials') openMaterialModal(null, state.matColFilter); else openWorkModal(); }
 
 /* ============ 云同步（GitHub） ============ */
 function loadCloud(){
