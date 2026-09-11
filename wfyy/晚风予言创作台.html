@@ -93,6 +93,8 @@
   .lib-stats .st-col:hover{opacity:1}
   .lib-stats .st-col b{font-weight:800;font-size:13px}
   .lib-stats .st-col.active{outline:2px solid var(--ink);outline-offset:1px;opacity:1}
+  .lib-stats .st-pub{display:inline-block;background:rgba(0,0,0,.4);color:#fff;border-radius:7px;padding:1px 6px;font-size:12px;font-weight:800;margin-left:3px}
+  .lib-stats .st-unpub{display:inline-block;background:#fff;color:#2E2A36;border-radius:7px;padding:1px 6px;font-size:12px;font-weight:800;margin-left:3px}
   .lib-stats .st-sep{font-size:12px;color:var(--ink3);margin:0 2px}
 
   /* cards / items */
@@ -639,8 +641,6 @@ const CLOUD_KEY = 'wb_wfyy_cloud_v1';
 const COLLECTIONS = [
   {key:'碎语', name:'晚风碎语', desc:'人生感悟/成长治愈/日常思考', color:'#7C8FE0', intro:'晚风捎来成长的答案，在平凡日常里拾获细碎光亮。'},
   {key:'心事', name:'晚风心事', desc:'情感共鸣/心动遗憾/情绪疏解', color:'#E08CA8', intro:'藏着所有未说出口的心动与怅然。'},
-  {key:'诗笺', name:'晚风诗笺', desc:'古诗词', color:'#6BAE8F', intro:'一句诗词一段故事，共赏千年古韵。'},
-  {key:'映言', name:'晚风映言', desc:'经典影视台词/荧幕金句', color:'#D99A5B', intro:'重温银幕经典，在故事里看见自己。'},
   {key:'留声', name:'晚风留声', desc:'音乐分享', color:'#9B7FD0', intro:'旋律随晚风漫过耳边，每首歌都藏着一段人生。'},
 ];
 /* —— 各栏目赛道词库（严格对应上方 desc 赛道 + 简介，用于把实时热词精确归入栏目、并生成对口选题）—— */
@@ -1320,17 +1320,7 @@ function HOT_SEED(){
     {id:'seed12', title:'「未说出口的那句晚安」', col:'心事', angle:'有些话放在心里就成了永远的遗憾，拍"想说却没说出口的话"征集。', tags:['遗憾','心动'], source:'账号选题库'},
     {id:'seed13', title:'「不爱一个人了，也不是需要自责的事」', col:'心事', angle:'释然系：爱情是流动的，变淡放下再平常不过。', tags:['释然','情感'], source:'账号选题库'},
 
-    {id:'seed14', title:'「古诗里的治愈瞬间·苏轼」', col:'诗笺', angle:'用一句诗接住年轻人的逆境与内耗，豁达主题。', tags:['苏轼','豁达'], source:'账号选题库'},
-    {id:'seed15', title:'「把古诗唱成歌·国风翻唱」', col:'诗笺', angle:'古诗新唱：让千年诗句住进当代旋律。', tags:['国风','古诗'], source:'账号选题库'},
-    {id:'seed16', title:'「当时只道是寻常·纳兰词」', col:'诗笺', angle:'纳兰的怅然最戳人，拍"那些以为是寻常的告别"。', tags:['纳兰','诗词'], source:'账号选题库'},
-    {id:'seed17', title:'「行到水穷处，坐看云起时」', col:'诗笺', angle:'王维的从容：走到尽头也别有风景，给焦虑的人一剂温柔。', tags:['王维','从容'], source:'账号选题库'},
-    {id:'seed18', title:'「把古诗写进朋友圈」', col:'诗笺', angle:'诗词文案模板：一句诗就是一天的心情签名。', tags:['古诗','文案'], source:'账号选题库'},
 
-    {id:'seed19', title:'「《阿甘正传》生活就像一盒巧克力」', col:'映言', angle:'你永远不知道下一颗是什么味道，给硬扛的人一句温柔。', tags:['经典','治愈'], source:'账号选题库'},
-    {id:'seed20', title:'「《海上钢琴师》我们笑着说再见」', col:'映言', angle:'有些告别没有理由，拍"最难忘的一次再见"引共鸣。', tags:['台词','经典'], source:'账号选题库'},
-    {id:'seed21', title:'「《情书》你好吗？我很好」', col:'映言', angle:'暗恋的终极浪漫：把思念藏进一句问候。', tags:['台词','暗恋'], source:'账号选题库'},
-    {id:'seed22', title:'「《请回答1988》最温柔的台词」', col:'映言', angle:'邻里与青春的金句合集，怀旧向必爆。', tags:['名场面','怀旧'], source:'账号选题库'},
-    {id:'seed23', title:'「那些年我们追过的电影台词」', col:'映言', angle:'影视混剪模板：用台词串起一代人的记忆。', tags:['影视','混剪'], source:'账号选题库'},
 
     {id:'seed24', title:'「深夜电台·陪你度过睡不着」', col:'留声', angle:'声音陪伴：做一期"深夜一个人听"电台。', tags:['电台','陪伴'], source:'账号选题库'},
     {id:'seed25', title:'「晚安，今天辛苦了·语音陪伴」', col:'留声', angle:'睡前语音：用一句晚安接住疲惫的一天。', tags:['晚安','治愈'], source:'账号选题库'},
@@ -1442,20 +1432,14 @@ function sampleData(){
     works:[
       {id:uid(),collection:'碎语',title:'允许自己偶尔停滞',text:'不是每刻都要向前，歇口气也是生活的一部分。',form:'视频',platforms:['抖音','小红书','视频号','B站','快手'],date:'2026-08-10',duration:'0:48',bgm:'轻钢琴·夜的第七章',tags:['成长','治愈','日常'],plays:49100,likes:4830,favs:4020,comments:413,metrics:{'抖音':{plays:12800,likes:1320,comments:88,favs:940,shares:320,finishRate:35},'小红书':{impressions:11200,likes:1180,favs:1300,comments:120,follows:70},'视频号':{plays:8600,likes:760,comments:60,share:210,favs:620},'B站':{plays:7400,likes:690,coins:180,favs:520,share:140,danmu:90,comments:70},'快手':{plays:9100,likes:880,comments:75,share:230,favs:640}},createdAt:Date.now()},
       {id:uid(),collection:'心事',title:'未说出口的那句晚安',text:'有些话放在心里，就成了永远的遗憾。',form:'视频',platforms:['抖音','小红书','视频号','B站','快手'],date:'2026-08-15',duration:'1:12',bgm:'《晚安》- 颜人中',tags:['遗憾','心动','情绪'],plays:87800,likes:10880,favs:7450,comments:920,metrics:{'抖音':{plays:23600,likes:2980,comments:240,favs:1870,shares:510,finishRate:42},'小红书':{impressions:19800,likes:2400,favs:2100,comments:180,follows:120},'视频号':{plays:15400,likes:1900,comments:160,share:480,favs:1200},'B站':{plays:12800,likes:1600,coins:420,favs:980,share:320,danmu:210,comments:150},'快手':{plays:16200,likes:2000,comments:190,share:500,favs:1300}},createdAt:Date.now()},
-      {id:uid(),collection:'诗笺',title:'苏轼《定风波》· 一蓑烟雨任平生',text:'竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生。',form:'视频',platforms:['抖音','小红书','视频号','B站','快手'],date:'2026-08-18',duration:'1:35',bgm:'古筝·高山流水',tags:['苏轼','豁达','古诗'],plays:116400,likes:14900,favs:12300,comments:1310,metrics:{'抖音':{plays:31200,likes:4100,comments:310,favs:3600,shares:680,finishRate:38},'小红书':{impressions:26800,likes:3500,favs:3200,comments:260,follows:150},'视频号':{plays:19800,likes:2400,comments:220,share:690,favs:1900},'B站':{plays:17600,likes:2200,coins:580,favs:1600,share:480,danmu:300,comments:240},'快手':{plays:21000,likes:2700,comments:280,share:720,favs:2000}},createdAt:Date.now()},
-      {id:uid(),collection:'映言',title:'《阿甘正传》生活就像一盒巧克力',text:'生活就像一盒巧克力，你永远不知道下一颗是什么味道。',form:'视频',platforms:['抖音','小红书','视频号','B站','快手'],date:'2026-07-20',duration:'0:52',bgm:'Feather Theme',tags:['阿甘正传','经典','治愈'],plays:72900,likes:8480,favs:5670,comments:660,metrics:{'抖音':{plays:18900,likes:2230,comments:160,favs:1510,shares:410,finishRate:40},'小红书':{impressions:17600,likes:2050,favs:1400,comments:140,follows:95},'视频号':{plays:12400,likes:1420,comments:110,share:360,favs:980},'B站':{plays:10800,likes:1280,coins:320,favs:760,share:260,danmu:180,comments:120},'快手':{plays:13200,likes:1500,comments:130,share:380,favs:1020}},createdAt:Date.now()},
       {id:uid(),collection:'留声',title:'《起风了》· 那一年的夏天',text:'这一路上走走停停，顺着少年漂流的痕迹。',form:'视频',platforms:['抖音','小红书','视频号','B站','快手'],date:'2026-08-01',duration:'2:05',bgm:'《起风了》- 买辣椒也用券',tags:['起风了','青春','歌单'],plays:170800,likes:19300,favs:15700,comments:1990,metrics:{'抖音':{plays:45400,likes:5200,comments:520,favs:4100,shares:980,finishRate:45},'小红书':{impressions:36800,likes:4200,favs:3600,comments:420,follows:230},'视频号':{plays:28600,likes:3300,comments:360,share:980,favs:2700},'B站':{plays:28900,likes:3100,coins:860,favs:2400,share:520,danmu:340,comments:290},'快手':{plays:31100,likes:3500,comments:400,share:1020,favs:2900}},createdAt:Date.now()},
     ],
     ideas:[
       {id:uid(),collection:'碎语',content:'深夜散步时想到：城市的灯火，也是一种陪伴',source:'生活观察',tags:['治愈','城市'],status:0,planDate:'',createdAt:Date.now()},
-      {id:uid(),collection:'诗笺',content:'李白《将进酒》豪迈解读——天生我材必有用',source:'书架',tags:['李白','古诗','豪迈'],status:1,planDate:'2026-08-26',createdAt:Date.now()},
-      {id:uid(),collection:'映言',content:'《海上钢琴师》经典台词：我们笑着说再见',source:'重温电影',tags:['海上钢琴师','经典'],status:2,planDate:t,createdAt:Date.now()},
       {id:uid(),collection:'留声',content:'分享一首适合雨天的歌《下雨天》',source:'歌单',tags:['雨天','歌单'],status:0,planDate:'2026-08-20',createdAt:Date.now()},
     ],
     materials:[
-      {id:uid(),collection:'诗笺',type:'诗词',content:'竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生。',author:'苏轼《定风波》',tags:['豁达','苏轼','古诗'],used:true,note:'可做「逆境中的从容」主题',createdAt:Date.now()},
       {id:uid(),collection:'留声',type:'歌词',content:'这一路上走走停停，顺着少年漂流的痕迹。',author:'《起风了》- 买辣椒也用券',tags:['青春','成长'],used:true,note:'已配「那一年的夏天」',createdAt:Date.now()},
-      {id:uid(),collection:'映言',type:'台词',content:'生活就像一盒巧克力，你永远不知道下一颗是什么味道。',author:'《阿甘正传》',tags:['经典','治愈','人生'],used:true,note:'',createdAt:Date.now()},
       {id:uid(),collection:'碎语',type:'金句',content:'城市的灯火，也是一种陪伴。',author:'生活观察',tags:['治愈','城市','孤独'],used:false,note:'深夜散步灵感，待开主题',createdAt:Date.now()},
       {id:uid(),collection:'心事',type:'金句',content:'有些话放在心里，就成了永远的遗憾。',author:'',tags:['遗憾','心动'],used:true,note:'已配《晚安》做一期',createdAt:Date.now()},
     ]
@@ -1894,9 +1878,7 @@ function buildColumnTopics(items, music, shuffle){
     arr.forEach(a=>{ if(seen.has(a.core)) return; seen.add(a.core); cards.push(makeTopicCard(col,a)); });
     result[col]=cards;
   });
-  // 诗笺 / 映言 / 留声：真实作品数据（实时优先/库），不编造常驻
-  result['诗笺'] = genShiJian(items, shuffle);
-  result['映言'] = genYingYan(items, shuffle);
+  // 留声：真实作品数据（实时优先/库），不编造常驻（诗笺/映言 合集已移除，不再生成）
   result['留声'] = genLiuSheng(music, shuffle);
   return result;
 }
@@ -2298,10 +2280,9 @@ async function applyLiveItems(items){
       fetchLiveSongs(6, items, selfTags).catch(()=>[])
     ]);
   }catch(e){ console.warn('[live] 结构化实时参考获取异常：', e&&e.message); }
-  const cS=colOf('诗笺'), cY=colOf('映言'), cL=colOf('留声');
+  const cL=colOf('留声');
   const liveStruct=[];
-  (livePoems||[]).forEach(p=> liveStruct.push(makeStructTopic('诗笺',cS,p,now,true)));
-  (liveQuotes||[]).forEach(q=> liveStruct.push(makeStructTopic('映言',cY,q,now,true)));
+  /* 诗笺/映言 合集已移除：古诗词与影视台词选题不再生成 */
   (liveSongs||[]).forEach(s=> liveStruct.push(makeStructTopic('留声',cL,s,now,true)));
   /* 离线种子兜底：仅当某栏无实时参考时才补种子（保证离线/失败仍可见，标「参考·离线」） */
   const offlineStruct=[];
@@ -2349,7 +2330,7 @@ function genColTopics(colKey, liveItems, maxN, rot){
 /* —— 三栏结构化选题引擎（晚风诗笺 / 晚风映言 / 晚风留声）——
    联网优先：实时热词命中种子作品 → 标记为「实时」浮到前面；
    本地种子仅参考：未命中的作品按 rot 旋转补足，标记为「参考·离线」。 */
-const STRUCTURED_COLS = new Set(['诗笺','映言','留声']);
+const STRUCTURED_COLS = new Set(['留声']);
 
 function makeStructTopic(colKey, c, seed, now, isLive){
   const meta = Object.assign({kind:colKey}, seed);
@@ -2812,7 +2793,7 @@ function libStatsHtml(arr, activeCol, kind){
   const cols = COLLECTIONS.map(c=>{
     if(kind==='mat'){
       const un = byCol[c.key].total-byCol[c.key].used;
-      return `<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')" title="已发 ${byCol[c.key].used} · 未发 ${un}">${c.key}<b>已<span style="color:#6BBF8A">${byCol[c.key].used}</span>/未<span style="color:#E0A458">${un}</span></b></span>`;
+      return `<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')" title="已发 ${byCol[c.key].used} · 未发 ${un}">${c.key}<b><span class="st-pub">已${byCol[c.key].used}</span><span class="st-unpub">未${un}</span></b></span>`;
     }
     return `<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')">${c.key}<b>${byCol[c.key].total}</b></span>`;
   }).join('');
