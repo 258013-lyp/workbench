@@ -239,7 +239,7 @@
   .raw-hot{border:1px dashed #e2c9c9;border-radius:12px;padding:8px 11px;margin-top:10px;background:#fffaf9}
   .raw-hot>summary{cursor:pointer;font-size:13px;font-weight:700;color:#a35050;outline:none}
   .five-empty{background:#fff;border:1px dashed #e2c9c9;border-radius:12px;padding:16px;color:var(--ink2);font-size:13px;line-height:1.7;text-align:center}
-  .five-col{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:6px 0 4px}
+  .five-col{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 4px}
   .fc-card{background:#fff;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:120px}
   .fc-head{display:flex;flex-direction:column;gap:1px}
   .fc-head b{font-size:13.5px;font-weight:800;color:var(--c)}
@@ -647,8 +647,6 @@ const COLLECTIONS = [
 const COL_TRACKS = {
   碎语: { kw:['人生感悟','成长治愈','日常思考','成长','治愈','生活','日常','感悟','松弛','慢生活','正能量','自我成长','小确幸','清醒','人间清醒','平凡','好好生活','努力','踏实'] },
   心事: { kw:['情感共鸣','心动遗憾','情绪疏解','情感','心动','遗憾','释然','emo','孤独','思念','情绪','暗恋','失恋','温柔','心里话','暧昧','分手','喜欢'] },
-  诗笺: { kw:['古诗词','诗词','古诗','唐诗','宋词','诗经','飞花令','国风','古韵','苏轼','李白','纳兰','王维','李清照','杜甫','元曲','诗句','词人'] },
-  映言: { kw:['经典影视台词','荧幕金句','电影台词','影视','台词','名场面','电影','二刷','经典','混剪','综艺','角色','影片','导演'] },
   留声: { kw:['音乐分享','歌单','单曲循环','歌词','老歌','怀旧','治愈系音乐','宝藏歌曲','耳机','现场','翻唱','BGM','演唱会','听歌','旋律'] },
 };
 /* —— 三栏结构化选题的本地种子库（联网优先、本地种子仅参考）——
@@ -1713,7 +1711,7 @@ function renderHotTopics(){
   const focusIntro = state.activeCol ? `<div class="hot-focus-intro" style="cursor:pointer" onclick="clearActiveCol()" title="点击取消聚焦，看全部栏目">🎯 ${esc(colOf(state.activeCol).name)} · ${esc(colOf(state.activeCol).intro)} <span style="float:right;opacity:.65;font-weight:600">✕ 取消</span></div>` : '';
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
-      <div class="hot-title-main">✨ 五栏选题灵感</div>
+      <div class="hot-title-main">✨ ${COLLECTIONS.length} 栏选题灵感</div>
       <button class="btn btn-primary" id="inspireGen" onclick="genInspiration('all')" style="min-height:36px;padding:6px 12px">🔄 生成选题灵感</button>
       <button class="btn btn-soft" id="inspireShuffle" onclick="genInspiration('all', false, true)" style="min-height:36px;padding:6px 12px">↻ 换一批</button>
       <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
@@ -1727,12 +1725,10 @@ function hotToIdea(idx){
   state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
   flashToast('已转入灵感库（'+colOf(h.col).name+'）');
 }
-/* 强指示词：命中即大幅加权，确保「苏轼→诗笺」「失恋→心事」「歌词→留声」等明确归类不被平局带偏 */
+/* 强指示词：命中即大幅加权，确保「失恋→心事」「歌词→留声」等明确归类不被平局带偏（诗笺/映言 合集已移除） */
 const COL_STRONG = {
   碎语:['慢生活','成长治愈','自我成长','小确幸','松弛感','人间清醒','好好生活'],
   心事:['失恋','暗恋','心动','遗憾','释然','emo','孤独','思念','暧昧','分手'],
-  诗笺:['苏轼','李白','杜甫','纳兰','王维','李清照','诗词','古诗','唐诗','宋词','诗经','飞花令','国风','元曲','词人','诗句'],
-  映言:['台词','名场面','电影台词','影视','综艺','二刷','影片','导演'],
   留声:['歌词','歌单','单曲循环','演唱会','旋律','翻唱','现场','BGM'],
 };
 /* 基于栏目赛道词库打分归类：命中赛道关键词越多越匹配；强指示词额外加权；无命中回退「碎语」（通用） */
@@ -1825,7 +1821,7 @@ async function genInspiration(plat, cached, shuffle){
   state.colTopics = data; save(); renderHotTopics();
   if(btn){ btn.disabled=false; btn.textContent='🔄 生成选题灵感'; }
   const total = Object.keys(data).reduce((s,k)=> s + (data[k]?data[k].length:0), 0);
-  flashToast('已为五栏生成 '+total+' 条选题');
+  flashToast('已为 '+COLLECTIONS.length+' 个合集生成 '+total+' 条选题');
 }
 async function fetchInspireTopics(plat){
   if(plat==='all'){
@@ -1891,7 +1887,7 @@ function renderInspire(){
   const data=state.colTopics||{};
   const hasAny=Object.keys(data).some(k=>data[k]&&data[k].length);
   if(!hasAny){
-    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」生成五栏选题。</div></div>`;
+    return `<div class="five-empty"><div>还没有选题灵感。点「🔄 生成选题灵感」生成各合集选题。</div></div>`;
   }
   return COLLECTIONS.map(c=>{
     const cards=(data[c.key]||[]).map((cd,ki)=> colTopicHtml(c, cd, ki)).join('');
@@ -1949,7 +1945,7 @@ function adoptColTopic(col, idx){
   else if(cd.type==='film') content=`《${cd.name}》[${cd.genre}]\n台词：${cd.line}\n${cd.role} / ${cd.actor}`;
   else if(cd.type==='song') content=`「${cd.name}」—${cd.singer}`;
   else content=cd.title+'\n'+cd.points.join('\n');
-  const rec={id:uid(),collection:col,content:content,source:'五栏选题·'+colOf(col).name,tags:[colOf(col).name],status:0,planDate:'',createdAt:Date.now()};
+  const rec={id:uid(),collection:col,content:content,source:'分栏选题·'+colOf(col).name,tags:[colOf(col).name],status:0,planDate:'',createdAt:Date.now()};
   state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
   flashToast('已采用到 '+colOf(col).name);
 }
@@ -1970,8 +1966,6 @@ const COL_MATCH = {
   // kw=该栏内容主题词（命中即算相关，计 1 分）；strong=强指示词（命中直接 +4，确保明确归类不留平局）
   碎语:{ kw:['生活','日常','成长','治愈','人生','工作','职场','上班','下班','学习','考试','毕业','求职','面试','租房','独居','自律','焦虑','压力','松弛','慢生活','小确幸','平凡','努力','踏实','通勤','加班','早餐','周末','习惯','一个人','父母','故乡','家乡','和解','自我','清醒','幸福','快乐','年轻人','中年','老年','退休','孩子','教育','读书','运动','健身','旅行','city walk','citywalk','独处','存钱','消费','断舍离','仪式感','好好生活','人间值得','工资','房租','存款','理财','备考'], strong:['生活','人生','工作','日常','成长','治愈','努力','幸福','快乐','考研','考公','考编','上岸','成长治愈','自我成长','小确幸','松弛感','人间清醒','好好生活','内耗','边界感','情绪价值','躺平','内卷','打工人','副业','备考','存钱','租房','独居','自律','焦虑','压力','情绪'] },
   心事:{ kw:['恋爱','暗恋','分手','失恋','结婚','离婚','婚姻','暧昧','心动','喜欢','前任','异地','出轨','渣男','渣女','遗憾','释然','emo','孤独','思念','想你','哭了','眼泪','委屈','难过','情绪','心里话','闺蜜','兄弟','友情','亲情','家庭','催婚','相亲','表白','陪伴','告别','白月光','意难平','破防','复合','安全感','依赖','聊天','冷战','断联'], strong:['失恋','暗恋','心动','遗憾','释然','emo','孤独','思念','暧昧','分手','出轨','意难平','破防','复合','白月光'] },
-  诗笺:{ kw:['诗词','古诗','唐诗','宋词','诗经','苏轼','李白','杜甫','李清照','王维','纳兰','元曲','国风','古风','古韵','文学','诗意','意境','春天','春日','夏天','夏日','秋天','秋日','冬天','冬日','雪','江南','远方','山水','落日','黄昏','晚风','离别','古典','书法','国画','汉服','节气','清明','中秋','重阳','乡愁','故人','旧时光'], strong:['苏轼','李白','杜甫','李清照','王维','纳兰','诗词','古诗','唐诗','宋词','诗经','飞花令','国风','元曲','词人','诗句','古风','汉服','节气'] },
-  映言:{ kw:['电影','电视剧','剧名','剧','综艺','主演','演员','导演','票房','上映','开播','大结局','名场面','台词','经典','二刷','追剧','角色','番剧','动漫','动画','国漫','编剧','奥斯卡','金像','热播','新剧','片单','影评','杀青','路透','预告','选秀','演技'], strong:['台词','名场面','电影台词','影视','综艺','二刷','影片','导演','演员','番剧','动漫','国漫'] },
   留声:{ kw:['歌曲','歌','音乐','单曲','专辑','演唱会','现场','翻唱','BGM','OST','旋律','歌词','听歌','歌单','老歌','新歌','宝藏歌曲','耳机','循环','歌手','乐队','钢琴','小提琴','治愈系','rap','说唱','民谣','摇滚','音综','音乐节','出圈','神曲','副歌','vocal','舞台','Live','热歌榜','改编','合唱'], strong:['歌词','歌单','单曲循环','演唱会','旋律','翻唱','现场','BGM','OST','音乐节'] }
 };
 function matchCollections(text){
@@ -2074,7 +2068,7 @@ const COL_EVERGREEN_BANK = {
   映言:['某个被说中心事的时刻','戏里戏外的人性','名场面里的人生','电影教会我的事'],
   留声:['某个失眠的夜晚','说不出的心事','现场那一刻的共振','单曲循环的那首老歌'],
 };
-/* ============ 诗笺 / 映言 / 留声：真实作品数据（非编造常驻，实时优先） ============ */
+/* ============ 留声：真实作品数据（非编造常驻，实时优先） ============ */
 function shuffleArr(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=a[i]; a[i]=a[j]; a[j]=x; } return a; }
 
 // 1) 晚风诗笺：真实古诗词库 {name, author, dynasty, line(名句)}
@@ -2327,7 +2321,7 @@ function genColTopics(colKey, liveItems, maxN, rot){
   }
   return out;
 }
-/* —— 三栏结构化选题引擎（晚风诗笺 / 晚风映言 / 晚风留声）——
+/* —— 结构化选题引擎（晚风留声；诗笺/映言 合集已移除）——
    联网优先：实时热词命中种子作品 → 标记为「实时」浮到前面；
    本地种子仅参考：未命中的作品按 rot 旋转补足，标记为「参考·离线」。 */
 const STRUCTURED_COLS = new Set(['留声']);
