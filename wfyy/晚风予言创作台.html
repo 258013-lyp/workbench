@@ -2809,7 +2809,13 @@ function libStatsHtml(arr, activeCol, kind){
   COLLECTIONS.forEach(c=>byCol[c.key]={total:0,used:0});
   arr.forEach(x=>{ const k=(x.collection && byCol[x.collection]!==undefined)?x.collection:COLLECTIONS[0].key; byCol[k].total++; if(x.used) byCol[k].used++; });
   const totalChip = `<span class="st-total${activeCol?'':' active'}" onclick="setColFilter('${kind}','')">共 ${total} 条</span>`;
-  const cols = COLLECTIONS.map(c=>`<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')" title="已发 ${byCol[c.key].used} · 未发 ${byCol[c.key].total-byCol[c.key].used}">${c.key}<b>已${byCol[c.key].used}/未${byCol[c.key].total-byCol[c.key].used}</b></span>`).join('');
+  const cols = COLLECTIONS.map(c=>{
+    if(kind==='mat'){
+      const un = byCol[c.key].total-byCol[c.key].used;
+      return `<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')" title="已发 ${byCol[c.key].used} · 未发 ${un}">${c.key}<b>已<span style="color:#6BBF8A">${byCol[c.key].used}</span>/未<span style="color:#E0A458">${un}</span></b></span>`;
+    }
+    return `<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')">${c.key}<b>${byCol[c.key].total}</b></span>`;
+  }).join('');
   return totalChip + '<span class="st-sep">·</span>' + cols;
 }
 function setColFilter(kind, key){
