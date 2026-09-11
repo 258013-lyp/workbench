@@ -1495,7 +1495,9 @@ function renderWorks(){
   const stEl=document.getElementById('workStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.works, cf, 'work');
   const pf=($('workPlatFilter')&&$('workPlatFilter').value)||'';
   let list = safeArr(state.works);
-  if(cf) list=list.filter(w=>w.collection===cf);
+  if(cf===ORPHAN_KEY) list=list.filter(w=>!isKnownCol(w.collection));
+  else if(cf) list=list.filter(w=>w.collection===cf);
+  else list=list.filter(w=>isKnownCol(w.collection));
   if(pf==='__ALL__') list=list.filter(w=>(w.platforms||[]).length>=PLATFORMS.length);
   else if(pf==='__PART__') list=list.filter(w=>(w.platforms||[]).length>0 && (w.platforms||[]).length<PLATFORMS.length);
   else if(pf) list=list.filter(w=>(w.platforms||[]).includes(pf));
@@ -1624,7 +1626,7 @@ function renderIdeas(){
     return;
   }
   box.innerHTML=dfBanner+focusHtml+list.map(i=>{
-    const c=colOf(i.collection);
+    const c = isKnownCol(i.collection) ? colOf(i.collection) : {key:'未归类',name:'未归类',desc:'原属已移除的合集',color:'#9a93a8',intro:''};
     const overdue = i.status!==3 && i.planDate && i.planDate < todayStr();
     return `<div class="item">
       <div class="item-top">
@@ -2777,13 +2779,21 @@ function flashToast(msg){
   clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1900);
 }
 
-/* 库数量统计：总数 + 各合集分布（带合集专属色） */
+/* 已移除合集（诗笺 / 映言）的历史数据：既不能算进现有合集，也不能悄悄丢失——
+   单独归为「未归类」，默认隐藏、不污染任何合集统计，可一键迁移回现有合集或彻底清除。 */
+const ORPHAN_KEY='__orphan__';
+function isKnownCol(k){ return !!(k && COLLECTIONS.some(c=>c.key===k)); }
+/* 库数量统计：总数 + 各合集分布（带合集专属色）；未知合集单列「未归类」 */
 function libStatsHtml(arr, activeCol, kind){
-  const total = arr.length;
   const byCol = {};
   COLLECTIONS.forEach(c=>byCol[c.key]={total:0,used:0});
-  arr.forEach(x=>{ const k=(x.collection && byCol[x.collection]!==undefined)?x.collection:COLLECTIONS[0].key; byCol[k].total++; if(x.used) byCol[k].used++; });
-  const totalChip = `<span class="st-total${activeCol?'':' active'}" onclick="setColFilter('${kind}','')">共 ${total} 条</span>`;
+  let known=0, orphan=0;
+  arr.forEach(x=>{
+    if(!isKnownCol(x.collection)){ orphan++; return; }
+    byCol[x.collection].total++; if(x.used) byCol[x.collection].used++; known++;
+  });
+  const totalChip = `<span class="st-total${activeCol?'':' active'}" onclick="setColFilter('${kind}','')">共 ${known} 条</span>`;
+  const orphanChip = orphan ? `<span class="st-sep">·</span><span class="st-col${activeCol===ORPHAN_KEY?' active':''}" style="background:#9a93a8" onclick="setColFilter('${kind}','${ORPHAN_KEY}')" title="属于已移除合集（古诗词 / 台词）的历史数据，默认隐藏且不计入各合集">未归类<b>${orphan}</b></span>` : '';
   const cols = COLLECTIONS.map(c=>{
     if(kind==='mat'){
       const un = byCol[c.key].total-byCol[c.key].used;
@@ -2791,7 +2801,32 @@ function libStatsHtml(arr, activeCol, kind){
     }
     return `<span class="st-col${activeCol===c.key?' active':''}" style="background:${c.color}" onclick="setColFilter('${kind}','${c.key}')">${c.key}<b>${byCol[c.key].total}</b></span>`;
   }).join('');
-  return totalChip + '<span class="st-sep">·</span>' + cols;
+  const orphanBar = (activeCol===ORPHAN_KEY && orphan) ? `<div style="flex:1 0 100%;background:#f4f1f8;border:1px solid #e3dcee;color:#5a5468;border-radius:11px;padding:9px 12px;font-size:12.5px;line-height:1.6;display:flex;flex-wrap:wrap;align-items:center;gap:8px">⚠ 这些原属已移除的合集（古诗词 / 台词），默认已隐藏、不计入各合集统计。你可把它们移回现有合集，或彻底清除。<button class="mini" onclick="migrateOrphans('${kind}')">移到「${colOf(COLLECTIONS[0].key).name}」</button><button class="mini" onclick="purgeOrphans('${kind}')">彻底清除</button></div>` : '';
+  return totalChip + orphanChip + '<span class="st-sep">·</span>' + cols + orphanBar;
+}
+/* 未归类（已移除合集残留）数据的迁移 / 清除 */
+function orphanList(kind){
+  const arr = kind==='work' ? safeArr(state.works) : safeArr(state.materials);
+  return arr.filter(x=>!isKnownCol(x.collection));
+}
+function migrateOrphans(kind){
+  const list=orphanList(kind);
+  if(!list.length){ flashToast('没有待处理的数据'); return; }
+  const target=(COLLECTIONS[0]||{}).key; if(!target) return;
+  if(!confirm('把 '+list.length+' 条「未归类」数据移到「'+colOf(target).name+'」？\n（原属已移除的古诗词 / 台词合集，正文内容会保留）')) return;
+  list.forEach(x=>{ x.collection=target; });
+  save();
+  if(kind==='work'){ state.workColFilter=''; renderWorks(); } else { state.matColFilter=''; renderMaterials(); }
+  renderData(); flashToast('已迁移 '+list.length+' 条到「'+colOf(target).name+'」');
+}
+function purgeOrphans(kind){
+  const list=orphanList(kind);
+  if(!list.length){ flashToast('没有待处理的数据'); return; }
+  if(!confirm('确定彻底删除这 '+list.length+' 条「未归类」数据？\n（原属已移除的古诗词 / 台词合集，删除后不可恢复）')) return;
+  const ids=new Set(list.map(x=>x.id));
+  if(kind==='work'){ state.works=safeArr(state.works).filter(x=>!ids.has(x.id)); state.workColFilter=''; renderWorks(); }
+  else { state.materials=safeArr(state.materials).filter(x=>!ids.has(x.id)); state.matColFilter=''; renderMaterials(); }
+  save(); renderData(); flashToast('已清除 '+list.length+' 条');
 }
 function setColFilter(kind, key){
   if(kind==='work'){ state.workColFilter = (state.workColFilter===key)? '' : key; renderWorks(); }
@@ -2803,7 +2838,9 @@ function renderMaterials(){
   const stEl=document.getElementById('matStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.materials, cf, 'mat');
   const q=(document.getElementById('matSearch').value||'').trim().toLowerCase();
   let list=state.materials.slice();
-  if(cf) list=list.filter(m=>m.collection===cf);
+  if(cf===ORPHAN_KEY) list=list.filter(m=>!isKnownCol(m.collection));
+  else if(cf) list=list.filter(m=>m.collection===cf);
+  else list=list.filter(m=>isKnownCol(m.collection));
   if(q) list=list.filter(m=>
     (m.content||'').toLowerCase().includes(q) ||
     (m.author||'').toLowerCase().includes(q) ||
