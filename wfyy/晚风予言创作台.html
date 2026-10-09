@@ -178,6 +178,21 @@
 
   .float-add{position:fixed;right:18px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:40;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;border:none;box-shadow:0 6px 20px rgba(107,127,215,.4);display:flex;align-items:center;justify-content:center;cursor:pointer}
   .float-add svg{width:26px;height:26px}
+  .float-top{position:fixed;right:24px;bottom:calc(150px + env(safe-area-inset-bottom));z-index:40;width:44px;height:44px;border-radius:50%;background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:0 4px 14px rgba(40,50,90,.16);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;visibility:hidden;transform:translateY(8px);transition:.2s}
+  .float-top.show{opacity:1;visibility:visible;transform:none}
+  .float-top svg{width:20px;height:20px}
+  .float-top:hover{border-color:var(--primary);color:var(--primary)}
+
+  /* 批量操作（多选工具条 + 卡片勾选框） */
+  .batch-ck{width:18px;height:18px;accent-color:var(--primary);flex:0 0 auto;cursor:pointer;margin-right:2px}
+  .batch-bar{position:fixed;left:10px;right:10px;bottom:calc(146px + env(safe-area-inset-bottom));z-index:46;background:#2E2A36;color:#fff;border-radius:14px;padding:10px 12px;display:none;align-items:center;gap:8px;flex-wrap:wrap;box-shadow:0 10px 28px rgba(0,0,0,.28)}
+  @media(min-width:769px){ .batch-bar{bottom:88px} }
+  .batch-bar.show{display:flex}
+  .batch-bar .mini{background:rgba(255,255,255,.16);color:#fff;border:none}
+  .batch-bar .mini.bb-danger{background:var(--red)}
+  .batch-bar .bb-select{max-width:112px;padding:5px 8px;border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;font-size:12.5px}
+  .batch-bar .bb-select option{color:#2E2A36}
+  body.batching .float-add,body.batching .float-top{display:none}
 
   /* 热点选题 */
   .hot-wrap{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px;box-shadow:var(--shadow);margin-bottom:12px}
@@ -302,6 +317,7 @@
   }
   @media(min-width:769px){
     .float-add{bottom:24px}
+    .float-top{bottom:88px}
   }
   /* ===== 云同步弹窗 ===== */
   .cloud-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:12px;background:var(--primary-soft)}
@@ -557,6 +573,7 @@
       </select>
       <button class="btn btn-soft" onclick="toggleDedup()">查重</button>
       <button class="btn btn-soft" onclick="openImportModal()">批量导入</button>
+      <button class="btn btn-soft" id="batchBtnWork" onclick="batchToggleMode('work')">多选</button>
       <button class="btn btn-primary" onclick="openWorkModal()">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>记作品
       </button>
@@ -599,11 +616,13 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="matSearch" placeholder="搜索素材原文 / 出处 / 标签 / 合集…" oninput="renderMaterials()">
       </div>
+      <button class="btn btn-soft" id="batchBtnMat" onclick="batchToggleMode('mat')">多选</button>
       <button class="btn btn-primary" onclick="openMaterialModal(null, state.matColFilter)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>收素材
       </button>
     </div>
     <div class="lib-stats" id="matStats"></div>
+    <div id="matFunnel"></div>
     <div class="list" id="materialList"></div>
   </section>
 
@@ -629,6 +648,12 @@
 <button class="float-add" onclick="quickAdd()" title="快速记录">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
 </button>
+
+<button class="float-top" id="backTopBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部" aria-label="回到顶部">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<div class="batch-bar" id="batchBar"></div>
 
 <!-- modal -->
 <div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
@@ -1274,12 +1299,14 @@ function renderToday(){
   items.sort((a,b)=> a.planDate<b.planDate?-1:1);
   const list=document.getElementById('todayList');
   const count=document.getElementById('todayCount');
-  count.textContent = items.length? ('待处理 '+items.length+' 项') : '今日清爽 ✓';
+  const ov = items.filter(i=>i.planDate<t).length;
+  count.textContent = items.length? ('待处理 '+items.length+' 项'+(ov?' · 逾期 '+ov:'')) : '今日清爽 ✓';
   if(!items.length){
     list.innerHTML='<div class="today-empty">🍃 今天没有待处理的灵感和选题，保持节奏就好</div>';
     return;
   }
-  list.innerHTML = items.map(i=>{
+  const ovBanner = ov? `<div class="banner" style="background:var(--red-soft);color:var(--red);margin-bottom:10px">⚠ 有 <b>${ov}</b> 条已逾期（最早已拖到 ${esc(items[0].planDate)}）——优先处理，或改期别让排期烂尾</div>` : '';
+  list.innerHTML = ovBanner + items.map(i=>{
     const overdue = i.planDate < t;
     const c=colOf(i.collection);
     const st = STATUS[Number(i.status)] || '未标记';
@@ -1323,6 +1350,7 @@ function renderWorks(){
     );
   }
   list.sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  BATCH.work.list=list.map(w=>w.id); batchBtnSync('work');
   const box=document.getElementById('workList');
   if(!box) return;
   const dfBanner = state.dateFilter ? '<div class="banner" style="cursor:pointer;margin-bottom:10px" onclick="clearDateFilter()">📅 正在按日期筛选：'+esc(state.dateFilter)+' · 点此清除</div>' : '';
@@ -1346,6 +1374,7 @@ function renderWorks(){
     const dateHtml = isHit? `<span class="chip chip-date" style="background:var(--red-soft);color:var(--red)">📅 ${dSafe}</span>` : `<span class="chip chip-date">${dSafe}</span>`;
     return `<div class="item">
       <div class="item-top">
+        ${BATCH.work.on?`<input type="checkbox" class="batch-ck" ${BATCH.work.sel.has(w.id)?'checked':''} onchange="batchItem('work','${encId(w.id)}',this.checked)">`:''}
         <span class="col-tag" style="background:${c.color}">${c.name}</span>
         <p class="item-title">${esc(w.title)}</p>
       </div>
@@ -2467,6 +2496,8 @@ function renderMaterials(){
     if(au!==bu) return au-bu;            // 未发(0)在前，已发(1)在后
     return (b.createdAt||0)-(a.createdAt||0);
   });
+  BATCH.mat.list=list.map(m=>m.id); batchBtnSync('mat');
+  renderMatFunnel();
   const box=document.getElementById('materialList');
   if(!list.length){
     box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><div>'+(q?'没有匹配的素材':'还没有素材，点「收素材」存一句歌词 / 金句 / 其它')+'</div></div>';
@@ -2477,6 +2508,7 @@ function renderMaterials(){
     const typeCls = m.used? 'background:var(--green-soft);color:var(--green)' : '';
     return `<div class="item">
       <div class="item-top">
+        ${BATCH.mat.on?`<input type="checkbox" class="batch-ck" ${BATCH.mat.sel.has(m.id)?'checked':''} onchange="batchItem('mat','${encId(m.id)}',this.checked)">`:''}
         <span class="col-tag" style="background:${c.color}">${c.name}</span>
         <p class="item-title">${m.used?'✅ ':''}${esc(m.content)}</p>
         ${m.used?`<span class="st st-3">${m.pubAll?'全平台作品🌐':'已发作品'}</span>`:`<span class="st st-0">未用</span>`}
@@ -2775,6 +2807,27 @@ function renderData(){
     formula='<div style="padding:14px;color:var(--ink2);font-size:13px">暂无赞播比≥5% 的爆款。多记录带互动数据的作品，系统会在这里总结你的「内容公式」。</div>';
   }
 
+  // ===== 爆款归因：标签级「多做 / 少做」（聚合口径，避免单条偶发误导） =====
+  const overallLikeRate = pct(totalLikes, totalPlays);
+  const tagAgg={};
+  dataWorks.forEach(w=>{ (w.tags||[]).forEach(t=>{ if(!tagAgg[t])tagAgg[t]={n:0,plays:0,likes:0}; tagAgg[t].n++; tagAgg[t].plays+=wm(w).plays; tagAgg[t].likes+=wm(w).likes; }); });
+  const tagArr=Object.keys(tagAgg).map(t=>({t, n:tagAgg[t].n, rate:pct(tagAgg[t].likes,tagAgg[t].plays)})).filter(x=>x.n>=2 && x.rate>0);
+  const doMore=tagArr.filter(x=>x.rate>=Math.max(5,overallLikeRate*1.2)).sort((a,b)=>b.rate-a.rate).slice(0,6);
+  const doLess=tagArr.filter(x=>x.rate<overallLikeRate*0.6).sort((a,b)=>a.rate-b.rate).slice(0,4);
+  const moreMax=Math.max(1,...doMore.map(x=>x.rate));
+  const attrRows=(arr,good)=>arr.map(x=>{
+    const wpct=good? Math.round(x.rate/moreMax*100) : Math.round(x.rate/Math.max(0.1,overallLikeRate)*100);
+    return `<div class="bar-row"><div class="bar-label" style="max-width:34%">#${esc(x.t)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,Math.max(4,wpct))}%;background:${good?'var(--green)':'var(--orange)'}"></div></div><div class="bar-val">${x.rate.toFixed(1)}% · ${x.n}条</div></div>`;
+  }).join('');
+  const attrMoreThreshold=Math.max(5,overallLikeRate*1.2).toFixed(1);
+  const attrHtml=`<div class="chart-card full"><h3>🧭 爆款归因：标签级「多做 / 少做」</h3>
+    <div style="font-size:13px;color:var(--ink);margin-bottom:6px">✅ 多做（赞播比 ≥ ${attrMoreThreshold}%，跑赢整体 ${overallLikeRate.toFixed(1)}%）：</div>
+    ${doMore.length?attrRows(doMore,true):'<div class="today-empty">暂无显著跑赢整体的标签，继续积累数据</div>'}
+    <div style="font-size:13px;color:var(--ink);margin:10px 0 6px">⚠️ 少做（赞播比不足整体一半）：</div>
+    ${doLess.length?attrRows(doLess,false):'<div class="today-empty">暂无明显拖后腿的标签 👍</div>'}
+    <div style="font-size:11.5px;color:var(--ink2);margin-top:6px">仅统计出现 ≥2 次的标签；赞播比 = 点赞 ÷ 播放（聚合口径），回答「下一批内容该往哪个方向倾斜」</div>
+  </div>`;
+
   // ===== 策略提示文案（分支先提成变量，避免嵌套反引号） =====
   const favPart = bestCol.key!==bestFavCol.key ? `，<b>${bestFavCol.name}</b> 收藏率最佳（${bestFavCol.favRate.toFixed(1)}%），适合做「收藏向」内容` : '';
   const comPart = (bestComCol.key!==bestCol.key && bestComCol.key!==bestFavCol.key) ? `，<b>${bestComCol.name}</b> 评论率最高（${bestComCol.comRate.toFixed(1)}%），易引发讨论` : '';
@@ -2857,6 +2910,7 @@ function renderData(){
       <div class="chart-card full"><h3>发布星期热力（平均互动率）</h3><div class="heat-grid">${heatCells}</div></div>
       <div class="chart-card full"><h3>播放 Top 5 作品</h3>${topHtml}</div>
       <div class="chart-card full"><h3>🔥 爆款内容公式</h3>${formula}</div>
+      ${attrHtml}
       ${sourceHtml}
     </div>`;
 }
@@ -3874,6 +3928,124 @@ ACTIONS.publishFromMaterial=publishFromMaterial;
 ACTIONS.openMaterialModal=openMaterialModal;
 ACTIONS.delMaterial=delMaterial;
 ACTIONS.saveWorkFromMaterial=saveWorkFromMaterial;
+
+/* 回到顶部：作品库/素材库等长列表滚动后一键回顶 */
+(function(){
+  const btn=document.getElementById('backTopBtn'); if(!btn) return;
+  const onScroll=()=>{ btn.classList.toggle('show',(window.scrollY||document.documentElement.scrollTop||0)>360); };
+  window.addEventListener('scroll',onScroll,{passive:true});
+  onScroll();
+})();
+
+/* ===== 批量操作（作品库 / 素材库多选：改合集 · 加标签 · 删除） ===== */
+const BATCH={work:{on:false,sel:new Set(),list:[]},mat:{on:false,sel:new Set(),list:[]}};
+function batchBtnSync(kind){
+  const b=document.getElementById(kind==='work'?'batchBtnWork':'batchBtnMat'); if(!b) return;
+  const on=BATCH[kind].on;
+  b.textContent=on?'退出多选':'多选';
+  b.classList.toggle('btn-primary',on); b.classList.toggle('btn-soft',!on);
+}
+function batchToggleMode(kind){
+  const b=BATCH[kind]; b.on=!b.on; b.sel.clear(); b.list=[];
+  batchBtnSync(kind); renderBatchBar();
+  if(kind==='work') renderWorks(); else renderMaterials();
+}
+function batchExit(kind){
+  const b=BATCH[kind]; b.on=false; b.sel.clear();
+  batchBtnSync(kind); renderBatchBar();
+  if(kind==='work') renderWorks(); else renderMaterials();
+}
+function batchItem(kind,token,checked){
+  const b=BATCH[kind]; const id=decId(token);
+  if(checked) b.sel.add(id); else b.sel.delete(id);
+  renderBatchBar();
+}
+function batchAll(kind,all){
+  const b=BATCH[kind];
+  if(all) (b.list||[]).forEach(id=>b.sel.add(id)); else b.sel.clear();
+  if(kind==='work') renderWorks(); else renderMaterials();
+}
+function batchApplyCol(kind){
+  const b=BATCH[kind]; if(!b.sel.size){ flashToast('先勾选要操作的条目'); return; }
+  const selEl=document.getElementById('batchColSel'); const col=selEl?selEl.value:'';
+  if(!col){ flashToast('先选择目标合集'); return; }
+  const arr = kind==='work'? safeArr(state.works) : safeArr(state.materials);
+  let n=0; arr.forEach(x=>{ if(b.sel.has(x.id)){ x.collection=col; n++; } });
+  save(); b.sel.clear();
+  if(kind==='work') renderWorks(); else renderMaterials();
+  renderData(); renderToday();
+  flashToast('已把 '+n+' 条移到「'+colOf(col).name+'」');
+}
+function batchApplyTags(kind){
+  const b=BATCH[kind]; if(!b.sel.size){ flashToast('先勾选要操作的条目'); return; }
+  const input=prompt('给选中的 '+b.sel.size+' 条追加标签（多个用逗号分隔）：');
+  if(input===null) return;
+  const tags=input.split(/[,，]/).map(s=>s.trim()).filter(Boolean);
+  if(!tags.length){ flashToast('未输入标签'); return; }
+  const arr = kind==='work'? safeArr(state.works) : safeArr(state.materials);
+  let n=0; arr.forEach(x=>{ if(b.sel.has(x.id)){ const set=new Set(x.tags||[]); tags.forEach(t=>set.add(t)); x.tags=[...set]; n++; } });
+  save(); b.sel.clear();
+  if(kind==='work') renderWorks(); else renderMaterials();
+  flashToast('已给 '+n+' 条追加标签');
+}
+function batchDel(kind){
+  const b=BATCH[kind]; const ids=[...b.sel];
+  if(!ids.length){ flashToast('先勾选要操作的条目'); return; }
+  if(!confirm('确定删除选中的 '+ids.length+' 条？删除后不可恢复（建议先「导出」备份）')) return;
+  if(kind==='work') state.works=safeArr(state.works).filter(x=>!b.sel.has(x.id));
+  else state.materials=safeArr(state.materials).filter(x=>!b.sel.has(x.id));
+  save(); b.sel.clear(); b.on=false;
+  batchBtnSync(kind);
+  if(kind==='work') renderWorks(); else renderMaterials();
+  renderBatchBar(); renderData(); renderToday();
+  flashToast('已删除 '+ids.length+' 条');
+}
+function renderBatchBar(){
+  const bar=document.getElementById('batchBar'); if(!bar) return;
+  const k = BATCH.work.on?'work':(BATCH.mat.on?'mat':null);
+  document.body.classList.toggle('batching', !!k);
+  if(!k){ bar.classList.remove('show'); bar.innerHTML=''; return; }
+  const b=BATCH[k];
+  const colOpts=COLLECTIONS.map(c=>`<option value="${c.key}">${esc(c.name)}</option>`).join('');
+  bar.innerHTML=`
+    <b style="font-size:13px">已选 ${b.sel.size} 条</b>
+    <button class="mini" onclick="batchAll('${k}',true)">全选本页</button>
+    <button class="mini" onclick="batchAll('${k}',false)">清空</button>
+    <select id="batchColSel" class="bb-select">${colOpts}</select>
+    <button class="mini" onclick="batchApplyCol('${k}')">改合集</button>
+    <button class="mini" onclick="batchApplyTags('${k}')">加标签</button>
+    <button class="mini bb-danger" onclick="batchDel('${k}')">删除</button>
+    <button class="mini" onclick="batchExit('${k}')">退出</button>`;
+  bar.classList.add('show');
+}
+
+/* ===== 素材转化漏斗：素材 → 作品 的真实转化与高复用排行 ===== */
+function renderMatFunnel(){
+  const el=document.getElementById('matFunnel'); if(!el) return;
+  const mats=safeArr(state.materials).filter(m=>isKnownCol(m.collection));
+  const linked={};
+  safeArr(state.works).forEach(w=>{ if(w.origin&&w.origin.kind==='material'&&w.origin.refId){ const k=w.origin.refId; linked[k]=(linked[k]||0)+1; } });
+  const usedN=mats.filter(m=>linked[m.id]).length;
+  const worksFromMat=safeArr(state.works).filter(w=>w.origin&&w.origin.kind==='material').length;
+  const rate=mats.length?Math.round(usedN/mats.length*100):0;
+  const top=mats.filter(m=>linked[m.id]).map(m=>({m,n:linked[m.id]})).sort((a,b)=>b.n-a.n).slice(0,3);
+  const warn=(mats.length>=15&&rate<30)?'<div style="font-size:12px;color:var(--orange);margin-top:6px">💡 囚了不少还没用：转化率偏低，挑高潜素材点「发作品」或「转灵感」推进排期</div>':'';
+  const topHtml=top.length? top.map(x=>{
+    const c=colOf(x.m.collection);
+    return `<div class="bar-row"><div class="bar-label" style="color:${c.color}">${esc(c.key)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,x.n*25)}%;background:${c.color}"></div></div><div class="bar-val">×${x.n} 作品</div></div><div style="font-size:11.5px;color:var(--ink2);margin:-2px 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((x.m.content||'').slice(0,30))}</div>`;
+  }).join('') : '<div class="today-empty">还没有素材被做成作品——收素材后点「发作品」，转化链路就通了</div>';
+  el.innerHTML=`<div style="background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:12px;box-shadow:var(--shadow);margin:10px 0">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><b style="font-size:14px">🫀 素材转化漏斗</b><span style="font-size:11.5px;color:var(--ink2)">素材 → 作品 的真实转化</span></div>
+    <div class="kpi-row" style="margin-bottom:6px">
+      <div class="kpi"><b>${mats.length}</b><span>素材总量</span></div>
+      <div class="kpi"><b style="color:${rate>=50?'var(--green)':'var(--orange)'}">${rate}%</b><span>转化率</span></div>
+      <div class="kpi"><b>${usedN}</b><span>已用素材</span></div>
+      <div class="kpi"><b>${worksFromMat}</b><span>产出作品</span></div>
+    </div>
+    <div style="font-size:12.5px;color:var(--ink);margin:2px 0 6px">🔁 高复用素材 TOP3：</div>
+    ${topHtml}${warn}
+  </div>`;
+}
 
 /* 全局错误边界：任何未捕获错误都展示友好面板，绝不白屏 */
 window.__bootErrorShown=false;
