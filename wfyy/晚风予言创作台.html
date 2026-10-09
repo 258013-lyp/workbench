@@ -110,6 +110,7 @@
   .chip-cov-all{background:#E7F6EC;color:#2f9e54;font-weight:700}
   .chip-cov-part{background:#FDF1E3;color:#c8841b;font-weight:700}
   .chip-tag{background:#F3F0EA;color:#9a8f7a}
+  .chip-time{background:#EEF1F4;color:#6b7785;font-weight:500}
   .chip-date{background:#EFF3F6;color:#5b7c93}
   .item-actions{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
   .mini{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 11px;font-size:13px;cursor:pointer;color:var(--ink);font-family:inherit;min-height:38px;display:inline-flex;align-items:center;gap:5px}
@@ -533,7 +534,7 @@
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <b style="font-size:14px;color:var(--orange)">查重助手</b>
-        <span style="font-size:12px;color:var(--ink2)">输入主题/诗词句/台词，看是否发过</span>
+        <span style="font-size:12px;color:var(--ink2)">输入主题/歌词/金句，看是否发过</span>
       </div>
       <input id="dedupInput" placeholder="例如：定风波 / 晚安 / 起风了" oninput="runDedup()">
       <div class="dedup-result" id="dedupResult"></div>
@@ -591,7 +592,7 @@
   <section class="panel" id="panel-materials">
     <div class="banner">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-      素材库是你的「弹药池」：把散落的诗词 / 台词 / 歌词 / 金句存进来；做成作品后标记「已用」，既避免反复用同一句，也防重复收藏。
+      素材库是你的「弹药池」：把散落的歌词 / 金句 / 其它存进来；做成作品后标记「已用」，既避免反复用同一句，也防重复收藏。
     </div>
     <div class="toolbar">
       <div class="search">
@@ -649,49 +650,6 @@ const COL_TRACKS = {
   心事: { kw:['情感共鸣','心动遗憾','情绪疏解','情感','心动','遗憾','释然','emo','孤独','思念','情绪','暗恋','失恋','温柔','心里话','暧昧','分手','喜欢'] },
   留声: { kw:['音乐分享','歌单','单曲循环','歌词','老歌','怀旧','治愈系音乐','宝藏歌曲','耳机','现场','翻唱','BGM','演唱会','听歌','旋律'] },
 };
-/* —— 三栏结构化选题的本地种子库（联网优先、本地种子仅参考）——
-   仅作离线兜底参考；联网实时作品会优先浮到前面（见 genColTopics/buildStructuredTopics） */
-const SEED_SHIJIAN = [
-  {name:'将进酒',author:'李白',dynasty:'唐',line:'天生我材必有用，千金散尽还复来'},
-  {name:'静夜思',author:'李白',dynasty:'唐',line:'举头望明月，低头思故乡'},
-  {name:'水调歌头·明月几时有',author:'苏轼',dynasty:'宋',line:'但愿人长久，千里共婵娟'},
-  {name:'春望',author:'杜甫',dynasty:'唐',line:'感时花溅泪，恨别鸟惊心'},
-  {name:'相思',author:'王维',dynasty:'唐',line:'愿君多采撷，此物最相思'},
-  {name:'声声慢',author:'李清照',dynasty:'宋',line:'寻寻觅觅，冷冷清清，凄凄惨惨戚戚'},
-  {name:'登鹳雀楼',author:'王之涣',dynasty:'唐',line:'欲穷千里目，更上一层楼'},
-  {name:'赋得古原草送别',author:'白居易',dynasty:'唐',line:'野火烧不尽，春风吹又生'},
-  {name:'饮酒·其五',author:'陶渊明',dynasty:'东晋',line:'采菊东篱下，悠然见南山'},
-  {name:'江雪',author:'柳宗元',dynasty:'唐',line:'孤舟蓑笠翁，独钓寒江雪'},
-  {name:'念奴娇·赤壁怀古',author:'苏轼',dynasty:'宋',line:'大江东去，浪淘尽，千古风流人物'},
-  {name:'虞美人',author:'李煜',dynasty:'南唐',line:'问君能有几多愁？恰似一江春水向东流'}
-];
-/* 晚风映言 · 实时参考池（联网优先：按实时热词 / 我的文案主题命中 themes 选取；无命中则按日轮换，保证联网即有实时参考） */
-const SEED_YINGYAN = [
-  {name:'肖申克的救赎',type:'电影',line:'希望让人自由。',role:'安迪',actor:'蒂姆·罗宾斯',themes:['希望','自由','坚持','逆境','越狱','牢狱']},
-  {name:'阿甘正传',type:'电影',line:'生活就像一盒巧克力，你永远不知道下一颗是什么味道。',role:'阿甘',actor:'汤姆·汉克斯',themes:['人生','命运','纯真','奔跑','巧合']},
-  {name:'泰坦尼克号',type:'电影',line:'你跳，我也跳。',role:'杰克',actor:'莱昂纳多·迪卡普里奥',themes:['爱情','生死','海洋','牺牲','遇见']},
-  {name:'霸王别姬',type:'电影',line:'不疯魔，不成活。',role:'程蝶衣',actor:'张国荣',themes:['戏梦','执念','时代','京剧','痴情']},
-  {name:'这个杀手不太冷',type:'电影',line:'人生总是这么痛苦吗，还是只有小时候是这样？',role:'玛蒂尔达',actor:'娜塔莉·波特曼',themes:['孤独','童年','温柔','杀手里昂','陪伴']},
-  {name:'大话西游之大圣娶亲',type:'电影',line:'曾经有一份真挚的感情摆在我面前，我没有珍惜……',role:'至尊宝',actor:'周星驰',themes:['暗恋','遗憾','错过','至尊宝','时光']},
-  {name:'甄嬛传',type:'电视剧',line:'臣妾做不到啊。',role:'甄嬛',actor:'孙俪',themes:['宫廷','权谋','女性','宫斗','清醒']},
-  {name:'亮剑',type:'电视剧',line:'面对强大的对手，明知不敌，也要毅然亮剑。',role:'李云龙',actor:'李幼斌',themes:['勇气','军人','不服','亮剑','血性']},
-  {name:'知否知否应是绿肥红瘦',type:'电视剧',line:'父母之爱子，则为之计深远。',role:'盛老太太',actor:'曹翠芬',themes:['亲情','父母','家风','女子','成长']},
-  {name:'庆余年',type:'电视剧',line:'人生在世，富贵不可尽倚，贫贱不可尽欺。',role:'范闲',actor:'张若昀',themes:['权谋','逆袭','家国','穿越','聪明']},
-  {name:'请回答1988',type:'电视剧',line:'爸爸我也不是一生下来就是爸爸，爸爸也是头一次当爸爸。',role:'德善爸爸',actor:'成东日',themes:['亲情','父爱','邻里','青春','友情']},
-  {name:'回家的诱惑',type:'电视剧',line:'你好骚啊。',role:'洪世贤',actor:'凌潇肃',themes:['出轨','婚姻','渣男','原配','狗血']},
-  {name:'海上钢琴师',type:'电影',line:'我们笑着说再见，却深知再见遥遥无期。',role:'1900',actor:'蒂姆·罗斯',themes:['告别','孤独','远行','钢琴','海上']},
-  {name:'情书',type:'电影',line:'你好吗？我很好。',role:'渡边博子',actor:'中山美穗',themes:['暗恋','思念','初恋','信','怀念']},
-  {name:'千与千寻',type:'电影',line:'不要忘记自己的名字。',role:'千寻',actor:'柊瑠美',themes:['成长','勇气','迷失','名字','奇幻']},
-  {name:'当幸福来敲门',type:'电影',line:'如果你有梦想，就要去捍卫它。',role:'克里斯',actor:'威尔·史密斯',themes:['梦想','奋斗','父爱','贫穷','坚持']},
-  {name:'楚门的世界',type:'电影',line:'如果再见不到你，祝你早午晚都安。',role:'楚门',actor:'金·凯瑞',themes:['自由','真实','觉醒','逃离','自我']},
-  {name:'美丽人生',type:'电影',line:'早安，公主。',role:'圭多',actor:'罗伯托·贝尼尼',themes:['父爱','乐观','战争','幽默','守护']},
-  {name:'星际穿越',type:'电影',line:'爱是唯一可以穿越时空的东西。',role:'库珀',actor:'马修·麦康纳',themes:['爱','时间','父女','科幻','思念']},
-  {name:'疯狂动物城',type:'电影',line:'在动物城，任何人都能成为任何想成为的人。',role:'朱迪',actor:'金妮弗·古德温',themes:['梦想','偏见','坚持','成长','平等']},
-  {name:'琅琊榜',type:'电视剧',line:'既然我活了下来，就不会白白活着。',role:'梅长苏',actor:'胡歌',themes:['复仇','家国','权谋','坚持','赤子']},
-  {name:'觉醒年代',type:'电视剧',line:'为世界进文明，为人类造幸福。',role:'李大钊',actor:'张桐',themes:['理想','青春','奋斗','家国','热血']},
-  {name:'狂飙',type:'电视剧',line:'告诉老默，我想吃鱼了。',role:'高启强',actor:'张颂文',themes:['人性','逆袭','时代','黑帮','命运']},
-  {name:'都挺好',type:'电视剧',line:'你们两个人，一个比一个自私。',role:'苏明玉',actor:'姚晨',themes:['原生家庭','亲情','独立','成长','和解']}
-];
 /* 晚风留声 · 实时参考池（联网优先：实时热歌榜 + 按实时热词 / 我的文案主题命中 themes；失败则按日轮换兜底） */
 const SEED_LIUSHENG = [
   {name:'晴天',singer:'周杰伦',themes:['晴天','青春','校园','初恋','怀念','夏天']},
@@ -733,16 +691,12 @@ const COL_TOPIC_TPL = {
     'emo 时刻的「{{kw}}」，需要被轻轻接住',
     '「{{kw}}」让我释然：爱过就很了不起',
   ],
-  诗笺: SEED_SHIJIAN,
-  映言: SEED_YINGYAN,
   留声: SEED_LIUSHENG,
 };
 /* 各栏目选题切入点（文案方向，贴合简介语气） */
 const COL_ANGLE = {
   碎语: '晚风捎来成长的答案，在平凡日常里拾获细碎光亮。',
   心事: '藏着所有未说出口的心动与怅然。',
-  诗笺: '一句诗词一段故事，共赏千年古韵。',
-  映言: '重温银幕经典，在故事里看见自己。',
   留声: '旋律随晚风漫过耳边，每首歌都藏着一段人生。',
 };
 const PLATFORMS = ['抖音','小红书','视频号','B站','快手'];
@@ -757,15 +711,15 @@ const PLAT_METRICS = {
 let dataPlat='全部', workPlat='全部'; // 看板 / 作品库 的平台视图状态（不持久化）
 const STATUS = ['灵感','选题中','已排期','已发布'];
 const STATUS_CLASS = ['st-0','st-1','st-2','st-3'];
-const MAT_TYPES = ['诗词','台词','歌词','金句','其它'];
-const MAT_TYPE_DEFAULT = {碎语:'金句',心事:'金句',诗笺:'诗词',映言:'台词',留声:'歌词'};
+const MAT_TYPES = ['歌词','金句','其它'];
+const MAT_TYPE_DEFAULT = {碎语:'金句',心事:'金句',留声:'歌词'};
 const TAG_FETCHED = '2026-08-25';
 const TAG_BASE = {
-  '抖音':{ 碎语:['治愈系','人间清醒','成长','碎碎念','生活感悟','反焦虑','松弛感','慢生活'], 心事:['情感共鸣','遗憾','心动','释然','深夜emo','未说出口的话','孤独患者'], 诗笺:['古诗词','诗词','中国诗词大会','古诗里的浪漫','谁懂啊这句意境','飞花令'], 映言:['影视台词','经典台词','电影台词','银幕金句','二刷预警','台词杀'], 留声:['治愈歌单','单曲循环','歌词文案','我的宝藏歌曲','耳机里的世界','深夜音乐'] },
-  '小红书':{ 碎语:['氛围感','治愈系','人生感悟','生活记录','自我成长','小确幸','慢生活'], 心事:['emo文学','情感语录','遗憾文学','心动瞬间','释怀','情绪日记'], 诗笺:['古诗打卡','诗词之美','国风文案','抄诗','古韵','谁懂这句的美'], 映言:['影视混剪','台词截图','经典台词','电影感','名场面'], 留声:['宝藏歌单','歌单分享','治愈系音乐','单曲循环','听歌报告'] },
-  '视频号':{ 碎语:['正能量','治愈','人生哲理','成长','晚安语录','生活感悟'], 心事:['情感','治愈情话','释然','暖心','心软'], 诗笺:['诗词','国学','古诗赏析','每日一句'], 映言:['经典台词','影视金句','人生电影'], 留声:['音乐','经典老歌','怀旧金曲','治愈音乐'] },
-  'B站':{ 碎语:['治愈系','生活记录','成长','Vlog','日常'], 心事:['情感','二创','泪目','共鸣'], 诗笺:['诗词文化','古诗','国风','文化输出','文学'], 映言:['影视解说','台词','经典','混剪','名场面'], 留声:['音乐推荐','歌单','翻唱','现场','宝藏音乐'] },
-  '快手':{ 碎语:['正能量','人生感悟','努力生活','治愈','平凡日子','生活不易'], 心事:['情感','心里话','遗憾','释然','深夜emo','哭了'], 诗笺:['古诗词','诗词','抄诗','国学','古诗之美','飞花令'], 映言:['经典台词','电影台词','影视','名场面','泪目瞬间'], 留声:['歌单分享','治愈音乐','老歌','单曲循环','怀旧金曲'] }
+  '抖音':{ 碎语:['治愈系','人间清醒','成长','碎碎念','生活感悟','反焦虑','松弛感','慢生活'], 心事:['情感共鸣','遗憾','心动','释然','深夜emo','未说出口的话','孤独患者'], 留声:['治愈歌单','单曲循环','歌词文案','我的宝藏歌曲','耳机里的世界','深夜音乐'] },
+  '小红书':{ 碎语:['氛围感','治愈系','人生感悟','生活记录','自我成长','小确幸','慢生活'], 心事:['emo文学','情感语录','遗憾文学','心动瞬间','释怀','情绪日记'], 留声:['宝藏歌单','歌单分享','治愈系音乐','单曲循环','听歌报告'] },
+  '视频号':{ 碎语:['正能量','治愈','人生哲理','成长','晚安语录','生活感悟'], 心事:['情感','治愈情话','释然','暖心','心软'], 留声:['音乐','经典老歌','怀旧金曲','治愈音乐'] },
+  'B站':{ 碎语:['治愈系','生活记录','成长','Vlog','日常'], 心事:['情感','二创','泪目','共鸣'], 留声:['音乐推荐','歌单','翻唱','现场','宝藏音乐'] },
+  '快手':{ 碎语:['正能量','人生感悟','努力生活','治愈','平凡日子','生活不易'], 心事:['情感','心里话','遗憾','释然','深夜emo','哭了'], 留声:['歌单分享','治愈音乐','老歌','单曲循环','怀旧金曲'] }
 };
 function TAG_SEED(){
   const out=[];
@@ -967,11 +921,10 @@ function hotToTag(word){ const t=(word||'').replace(/[，。、！？!?；;：:"
 /* 治愈系主题词典：本地从文案标题/简介实时提取标签（无需联网，稳定可用） */
 const SELF_TAG_DICT=[
   '治愈','温柔','孤独','内耗','焦虑','释然','遗憾','思念','心动','emo','松弛感','钝感力','自愈','独处','晚风','黄昏','日落','深夜','emo文学','情绪','共鸣',
-  '苏轼','李白','杜甫','纳兰','唐诗','宋词','诗经','飞花令','古风','诗词','古诗词','国风',
   '春日','夏夜','秋意','冬雪','梅花','桂花','落叶','晚霞','雨','海','城市','通勤','咖啡','书桌','窗','地铁','卧室','阳台',
   '暗恋','异地','友情','亲情','BE','HE','爱情','失恋','暗戳戳',
   '成长','人生感悟','生活记录','小确幸','慢生活','自我成长','正能量','暖心','松弛','清醒','人间清醒',
-  '歌词','歌单','单曲循环','音乐','老歌','怀旧','电影','台词','名场面','影视','综艺','二刷'
+  '歌词','歌单','单曲循环','音乐','老歌','怀旧'
 ];
 /* 从文案标题(主题)+简介 本地提取候选标签：标题作主题短语，简介做词典命中，再去重限长 */
 function extractSelfTags(title, text, col){
@@ -988,7 +941,7 @@ function extractSelfTags(title, text, col){
 const CONTENT_VOCAB=[
   '失眠','工位','加班','熬夜','通勤','租房','搬家','独居','合租','做饭','早餐','夜跑','读书','旅行','露营','帐篷','爬山','海边','城市','乡村','老家','宿舍','阳台','书桌','咖啡','奶茶','花','猫','狗','植物','雨天','晴天','雪天','周末','假期','毕业','考研','高考','就业','实习','离职','创业','结婚','备孕','带娃','健身','减肥','护肤','追剧','游戏','摄影','手账','书法','画画','朋友','同事','同学','邻居','家人',
   '内耗','焦虑','孤独','治愈','释然','遗憾','心动','暗恋','异地','分手','失恋','友情','亲情','爱情','婚姻','婆媳','职场','同龄人','比较','自卑','自信','勇敢','软弱','懂事','委屈','崩溃','平静','温柔','烟火气','安全感','归属感','仪式感','边界感','松弛感','钝感力','配得感','掌控感','emo','emo文学',
-  '苏轼','李白','杜甫','纳兰','王维','诗词','古诗','宋词','唐诗','诗经','国风','古风','国画','戏曲','民乐','老歌','歌单','单曲循环','演唱会','电影','台词','名场面','影视','综艺','二刷','动漫','小说','散文',
+  '民乐','老歌','歌单','单曲循环','演唱会','动漫','小说','散文',
   '内卷','躺平','打工人','牛马','班味','电子榨菜','精神状态','发疯','嘴硬','反矫情','清醒','人间清醒','情绪价值','氛围感','高级感','松弛','慢生活','断舍离','极简','小确幸','精神离职','数字游民','自我成长','成长','人生感悟','生活记录','正能量','暖心'
 ];
 const BODY_KNOWN=new Set([...SELF_TAG_DICT, ...CONTENT_VOCAB]);
@@ -1007,106 +960,9 @@ function extractBodyTags(text){
 }
 
 /* ============ 结构化实体抽取（实体词典匹配法，行业主用方案） ============
-   目标：从文案里直接析出 古诗词名·作者 / 剧名 / 角色·演员 / 歌名—歌手 这类「具体实体」，
+   目标：从文案里直接析出 歌名—歌手 这类「具体实体」，
    让它们作为最高优先级标签（用户明确要求的：这些才该出现在推荐里）。
    做法：书名号《》析出作品 + 相邻作者/歌手模式 + 复合分隔符「·」「—」+ 高频实体词典补全作者/歌手。 */
-const POEM_KB={ // 古诗词：作品名 → 作者
-  '定风波':'苏轼','定风波莫听穿林打叶声':'苏轼','念奴娇赤壁怀古':'苏轼','水调歌头':'苏轼','水调歌头明月几时有':'苏轼','江城子':'苏轼','江城子密州出猎':'苏轼','临江仙':'苏轼','浣溪沙':'苏轼',
-  '将进酒':'李白','静夜思':'李白','蜀道难':'李白','望庐山瀑布':'李白','早发白帝城':'李白','赠汪伦':'李白','黄鹤楼送孟浩然之广陵':'李白','行路难':'李白',
-  '春望':'杜甫','登高':'杜甫','茅屋为秋风所破歌':'杜甫','春夜喜雨':'杜甫','望岳':'杜甫','绝句':'杜甫',
-  '声声慢':'李清照','一剪梅':'李清照','如梦令':'李清照','醉花阴':'李清照','武陵春':'李清照',
-  '雨霖铃':'柳永','蝶恋花':'柳永','八声甘州':'柳永',
-  '青玉案元夕':'辛弃疾','永遇乐京口北固亭怀古':'辛弃疾','破阵子':'辛弃疾','西江月夜行黄沙道中':'辛弃疾',
-  '虞美人':'李煜','相见欢':'李煜','浪淘沙':'李煜',
-  '鹊桥仙':'秦观','苏幕遮':'范仲淹','菩萨蛮':'温庭筠',
-  '陋室铭':'刘禹锡','爱莲说':'周敦颐','酬乐天扬州初逢席上见赠':'刘禹锡',
-  '琵琶行':'白居易','长恨歌':'白居易','赋得古原草送别':'白居易','忆江南':'白居易',
-  '桃花源记':'陶渊明','归园田居':'陶渊明','饮酒':'陶渊明',
-  '离骚':'屈原','天净沙秋思':'马致远','山坡羊潼关怀古':'张养浩',
-  '锦瑟':'李商隐','无题':'李商隐','夜雨寄北':'李商隐',
-  '使至塞上':'王维','山居秋暝':'王维','相思':'王维',
-  '枫桥夜泊':'张继','登鹳雀楼':'王之涣','凉州词':'王之涣','春晓':'孟浩然',
-  '岳阳楼记':'范仲淹','醉翁亭记':'欧阳修',
-  '沁园春雪':'毛泽东','沁园春长沙':'毛泽东'
-};
-/* 名句 → 作品名：标题或正文直接引用某句名诗时，可反查到原作品与作者 */
-const POEM_LINE_KB={
-  '相见时难别亦难':'无题','东风无力百花残':'无题','春蚕到死丝方尽':'无题','蜡炬成灰泪始干':'无题','蓬山此去无多路':'无题','青鸟殷勤为探看':'无题',
-  '曾经沧海难为水':'离思',
-  '一蓑烟雨任平生':'定风波','也无风雨也无晴':'定风波','归去':'定风波','何妨吟啸且徐行':'定风波','此心安处是吾乡':'定风波',
-  '大江东去':'念奴娇赤壁怀古','乱石穿空':'念奴娇赤壁怀古','惊涛拍岸':'念奴娇赤壁怀古','卷起千堆雪':'念奴娇赤壁怀古',
-  '明月几时有':'水调歌头明月几时有','把酒问青天':'水调歌头明月几时有','高处不胜寒':'水调歌头明月几时有','起舞弄清影':'水调歌头明月几时有','但愿人长久':'水调歌头明月几时有','千里共婵娟':'水调歌头明月几时有',
-  '十年生死两茫茫':'江城子','不思量自难忘':'江城子','千里孤坟':'江城子','无处话凄凉':'江城子',
-  '小舟从此逝':'临江仙','江海寄余生':'临江仙','人生如逆旅':'临江仙','我亦是行人':'临江仙','诗酒趁年华':'临江仙',
-  '寻寻觅觅':'声声慢','冷冷清清':'声声慢','凄凄惨惨戚戚':'声声慢','这次第':'声声慢','怎一个愁字了得':'声声慢',
-  '知否知否':'如梦令','绿肥红瘦':'如梦令','昨夜雨疏风骤':'如梦令','应是绿肥红瘦':'如梦令','争渡争渡':'如梦令','惊起一滩鸥鹭':'如梦令',
-  '物是人非事事休':'武陵春','载不动许多愁':'武陵春',
-  '莫道不销魂':'醉花阴','人比黄花瘦':'醉花阴','帘卷西风':'醉花阴',
-  '才下眉头':'一剪梅','却上心头':'一剪梅','一种相思':'一剪梅','两处闲愁':'一剪梅','花自飘零水自流':'一剪梅','云中谁寄锦书来':'一剪梅',
-  '君不见黄河之水天上来':'将进酒','天生我材必有用':'将进酒','千金散尽还复来':'将进酒','与尔同销万古愁':'将进酒',
-  '床前明月光':'静夜思','疑是地上霜':'静夜思','举头望明月':'静夜思','低头思故乡':'静夜思',
-  '红豆生南国':'相思','春来发几枝':'相思','愿君多采撷':'相思','此物最相思':'相思',
-  '大漠孤烟直':'使至塞上','长河落日圆':'使至塞上','萧关逢候骑':'使至塞上',
-  '空山新雨后':'山居秋暝','天气晚来秋':'山居秋暝','明月松间照':'山居秋暝','清泉石上流':'山居秋暝',
-  '国破山河在':'春望','城春草木深':'春望','感时花溅泪':'春望','恨别鸟惊心':'春望','烽火连三月':'春望','家书抵万金':'春望',
-  '无边落木萧萧下':'登高','不尽长江滚滚来':'登高',
-  '会当凌绝顶':'望岳','一览众山小':'望岳',
-  '好雨知时节':'春夜喜雨','随风潜入夜':'春夜喜雨','润物细无声':'春夜喜雨',
-  '两个黄鹂鸣翠柳':'绝句','一行白鹭上青天':'绝句','窗含西岭千秋雪':'绝句','门泊东吴万里船':'绝句',
-  '月落乌啼霜满天':'枫桥夜泊','江枫渔火对愁眠':'枫桥夜泊','姑苏城外寒山寺':'枫桥夜泊','夜半钟声到客船':'枫桥夜泊',
-  '白日依山尽':'登鹳雀楼','黄河入海流':'登鹳雀楼','欲穷千里目':'登鹳雀楼','更上一层楼':'登鹳雀楼',
-  '黄河远上白云间':'凉州词','一片孤城万仞山':'凉州词','羌笛何须怨杨柳':'凉州词','春风不度玉门关':'凉州词',
-  '春眠不觉晓':'春晓','处处闻啼鸟':'春晓','夜来风雨声':'春晓','花落知多少':'春晓',
-  '锦瑟无端五十弦':'锦瑟','一弦一柱思华年':'锦瑟','庄生晓梦迷蝴蝶':'锦瑟','望帝春心托杜鹃':'锦瑟','此情可待成追忆':'锦瑟','只是当时已惘然':'锦瑟',
-  '君问归期未有期':'夜雨寄北','巴山夜雨涨秋池':'夜雨寄北','何当共剪西窗烛':'夜雨寄北','却话巴山夜雨时':'夜雨寄北',
-  '安得广厦千万间':'茅屋为秋风所破歌','大庇天下寒士俱欢颜':'茅屋为秋风所破歌',
-  '沉舟侧畔千帆过':'酬乐天扬州初逢席上见赠','病树前头万木春':'酬乐天扬州初逢席上见赠','今日听君歌一曲':'酬乐天扬州初逢席上见赠',
-  '千呼万唤始出来':'琵琶行','犹抱琵琶半遮面':'琵琶行','同是天涯沦落人':'琵琶行','相逢何必曾相识':'琵琶行',
-  '在天愿作比翼鸟':'长恨歌','在地愿为连理枝':'长恨歌','天长地久有时尽':'长恨歌','此恨绵绵无绝期':'长恨歌',
-  '离离原上草':'赋得古原草送别','野火烧不尽':'赋得古原草送别','春风吹又生':'赋得古原草送别',
-  '日出江花红胜火':'忆江南','春来江水绿如蓝':'忆江南','能不忆江南':'忆江南',
-  '阡陌交通':'桃花源记','鸡犬相闻':'桃花源记','黄发垂髫':'桃花源记',
-  '采菊东篱下':'饮酒','悠然见南山':'饮酒','此中有真意':'饮酒',
-  '路漫漫其修远兮':'离骚','吾将上下而求索':'离骚',
-  '夕阳西下':'天净沙秋思','断肠人在天涯':'天净沙秋思',
-  '先天下之忧而忧':'岳阳楼记','后天下之乐而乐':'岳阳楼记','不以物喜':'岳阳楼记','不以己悲':'岳阳楼记',
-  '醉翁之意不在酒':'醉翁亭记','在乎山水之间也':'醉翁亭记',
-  '北国风光':'沁园春雪','千里冰封':'沁园春雪','万里雪飘':'沁园春雪','江山如此多娇':'沁园春雪','引无数英雄竞折腰':'沁园春雪',
-  '恰同学少年':'沁园春长沙','风华正茂':'沁园春长沙','书生意气':'沁园春长沙','挥斥方遒':'沁园春长沙','问苍茫大地':'沁园春长沙','谁主沉浮':'沁园春长沙'
-};
-const DRAMA_KB={ // 影视：剧名 → {role:[角色], actor:[演员]}
-  '繁花':{role:['宝总','汪小姐','玲子','李李','爷叔'],actor:['胡歌','马伊琍','唐嫣','辛芷蕾']},
-  '琅琊榜':{role:['梅长苏','靖王','飞流','霓凰'],actor:['胡歌','王凯','刘涛']},
-  '甄嬛传':{role:['甄嬛','华妃','皇后','安陵容','沈眉庄'],actor:['孙俪','蒋欣','蔡少芬','斓曦']},
-  '庆余年':{role:['范闲','庆帝','王启年','司理理'],actor:['张若昀','陈道明','李沁']},
-  '庆余年2':{role:['范闲','言冰云'],actor:['张若昀','李一桐']},
-  '知否知否应是绿肥红瘦':{role:['盛明兰','顾廷烨','盛墨兰'],actor:['赵丽颖','冯绍峰','朱一龙']},
-  '山海情':{role:['马得福','水花'],actor:['黄轩','张嘉译','热依扎']},
-  '觉醒年代':{role:['陈独秀','李大钊','胡适'],actor:['于和伟','张桐']},
-  '狂飙':{role:['高启强','安欣','高启盛'],actor:['张颂文','张译','张志坚']},
-  '三体':{role:['汪淼','史强','叶文洁'],actor:['张鲁一','于和伟','陈瑾']},
-  '莲花楼':{role:['李莲花','方多病','笛飞声'],actor:['成毅','曾舜晞']},
-  '漫长的季节':{role:['王响','龚彪','傅卫军'],actor:['范伟','秦昊','陈明昊']},
-  '去有风的地方':{role:['许红豆','谢之遥'],actor:['刘亦菲','李现']},
-  '长安十二时辰':{role:['张小敬','李必'],actor:['雷佳音','易烊千玺']},
-  '武林外传':{role:['佟湘玉','白展堂','郭芙蓉','吕秀才'],actor:['闫妮','姚晨','沙溢']},
-  '红楼梦':{role:['林黛玉','贾宝玉','薛宝钗','王熙凤'],actor:['陈晓旭','欧阳奋强','邓婕']},
-  '还珠格格':{role:['小燕子','紫薇','尔康'],actor:['赵薇','林心如','苏有朋']},
-  '仙剑奇侠传':{role:['李逍遥','赵灵儿','林月如'],actor:['胡歌','刘亦菲','安以轩']},
-  '亮剑':{role:['李云龙','楚云飞'],actor:['李幼斌','何政军']},
-  '父母爱情':{role:['安杰','江德福'],actor:['梅婷','郭涛']},
-  '都挺好':{role:['苏明玉','苏大强'],actor:['姚晨','倪大红']},
-  '三十而已':{role:['顾佳','王漫妮','钟晓芹'],actor:['童瑶','江疏影','毛晓彤']},
-  '欢乐颂':{role:['樊胜美','安迪','曲筱绡'],actor:['蒋欣','刘涛','王子文']},
-  '我的阿勒泰':{role:['李文秀','巴太'],actor:['马伊琍','周依然']},
-  '玫瑰的故事':{role:['黄亦玫','方协文'],actor:['刘亦菲','佟大为']},
-  '与凤行':{role:[],actor:['赵丽颖','林更新']},
-  '折腰':{role:[],actor:['宋祖儿','刘宇宁']},
-  '唐朝诡事录':{role:['卢凌风','苏无名'],actor:['杨旭文','杨志刚']},
-  '苍兰诀':{role:['东方青苍','小兰花'],actor:['王鹤棣','虞书欣']},
-  '梦华录':{role:['赵盼儿','顾千帆'],actor:['刘亦菲','陈晓']},
-  '小敏家':{role:['刘小敏','金家骏'],actor:['周迅','黄磊']}
-};
 const SONG_KB={ // 音乐：歌名 → 歌手
   '晴天':'周杰伦','七里香':'周杰伦','稻香':'周杰伦','青花瓷':'周杰伦','告白气球':'周杰伦','夜曲':'周杰伦','以父之名':'周杰伦','千里之外':'周杰伦','东风破':'周杰伦','枫':'周杰伦','搁浅':'周杰伦',
   '孤勇者':'陈奕迅','十年':'陈奕迅','富士山下':'陈奕迅','单车':'陈奕迅','浮夸':'陈奕迅','K歌之王':'陈奕迅','爱情转移':'陈奕迅',
@@ -1136,11 +992,9 @@ const SONG_KB={ // 音乐：歌名 → 歌手
   '默':'那英','征服':'那英',
   'DreamItPossible':'Delacey','Youth':'TroyeSivan'
 };
-// 反向索引：人名 → 作品/剧目，用于「相邻作者/歌手」模式补全
-const PERSON_INDEX={}; // name → {type:'author'|'singer'|'actor', works:[...]}
-Object.entries(POEM_KB).forEach(([w,a])=>{ if(!a) return; (PERSON_INDEX[a]=PERSON_INDEX[a]||{author:[],singer:[],actor:[]}).author.push(w); });
-Object.entries(SONG_KB).forEach(([w,s])=>{ if(!s) return; (PERSON_INDEX[s]=PERSON_INDEX[s]||{author:[],singer:[],actor:[]}).singer.push(w); });
-Object.entries(DRAMA_KB).forEach(([d,v])=>{ (v.actor||[]).forEach(a=>{ (PERSON_INDEX[a]=PERSON_INDEX[a]||{author:[],singer:[],actor:[]}).actor.push(d); }); });
+// 反向索引：人名 → 歌曲，用于「相邻歌手」模式补全
+const PERSON_INDEX={}; // name → {singer:[...]}
+Object.entries(SONG_KB).forEach(([w,s])=>{ if(!s) return; (PERSON_INDEX[s]=PERSON_INDEX[s]||{singer:[]}).singer.push(w); });
 function extractEntities(title, text, colKey){
   const blob=(title||'')+' '+(text||'');
   const out=[]; const seen=new Set();
@@ -1157,73 +1011,34 @@ function extractEntities(title, text, colKey){
     while(idx!==-1){ if(Math.abs(idx-aPos)<=win) return true; idx=blob.indexOf(bStr,idx+1); }
     return false;
   };
-  const poetryCtx = colKey==='诗笺' || /诗|词|古文|名句|出处|古风/.test(blob);
 
   // 1) 书名号《》析出（最可靠）
   const book=[...blob.matchAll(/《([^《》]{1,15})》/g)].map(m=>({w:m[1].trim(), s:m.index, e:m.index+m[0].length})).filter(x=>x.w);
   book.forEach(({w})=>{
     add(w);
-    if(POEM_KB[w]){ const a=POEM_KB[w]; add(a); add(w+'·'+a); }
     if(SONG_KB[w]){ const s=SONG_KB[w]; if(s){ add(s); add(w+'—'+s); } }
-    const d=DRAMA_KB[w];
-    if(d){
-      (d.role||[]).forEach(r=>{ if(blob.indexOf(r)!==-1) add(r); });
-      (d.actor||[]).forEach(a=>{ if(blob.indexOf(a)!==-1) add(a); });
-      add(w);
-    }
   });
   const occupied=book.map(x=>({start:x.s,end:x.e}));
   const free=(s,e)=>!occupied.some(r=>s<r.end && e>r.start);
   const use=(s,e)=>{ if(free(s,e)) occupied.push({start:s,end:e}); return free(s,e); };
 
-  // 2) 名句反查：标题或正文出现完整名句 → 作品 → 作者
-  Object.entries(POEM_LINE_KB).forEach(([line,work])=>{
-    const author=POEM_KB[work];
-    if(blob.indexOf(line)!==-1){
-      if(author){ add(work); add(author); add(work+'·'+author); }
-      else add(work);
-    }
-  });
-
-  // 3) 无书名号时扫描已知作品名：按长度降序优先匹配长名，短名需上下文/作者佐证
-  const allWorks=[
-    ...Object.keys(POEM_KB).map(w=>({w,t:'poem'})),
-    ...Object.keys(SONG_KB).map(w=>({w,t:'song'})),
-    ...Object.keys(DRAMA_KB).map(w=>({w,t:'drama'}))
-  ].sort((a,b)=>b.w.length-a.w.length);
-  allWorks.forEach(({w,t})=>{
+  // 2) 无书名号时扫描已知歌曲名：按长度降序优先匹配长名
+  const allWorks=Object.keys(SONG_KB).map(w=>({w})).sort((a,b)=>b.w.length-a.w.length);
+  allWorks.forEach(({w})=>{
     findOccur(blob,w).forEach(({start,end})=>{
       if(!free(start,end)) return;
       const inTitle=(title||'').indexOf(w)!==-1;
-      if(t==='poem'){
-        const author=POEM_KB[w];
-        const hasAuthor=author && blob.indexOf(author)!==-1 && nearby(start,author,12);
-        const keep = w.length>=3 || inTitle || hasAuthor || poetryCtx;
-        if(keep){
-          use(start,end); add(w);
-          if(author && (hasAuthor || inTitle || poetryCtx)){ add(author); add(w+'·'+author); }
-        }
-      }else if(t==='song'){
-        const singer=SONG_KB[w];
-        const hasSinger=singer && blob.indexOf(singer)!==-1 && nearby(start,singer,12);
-        const keep = w.length>=3 || inTitle || hasSinger;
-        if(keep){
-          use(start,end); add(w);
-          if(singer && hasSinger){ add(singer); add(w+'—'+singer); }
-        }
-      }else if(t==='drama'){
-        const d=DRAMA_KB[w];
-        const hits=[...(d.actor||[]), ...(d.role||[])].filter(p=> blob.indexOf(p)!==-1 && nearby(start,p,12) );
-        const keep = w.length>=3 || inTitle || hits.length>0;
-        if(keep){
-          use(start,end); add(w);
-          hits.forEach(p=>{ add(p); add(p+'·'+w); });
-        }
+      const singer=SONG_KB[w];
+      const hasSinger=singer && blob.indexOf(singer)!==-1 && nearby(start,singer,12);
+      const keep = w.length>=3 || inTitle || hasSinger;
+      if(keep){
+        use(start,end); add(w);
+        if(singer && hasSinger){ add(singer); add(w+'—'+singer); }
       }
     });
   });
 
-  // 4) 相邻作者/歌手模式：「X《作品》」或「《作品》X」或「X的《作品》」(X=2~4字人名)
+  // 3) 相邻歌手模式：「X《作品》」或「《作品》X」或「X的《作品》」(X=2~4字人名)
   const adj=[...blob.matchAll(/([一-龥]{1,4})(?:的)?《([^《》]{1,15})》/g)].map(m=>[m[1].trim(),m[2].trim()])
     .concat([...blob.matchAll(/《([^《》]{1,15})》([一-龥]{1,4})/g)].map(m=>[m[2].trim(),m[1].trim()]));
   adj.forEach(([person,w])=>{
@@ -1231,9 +1046,7 @@ function extractEntities(title, text, colKey){
     const idx=PERSON_INDEX[person];
     if(idx){
       add(person);
-      if(idx.author.length && POEM_KB[w]) add(w+'·'+person);
       if(idx.singer.length && SONG_KB[w]) add(w+'—'+person);
-      if(idx.actor.length) add(w); // 演员对应剧名已在书名号处理
     }
   });
 
@@ -1246,13 +1059,11 @@ function extractEntities(title, text, colKey){
     else if(SONG_KB[b]){ add(a); add(b); add(b+'—'+a); }
   });
 
-  // 6) 无书名号兜底：识别「出处：作品 作者」「(出处：作品 作者)」「作品 作者」等
+  // 6) 无书名号兜底：识别「作品 歌手」等
   const clean=blob.replace(/[《》]/g,'');
   [...clean.matchAll(/(?:出处[：:]?\s*)?([一-龥A-Za-z0-9]{2,10})\s+([一-龥]{2,4})/g)].forEach(m=>{
     const a=m[1].trim(), b=m[2].trim();
-    if(POEM_KB[a] && POEM_KB[a]===b){ add(a); add(b); add(a+'·'+b); }
     if(SONG_KB[a] && SONG_KB[a]===b){ add(a); add(b); add(a+'—'+b); }
-    if(POEM_KB[b] && POEM_KB[b]===a){ add(b); add(a); add(b+'·'+a); }
     if(SONG_KB[b] && SONG_KB[b]===a){ add(b); add(a); add(b+'—'+a); }
   });
 
@@ -1422,6 +1233,7 @@ function exportLocal(){
   }catch(e){ try{ flashToast('下载离线版失败：'+(e&&e.message||e)); }catch(_){ alert('下载失败：'+(e&&e.message||e)); } }
 }
 function todayStr(){ const d=new Date(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0'); return d.getFullYear()+'-'+m+'-'+day; }
+function fmtDateTime(ts){ if(!ts) return ''; const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
 
 /* ============ 示例数据 ============ */
 function sampleData(){
@@ -1655,19 +1467,6 @@ function renderIdeas(){
 function topicDisplay(h){
   const m = h && h.meta;
   if(m){
-    if(m.kind==='诗笺'){
-      return '<div class="hot-title topic-struct">'
-        +'<span class="t-name">《'+esc(m.name)+'》</span>'
-        +'<span class="t-sub">· '+esc(m.author)+'('+esc(m.dynasty)+')</span>'
-        +'<div class="t-line">'+esc(m.line)+'</div></div>';
-    }
-    if(m.kind==='映言'){
-      return '<div class="hot-title topic-struct">'
-        +'<span class="t-name">《'+esc(m.name)+'》</span>'
-        +'<span class="t-type">['+esc(m.type)+']</span>'
-        +'<div class="t-line">“'+esc(m.line)+'”</div>'
-        +'<div class="t-role">'+esc(m.role)+' / '+esc(m.actor)+'</div></div>';
-    }
     if(m.kind==='留声'){
       return '<div class="hot-title topic-struct">'
         +'<span class="t-name">「'+esc(m.name)+'」</span>'
@@ -1861,7 +1660,7 @@ function buildColumnTopics(items, music, shuffle){
     const t=String(it&&it.t||''); if(!t) return;
     matchCollections(t).forEach(m=>{
       // 诗笺/映言/留声 改用真实作品数据（见下方生成器），不走热榜转译，避免生硬结合与编造
-      if(m.key==='诗笺' || m.key==='映言' || m.key==='留声') return;
+      if(m.key==='留声') return;
       const f=deriveCore(m.hit, m.key);
       byCol[m.key].push({ core:f.core, emo:f.emo, heat:Number(it.heat)||0, kind:(it.src==='常驻'?'常驻':'实时') });
     });
@@ -1876,7 +1675,7 @@ function buildColumnTopics(items, music, shuffle){
     arr.forEach(a=>{ if(seen.has(a.core)) return; seen.add(a.core); cards.push(makeTopicCard(col,a)); });
     result[col]=cards;
   });
-  // 留声：真实作品数据（实时优先/库），不编造常驻（诗笺/映言 合集已移除，不再生成）
+  // 留声：真实作品数据（实时优先/库），不编造常驻
   result['留声'] = genLiuSheng(music, shuffle);
   return result;
 }
@@ -1904,25 +1703,6 @@ function renderInspire(){
   }).join('');
 }
 function colTopicHtml(c, cd, ki){
-  if(cd.type==='poem'){
-    return `<div class="col-topic" style="--c:${c.color}">
-      <div class="col-topic-head">
-        <span class="col-topic-title">《${esc(cd.name)}》·${esc(cd.author)}（${esc(cd.dynasty)}）</span>
-      </div>
-      <div class="col-topic-line">${esc(cd.line)}</div>
-      <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
-    </div>`;
-  }
-  if(cd.type==='film'){
-    return `<div class="col-topic" style="--c:${c.color}">
-      <div class="col-topic-head">
-        <span class="col-topic-title">《${esc(cd.name)}》[${esc(cd.genre)}]</span>
-      </div>
-      <div class="col-topic-line">${esc(cd.line)}</div>
-      <div class="col-topic-meta">${esc(cd.role)} / ${esc(cd.actor)}</div>
-      <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
-    </div>`;
-  }
   if(cd.type==='song'){
     return `<div class="col-topic" style="--c:${c.color}">
       <div class="col-topic-head">
@@ -1943,9 +1723,7 @@ function colTopicHtml(c, cd, ki){
 function adoptColTopic(col, idx){
   const arr=(state.colTopics||{})[col]||[]; const cd=arr[idx]; if(!cd) return;
   let content='';
-  if(cd.type==='poem') content=`《${cd.name}》·${cd.author}（${cd.dynasty}）\n${cd.line}`;
-  else if(cd.type==='film') content=`《${cd.name}》[${cd.genre}]\n台词：${cd.line}\n${cd.role} / ${cd.actor}`;
-  else if(cd.type==='song') content=`「${cd.name}」—${cd.singer}`;
+  if(cd.type==='song') content=`「${cd.name}」—${cd.singer}`;
   else content=cd.title+'\n'+cd.points.join('\n');
   const rec={id:uid(),collection:col,content:content,source:'分栏选题·'+colOf(col).name,tags:[colOf(col).name],status:0,planDate:'',createdAt:Date.now()};
   state.ideas.unshift(rec); save(); renderIdeas(); renderToday();
@@ -1996,25 +1774,17 @@ const CORE_FAMILY = {
   quiet:   {core:'一个人慢慢消化的情绪', emo:'安静的难过'},
   close:   {core:'亲密关系里的拉扯', emo:'委屈与清醒'},
   family:  {core:'家人之间说不出的话', emo:'爱与束缚'},
-  poem:    {core:'古人一句诗的重量', emo:'古典的温柔'},
-  scene:   {core:'时间里的景与人', emo:'淡淡的怅惘'},
-  line:    {core:'某个被说中心事的时刻', emo:'被说中的那一刻'},
-  act:     {core:'戏里戏外的人性', emo:'台前幕后的反差'},
   song:    {core:'某个失眠的夜晚', emo:'说不出的心事'},
   live:    {core:'现场那一刻的共振', emo:'说不出的心事'},
 };
 const CORE_KEY2FAM = {
   '慢生活':'heal','成长治愈':'heal','自我成长':'heal','小确幸':'life','松弛感':'heal','人间清醒':'heal','好好生活':'life','生活':'life','人生':'life','工作':'work','日常':'life','成长':'heal','治愈':'heal','努力':'life','幸福':'life','快乐':'life','考研':'exam','考公':'exam','考编':'exam','上岸':'exam','备考':'exam','内耗':'tired','边界感':'tired','情绪价值':'tired','躺平':'work','内卷':'work','打工人':'work','副业':'work','存钱':'alone','租房':'alone','独居':'alone','自律':'alone','焦虑':'tired','压力':'tired','情绪':'tired',
   '失恋':'love_end','暗恋':'like','心动':'like','遗憾':'regret','释然':'quiet','emo':'quiet','孤独':'quiet','思念':'quiet','暧昧':'like','分手':'love_end','出轨':'close','意难平':'regret','破防':'regret','复合':'love_end','白月光':'like','恋爱':'close','结婚':'close','离婚':'close','婚姻':'close','异地':'close','前任':'love_end','委屈':'close','难过':'quiet','亲情':'family','家庭':'family','催婚':'family','父母':'family','告别':'quiet',
-  '苏轼':'poem','李白':'poem','杜甫':'poem','纳兰':'poem','王维':'poem','李清照':'poem','诗词':'poem','古诗':'poem','唐诗':'poem','宋词':'poem','诗经':'poem','飞花令':'poem','国风':'poem','元曲':'poem','词人':'poem','诗句':'poem','古风':'poem','汉服':'poem','节气':'scene','春天':'scene','春日':'scene','雪':'scene','月':'scene','月亮':'scene','江南':'scene','远方':'scene','落日':'scene','黄昏':'scene','晚风':'scene','离别':'scene','乡愁':'scene','故人':'scene','旧时光':'scene',
-  '台词':'line','名场面':'line','电影台词':'line','影视':'line','综艺':'line','二刷':'line','影片':'line','导演':'act','演员':'act','番剧':'line','动漫':'line','国漫':'line','电影':'line','电视剧':'line','剧':'line','主演':'act','演技':'act','塌房':'act','翻红':'act',
   '歌词':'song','歌单':'song','单曲循环':'song','演唱会':'live','旋律':'song','翻唱':'song','现场':'live','BGM':'song','OST':'song','音乐节':'live','歌曲':'song','歌':'song','音乐':'song','专辑':'song','老歌':'song','新歌':'song','耳机':'song','循环':'song','歌手':'live','乐队':'live','治愈系':'song','说唱':'song','民谣':'song','摇滚':'song','神曲':'song','副歌':'song','vocal':'song','舞台':'live','Live':'live','音综':'song',
 };
 const CORE_FALLBACK = {
   碎语:{core:'平凡日子里的微光', emo:'踏实的小确幸'},
   心事:{core:'心里没说出口的话', emo:'安静的难过'},
-  诗笺:{core:'时间里的景与人', emo:'淡淡的怅惘'},
-  映言:{core:'某个被说中心事的时刻', emo:'被说中的那一刻'},
   留声:{core:'某个失眠的夜晚', emo:'说不出的心事'},
 };
 function deriveCore(hit, col){
@@ -2038,22 +1808,6 @@ const COL_TOPIC_GEN = {
       `评论入口：「你也有过${e}却没人可说的时刻吗？」`,
     ],
   },
-  诗笺:{
-    titles:[(c)=>`${c}，写成一句可以收藏的诗`,(c)=>`${c}退去，人间仍有未凉的灯`,(c)=>`若${c}入诗，该用哪一个意象`],
-    points:(c,e)=>[
-      `角度：挑 1–2 个意象（月/风/灯/雪/旧信）承载${c}，留白多、不直说情绪。`,
-      `金句方向：「${c}入诗，便有了被原谅的温柔。」`,
-      `评论入口：「如果给${c}写一句诗，你会写什么？」`,
-    ],
-  },
-  映言:{
-    titles:[(c)=>`有句台词一直记得，放在${c}上刚刚好`,(c)=>`${c}，某部电影早就说透了`,(c)=>`借一段名场面，聊聊${c}`],
-    points:(c,e)=>[
-      `角度：用经典台词/名场面作开场，落到每个人都会遇到的那点心事，温柔不说教。`,
-      `金句方向：「电影里那句台词，说的其实就是${e}。」`,
-      `评论入口：「哪句台词，曾替你说出了${e}？」`,
-    ],
-  },
   留声:{
     titles:[(c)=>`为${c}，挑一首深夜单曲循环的歌`,(c)=>`${c}，需要这样一首歌陪你`,(c)=>`把${c}写进歌单的第几首`],
     points:(c,e)=>[
@@ -2066,122 +1820,12 @@ const COL_TOPIC_GEN = {
 const COL_EVERGREEN_BANK = {
   碎语:['平凡日子里的微光','慢慢和自己和解','一个人的充电时刻','和不完美的自己和解'],
   心事:['没说出口的喜欢','爱过又走散的人','家人之间说不出的话','那个没说再见的告别'],
-  诗笺:['时间里的景与人','古人一句诗的重量','旧时光里的一封信','月色里未寄出的信'],
-  映言:['某个被说中心事的时刻','戏里戏外的人性','名场面里的人生','电影教会我的事'],
   留声:['某个失眠的夜晚','说不出的心事','现场那一刻的共振','单曲循环的那首老歌'],
 };
 /* ============ 留声：真实作品数据（非编造常驻，实时优先） ============ */
 function shuffleArr(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=a[i]; a[i]=a[j]; a[j]=x; } return a; }
 
-// 1) 晚风诗笺：真实古诗词库 {name, author, dynasty, line(名句)}
-const SHI_JIAN_LIB = [
-  {name:'静夜思', author:'李白', dynasty:'唐', line:'床前明月光，疑是地上霜。举头望明月，低头思故乡。'},
-  {name:'登鹳雀楼', author:'王之涣', dynasty:'唐', line:'欲穷千里目，更上一层楼。'},
-  {name:'相思', author:'王维', dynasty:'唐', line:'愿君多采撷，此物最相思。'},
-  {name:'春晓', author:'孟浩然', dynasty:'唐', line:'夜来风雨声，花落知多少。'},
-  {name:'水调歌头', author:'苏轼', dynasty:'宋', line:'但愿人长久，千里共婵娟。'},
-  {name:'念奴娇·赤壁怀古', author:'苏轼', dynasty:'宋', line:'大江东去，浪淘尽，千古风流人物。'},
-  {name:'声声慢', author:'李清照', dynasty:'宋', line:'寻寻觅觅，冷冷清清，凄凄惨惨戚戚。'},
-  {name:'如梦令', author:'李清照', dynasty:'宋', line:'知否，知否？应是绿肥红瘦。'},
-  {name:'黄鹤楼送孟浩然之广陵', author:'李白', dynasty:'唐', line:'孤帆远影碧空尽，唯见长江天际流。'},
-  {name:'送元二使安西', author:'王维', dynasty:'唐', line:'劝君更尽一杯酒，西出阳关无故人。'},
-  {name:'绝句', author:'杜甫', dynasty:'唐', line:'两个黄鹂鸣翠柳，一行白鹭上青天。'},
-  {name:'春望', author:'杜甫', dynasty:'唐', line:'感时花溅泪，恨别鸟惊心。'},
-  {name:'赋得古原草送别', author:'白居易', dynasty:'唐', line:'野火烧不尽，春风吹又生。'},
-  {name:'钱塘湖春行', author:'白居易', dynasty:'唐', line:'乱花渐欲迷人眼，浅草才能没马蹄。'},
-  {name:'江雪', author:'柳宗元', dynasty:'唐', line:'孤舟蓑笠翁，独钓寒江雪。'},
-  {name:'枫桥夜泊', author:'张继', dynasty:'唐', line:'月落乌啼霜满天，江枫渔火对愁眠。'},
-  {name:'游子吟', author:'孟郊', dynasty:'唐', line:'谁言寸草心，报得三春晖。'},
-  {name:'陋室铭', author:'刘禹锡', dynasty:'唐', line:'斯是陋室，惟吾德馨。'},
-  {name:'饮酒·其五', author:'陶渊明', dynasty:'东晋', line:'采菊东篱下，悠然见南山。'},
-  {name:'虞美人', author:'李煜', dynasty:'南唐', line:'问君能有几多愁？恰似一江春水向东流。'},
-  {name:'青玉案·元夕', author:'辛弃疾', dynasty:'宋', line:'众里寻他千百度，蓦然回首，那人却在，灯火阑珊处。'},
-  {name:'相见欢', author:'李煜', dynasty:'南唐', line:'剪不断，理还乱，是离愁。'},
-  {name:'天净沙·秋思', author:'马致远', dynasty:'元', line:'枯藤老树昏鸦，小桥流水人家，古道西风瘦马。'},
-  {name:'竹石', author:'郑燮', dynasty:'清', line:'千磨万击还坚劲，任尔东西南北风。'},
-];
-// 2) 晚风映言：真实影视库 {name, type:'电影'|'电视剧', line(台词), role(角色), actor(演员)}
-const YING_YAN_LIB = [
-  {name:'肖申克的救赎', type:'电影', line:'希望是件好事，也许是人间至善，而美好的事物永不消逝。', role:'安迪', actor:'蒂姆·罗宾斯'},
-  {name:'阿甘正传', type:'电影', line:'生活就像一盒巧克力，你永远不知道下一颗是什么味道。', role:'阿甘', actor:'汤姆·汉克斯'},
-  {name:'当幸福来敲门', type:'电影', line:'别让别人告诉你，你成不了才。', role:'克里斯', actor:'威尔·史密斯'},
-  {name:'海上钢琴师', type:'电影', line:'陆地？陆地对我来说是一艘太大的船。', role:'1900', actor:'蒂姆·罗斯'},
-  {name:'霸王别姬', type:'电影', line:'说的是一辈子！差一年，一个月，一天，一个时辰，都不算一辈子！', role:'程蝶衣', actor:'张国荣'},
-  {name:'大话西游', type:'电影', line:'曾经有一份真挚的感情摆在我的面前，我没有珍惜……', role:'至尊宝', actor:'周星驰'},
-  {name:'无间道', type:'电影', line:'给我一个机会，我想做个好人。', role:'刘建明', actor:'刘德华'},
-  {name:'楚门的世界', type:'电影', line:'如果再见不到你，祝你早午晚都安。', role:'楚门', actor:'金·凯瑞'},
-  {name:'千与千寻', type:'电影', line:'曾经发生的事不可能忘记，只是想不起来而已。', role:'千寻', actor:'柊瑠美'},
-  {name:'这个杀手不太冷', type:'电影', line:'人生总是这么痛苦吗，还是只有小时候这样？', role:'玛蒂尔达', actor:'娜塔莉·波特曼'},
-  {name:'美丽人生', type:'电影', line:'早安，公主。', role:'圭多', actor:'罗伯托·贝尼尼'},
-  {name:'放牛班的春天', type:'电影', line:'凡事都有可能，永远别说永远。', role:'克莱门特', actor:'热拉尔·朱尼奥'},
-  {name:'岁月神偷', type:'电影', line:'在变幻的生命里，岁月，原来是最大的小偷。', role:'罗进二', actor:'李治廷'},
-  {name:'忠犬八公的故事', type:'电影', line:'它只是你的一条狗，但你却是它的一生。', role:'帕克', actor:'理查·基尔'},
-  {name:'摔跤吧！爸爸', type:'电影', line:'金牌谁都可以拿，但亚军什么都不是。', role:'马哈维亚', actor:'阿米尔·汗'},
-  {name:'寻梦环游记', type:'电影', line:'被爱的人记住，才是真正的活着。', role:'可可', actor:'阿兰娜·乌巴赫'},
-  {name:'甄嬛传', type:'电视剧', line:'臣妾做不到啊！', role:'华妃', actor:'蒋欣'},
-  {name:'琅琊榜', type:'电视剧', line:'既然我活了下来，就不会白白活着。', role:'梅长苏', actor:'胡歌'},
-  {name:'知否知否应是绿肥红瘦', type:'电视剧', line:'父母之爱子，则为之计深远。', role:'盛老太太', actor:'曹翠芬'},
-  {name:'庆余年', type:'电视剧', line:'人活这一辈子，能尽情舒展地活着，便是最好的。', role:'范闲', actor:'张若昀'},
-  {name:'觉醒年代', type:'电视剧', line:'遍地哀鸿满城血，无非一念救苍生。', role:'陈独秀', actor:'于和伟'},
-  {name:'山海情', type:'电视剧', line:'苦瘠甲天下，咱们要把这穷根拔了。', role:'马得福', actor:'黄轩'},
-  {name:'父母爱情', type:'电视剧', line:'一辈子的牵手，平平淡淡才是真。', role:'安杰', actor:'蒋雯丽'},
-  {name:'武林外传', type:'电视剧', line:'确定一个目标，努力向前，剩下的交给时间。', role:'佟湘玉', actor:'闫妮'},
-];
-// 3) 留声实时兜底（代理不可用时）真实歌曲 {name, singer}
-const FALLBACK_SONGS = [
-  {name:'孤勇者', singer:'陈奕迅'}, {name:'起风了', singer:'买辣椒也用券'}, {name:'海底', singer:'凤凰传奇'},
-  {name:'漠河舞厅', singer:'柳爽'}, {name:'是妈妈是女儿', singer:'黄绮珊/希林娜依高'}, {name:'如愿', singer:'王菲'},
-  {name:'人间', singer:'王菲'}, {name:'晚安', singer:'颜人中'}, {name:'错位时空', singer:'艾辰'},
-  {name:'晴天', singer:'周杰伦'}, {name:'稻香', singer:'周杰伦'}, {name:'孤城', singer:'洛先生'},
-];
-// 根据实时热榜上下文，给真实库做「当下相关性」加权，让选题有时效性（相关度优先，其余轮换保鲜）
-function trendBoost(col, items){
-  const txt = (items||[]).map(x=>String(x&&x.t||'')).join(' ');
-  if(col==='诗笺'){
-    return SHI_JIAN_LIB.map(it=>{
-      let s=0, rel=false;
-      if(txt.indexOf(it.author)>-1){ s+=5; rel=true; }                                  // 具体诗人上热搜
-      if(txt.indexOf(it.name.replace(/[《》]/g,''))>-1){ s+=8; rel=true; }                // 具体诗名被提及
-      if(/诗词|古诗|唐诗|宋词|汉服|国风|节气|飞花令/.test(txt)) s+=1;                     // 仅影响排序，不打「实时相关」标
-      return { it, s, rel };
-    });
-  }
-  if(col==='映言'){
-    return YING_YAN_LIB.map(it=>{
-      let s=0, rel=false;
-      if(txt.indexOf(it.name.replace(/[《》]/g,''))>-1){ s+=8; rel=true; }                // 具体剧名上热搜
-      if(/电影|票房|演技|名场面|台词|二刷|新剧|大结局|综艺|番剧|国漫|开播|追剧/.test(txt)) s+=1;
-      if(it.type==='电影' && /电影|票房|影片/.test(txt)) s+=1;
-      if(it.type==='电视剧' && /剧|追剧|开播|大结局/.test(txt)) s+=1;
-      return { it, s, rel };
-    });
-  }
-  return null;
-}
-function pickReal(lib, scores, shuffle, n){
-  let arr = scores.slice();
-  arr.sort((a,b)=> b.s - a.s || (Math.random()-0.5));
-  if(shuffle){
-    const top = arr.filter(x=>x.s>0).slice(0, n);
-    const rest = arr.filter(x=>x.s===0); shuffleArr(rest);
-    arr = top.concat(rest).slice(0, n);
-  }
-  return arr.slice(0,n).map(x=>x.it);
-}
-function genShiJian(items, shuffle){
-  const scores = trendBoost('诗笺', items);
-  const picks = pickReal(SHI_JIAN_LIB, scores, shuffle, 6);
-  return picks.map(it=>({
-    type:'poem', name:it.name, author:it.author, dynasty:it.dynasty, line:it.line
-  }));
-}
-function genYingYan(items, shuffle){
-  const scores = trendBoost('映言', items);
-  const picks = pickReal(YING_YAN_LIB, scores, shuffle, 6);
-  return picks.map(it=>({
-    type:'film', name:it.name, genre:it.type, line:it.line, role:it.role, actor:it.actor
-  }));
-}
+// 晚风留声：从真实歌曲库/实时歌单生成结构化选题（非编造常驻，实时优先）
 function genLiuSheng(music, shuffle){
   let list = (music && music.length)? music.slice() : FALLBACK_SONGS.slice();
   if(shuffle) shuffleArr(list);
@@ -2265,20 +1909,17 @@ async function applyLiveItems(items){
   /* 用实时热词 × 各栏目赛道，生成严格对口的选题（联网为主 · 每刷新鲜）—— 非结构化栏目 */
   let generated=[];
   COLLECTIONS.forEach(c=>{ if(!STRUCTURED_COLS.has(c.key)) generated = generated.concat(genColTopics(c.key, items, 4, colTopicRot)); });
-  /* 实时参考：三栏结构化选题（联网即拉取真实诗词/台词/歌曲，标「实时参考」浮前；离线则退回种子参考） */
+  /* 实时参考：结构化选题（联网即拉取真实歌曲，标「实时参考」浮前；离线则退回种子参考） */
   const selfTags=(state.tagPool||[]).filter(x=>x.self).map(x=>x.tag);
   bumpNonce();
-  let livePoems=[], liveQuotes=[], liveSongs=[];
+  let liveSongs=[];
   try{
-    [livePoems, liveQuotes, liveSongs] = await Promise.all([
-      fetchLivePoems(6).catch(()=>[]),
-      fetchLiveQuotes(items, selfTags).catch(()=>[]),
+    [liveSongs] = await Promise.all([
       fetchLiveSongs(6, items, selfTags).catch(()=>[])
     ]);
   }catch(e){ console.warn('[live] 结构化实时参考获取异常：', e&&e.message); }
   const cL=colOf('留声');
   const liveStruct=[];
-  /* 诗笺/映言 合集已移除：古诗词与影视台词选题不再生成 */
   (liveSongs||[]).forEach(s=> liveStruct.push(makeStructTopic('留声',cL,s,now,true)));
   /* 离线种子兜底：仅当某栏无实时参考时才补种子（保证离线/失败仍可见，标「参考·离线」） */
   const offlineStruct=[];
@@ -2323,7 +1964,7 @@ function genColTopics(colKey, liveItems, maxN, rot){
   }
   return out;
 }
-/* —— 结构化选题引擎（晚风留声；诗笺/映言 合集已移除）——
+/* —— 结构化选题引擎（晚风留声）——
    联网优先：实时热词命中种子作品 → 标记为「实时」浮到前面；
    本地种子仅参考：未命中的作品按 rot 旋转补足，标记为「参考·离线」。 */
 const STRUCTURED_COLS = new Set(['留声']);
@@ -2331,10 +1972,8 @@ const STRUCTURED_COLS = new Set(['留声']);
 function makeStructTopic(colKey, c, seed, now, isLive){
   const meta = Object.assign({kind:colKey}, seed);
   let title='';
-  if(colKey==='诗笺')      title = '《'+seed.name+'》·'+seed.author+'('+seed.dynasty+')　'+seed.line;
-  else if(colKey==='映言') title = '《'+seed.name+'》['+seed.type+']　“'+seed.line+'”　'+seed.role+' / '+seed.actor;
-  else if(colKey==='留声') title = '「'+seed.name+'」—'+seed.singer;
-  const refTag = (seed.author||seed.singer||seed.type||'');
+  if(colKey==='留声') title = '「'+seed.name+'」—'+seed.singer;
+  const refTag = (seed.singer||'');
   return {
     id:'gen'+now+'_'+colKey+'_'+seed.name,
     title:title, meta:meta,
@@ -2406,28 +2045,6 @@ function samplePool(pool, n, nonce){
   return arr.slice(0, n);
 }
 
-/* 晚风诗笺：同源诗词库（每次刷新轮换不同诗） */
-async function fetchLivePoems(n){
-  const data = await loadJson('poems');
-  return samplePool((data && data.length) ? data : SEED_SHIJIAN, n||6, _refreshNonce);
-}
-/* 晚风映言：同源台词库（优先命中当前热词/我的主题，未命中则按 nonce 轮换补足） */
-async function fetchLiveQuotes(items, selfTags){
-  const pool = (await loadJson('quotes')) || SEED_YINGYAN;
-  if(!pool || !pool.length) return [];
-  const texts=(items||[]).map(x=>String((x&&(x.t||x.title))||'')).concat(selfTags||[]).filter(Boolean);
-  const hits=[]; const seen=new Set();
-  for(const txt of texts){
-    for(const q of pool){
-      if(seen.has(q.name)) continue;
-      if(q.themes && q.themes.some(t=> txt.indexOf(t)>=0)){ hits.push(q); seen.add(q.name); }
-      else if(txt.indexOf(q.name)>=0 || (q.actor&&txt.indexOf(q.actor)>=0)){ hits.push(q); seen.add(q.name); }
-    }
-  }
-  if(hits.length>=6) return hits.slice(0,6);
-  const rest = samplePool(pool.filter(q=>!seen.has(q.name)), 6-hits.length, _refreshNonce);
-  return hits.concat(rest).slice(0,6);
-}
 /* 晚风留声：同源歌曲库（每次刷新轮换不同歌） */
 async function fetchLiveSongs(n, items, selfTags){
   const data = await loadJson('songs');
@@ -2440,9 +2057,7 @@ async function refreshStructuredCol(colKey){
   const selfTags=(state.tagPool||[]).filter(x=>x.self).map(x=>x.tag);
   let items=[];
   try{
-    if(colKey==='诗笺') items=await fetchLivePoems(6).catch(()=>[]);
-    else if(colKey==='映言') items=await fetchLiveQuotes(LAST_LIVE_ITEMS, selfTags).catch(()=>[]);
-    else if(colKey==='留声') items=await fetchLiveSongs(6, LAST_LIVE_ITEMS, selfTags).catch(()=>[]);
+    if(colKey==='留声') items=await fetchLiveSongs(6, LAST_LIVE_ITEMS, selfTags).catch(()=>[]);
   }catch(e){}
   let cards=items.map(s=> makeStructTopic(colKey,c,s,now,true));
   if(!cards.length){ (COL_TOPIC_TPL[colKey]||[]).forEach(s=> cards.push(makeStructTopic(colKey,c,s,now,false))); }
@@ -2660,7 +2275,7 @@ function themePickTags(colKey, plats, title, text, n, extraLive){
     if(ex){ ex.live=ex.live||live; ex.self=ex.self||self; ex.hitLive=ex.hitLive||hitLive; if(heat) ex.heat=Math.max(ex.heat||0,heat); return; }
     candMap.set(kl,{tag,col:guessCol(tag),live,self,hitLive,heat:heat||0,src:src||''});
   };
-  extractEntities(title,text,colKey).forEach(t=>add(t,false,false,false,0,'entity'));        // ① 结构化实体（古诗词·作者/剧名/角色演员/歌名—歌手）最高优先
+  extractEntities(title,text,colKey).forEach(t=>add(t,false,false,false,0,'entity'));        // ① 结构化实体（歌名—歌手）最高优先
   extractSelfTags(title,text,colKey).forEach(t=>add(t,false,true,false,0,'self'));            // ② 情感主题词典（氛围向，天然相关）
   extractBodyTags(text).forEach(t=>add(t,false,false,false,0,'body'));                       // ③ 文案原文实挖（内容向，最贴合）
   (state.tagPool||[]).filter(x=>x.live).forEach(x=>add(x.tag,true,false,!!x.hitLive,x.heat||1,'pool'));   // ④ 实时热门（含抖音真实热度）
@@ -2854,7 +2469,7 @@ function renderMaterials(){
   });
   const box=document.getElementById('materialList');
   if(!list.length){
-    box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><div>'+(q?'没有匹配的素材':'还没有素材，点「收素材」存一句诗词 / 台词 / 歌词 / 金句')+'</div></div>';
+    box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><div>'+(q?'没有匹配的素材':'还没有素材，点「收素材」存一句歌词 / 金句 / 其它')+'</div></div>';
     return;
   }
   box.innerHTML=list.map(m=>{
@@ -2872,6 +2487,7 @@ function renderMaterials(){
         <span class="chip" style="${typeCls}">${m.type||'素材'}</span>
         ${(m.tags||[]).map(t=>`<span class="chip chip-tag">#${esc(t)}</span>`).join('')}
         ${m.note?`<span class="chip chip-tag" style="background:var(--accent-soft);color:var(--orange)">💡 ${esc(m.note)}</span>`:''}
+        <span class="chip chip-time" title="收录时间">🕒 ${fmtDateTime(m.createdAt)||'—'}</span>
       </div>
       <div class="item-actions">
         <button class="mini" onclick="act('toggleUsed','${encId(m.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>${m.used?'标记未用':'标记已用'}</button>
@@ -2898,7 +2514,7 @@ function findSimilarMaterial(inputContent, excludeId){
 function openMaterialModal(id, defaultCol){
   editing={type:'material',id:id||null};
   const m=id? state.materials.find(x=>x.id===id):null;
-  const initCol = m? m.collection : (defaultCol||'诗笺');
+  const initCol = m? m.collection : (defaultCol||'碎语');
   const matTypeOpts = MAT_TYPES.map(t=>`<option value="${t}" ${(m&&m.type===t)||(!m&&MAT_TYPE_DEFAULT[initCol]===t)?'selected':''}>${t}</option>`).join('');
   const html=`
     <h3>${m?'编辑素材':'收一条素材'} <span style="font-size:12px;font-weight:500;color:var(--ink2)">· 弹药池</span></h3>
@@ -2907,7 +2523,7 @@ function openMaterialModal(id, defaultCol){
       <div class="field"><label>归属合集</label><select id="m_col">${colOptions(initCol)}</select></div>
       <div class="field"><label>素材类型</label><select id="m_type">${matTypeOpts}</select></div>
     </div>
-    <div class="field"><label>素材原文（诗词句 / 台词 / 歌词 / 金句）</label><textarea id="m_content" placeholder="如：竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生" oninput="liveMatCheck()">${m?esc(m.content):''}</textarea></div>
+    <div class="field"><label>素材原文（歌词 / 金句 / 其它）</label><textarea id="m_content" placeholder="如：后来，我总算学会了如何去爱" oninput="liveMatCheck()">${m?esc(m.content):''}</textarea></div>
     <div class="field"><label>出处 / 作者</label><input id="m_author" value="${m?esc(m.author):''}" placeholder="苏轼《定风波》/ 电影《阿甘正传》/ 歌曲《起风了》"></div>
     <div class="field"><label>主题标签（逗号分隔）</label><input id="m_tags" value="${m?(m.tags||[]).join(', '):''}" placeholder="如：豁达, 苏轼, 古诗"></div>
     <div class="field"><label>灵感备注（可选）</label><input id="m_note" value="${m?esc(m.note):''}" placeholder="想做成什么主题 / 搭配什么 BGM…"></div>
@@ -4206,7 +3822,7 @@ function importWorks(skip){
 function downloadImpTemplate(){
   const head='合集,标题,形式,发布平台,发布日期,播放,点赞,收藏,评论,转发,时长,BGM,标签,作品链接';
   /* 多值单元格（发布平台）必须加引号，否则列会错位 */
-  const demo='诗笺,"示例：苏轼《定风波》·一蓑烟雨任平生",视频,"抖音,小红书",2026-08-01,12000,800,300,50,30,1:05,遇见,古诗 豁达,https://v.douyin.com/example';
+  const demo='碎语,"示例：后来，我总算学会了如何去爱",视频,"抖音,小红书",2026-08-01,12000,800,300,50,30,1:05,遇见,治愈 遗憾,https://v.douyin.com/example';
   const csv='\uFEFF'+head+'\r\n'+demo+'\r\n';
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
