@@ -314,7 +314,7 @@
   /* 迷你色盘：点「色盘」chip 后在板子与工具条之间展开，不用滑到下方 */
   .palette-mini{display:none;padding:6px 10px;background:var(--bg-card);border-top:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);}
   .palette-mini.show{display:block;}
-  .palette-mini-inner{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-x;}
+  .palette-mini-inner{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-x;overscroll-behavior-x:contain;}
   .palette-mini-inner::-webkit-scrollbar{display:none;}
   .pm-swatch{flex:0 0 28px;width:28px;height:28px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(31,27,22,.2);cursor:pointer;position:relative;}
   .pm-swatch.on{box-shadow:0 0 0 2px var(--sage),0 1px 3px rgba(31,27,22,.2);}
@@ -343,7 +343,7 @@
   .zone-hint{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);background:rgba(122,132,113,.12);border:1px solid rgba(122,132,113,.3);border-radius:10px;padding:6px 10px;margin-top:6px;line-height:1.4;}
   .zone-hint b{color:var(--wood);}
   .zc-chip{width:12px;height:12px;border-radius:50%;box-shadow:inset 0 -1px 2px rgba(0,0,0,.2),inset 0 1px 1px rgba(255,255,255,.5);flex:0 0 auto;}
-  .palette{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:4px 2px 10px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--wood-soft) transparent;touch-action:pan-x;}
+  .palette{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:4px 2px 10px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--wood-soft) transparent;touch-action:pan-x;overscroll-behavior-x:contain;}
   .palette::-webkit-scrollbar{height:5px;}
   .palette::-webkit-scrollbar-thumb{background:var(--wood-soft);border-radius:5px;}
   .palette::-webkit-scrollbar-thumb:hover{background:var(--wood);}
@@ -3726,6 +3726,26 @@ paletteEl.addEventListener('wheel',e=>{
     paletteEl.scrollLeft+=(Math.abs(e.deltaY)>=Math.abs(e.deltaX)?e.deltaY:e.deltaX);
   }
 },{passive:false});
+/* 触控滑动选色：在大/迷你色盘上按住并左右拖动，手指划过哪个色块就选中哪个（左右滑动选择） */
+function attachSwipeSelect(container,sel){
+  if(!container)return;
+  let scrub=null;
+  container.addEventListener('pointerdown',e=>{
+    const sw=e.target.closest(sel); if(!sw)return;
+    scrub=sw; selectColor(sw.dataset.key);
+  });
+  container.addEventListener('pointermove',e=>{
+    if(!scrub)return;
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const sw=el&&el.closest(sel);
+    if(sw&&sw!==scrub){scrub=sw;selectColor(sw.dataset.key);}
+  });
+  const end=()=>{scrub=null;};
+  container.addEventListener('pointerup',end);
+  container.addEventListener('pointercancel',end);
+}
+attachSwipeSelect(paletteEl,'.swatch');
+attachSwipeSelect(paletteMiniInner,'.pm-swatch');
 function updateSwatches(){
   document.querySelectorAll('.swatch').forEach(s=>{
     const p=PAL[s.dataset.key];
