@@ -81,8 +81,11 @@
   /* toolbar */
   .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
   .search{flex:1;min-width:200px;position:relative}
-  .search input{width:100%;padding:11px 12px 11px 38px;border:1px solid var(--line);border-radius:12px;font-size:16px;font-family:inherit;background:#fff}
+  .search input{width:100%;padding:11px 38px 11px 38px;border:1px solid var(--line);border-radius:12px;font-size:16px;font-family:inherit;background:#fff}
   .search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--ink2)}
+  .search-clear{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:22px;height:22px;display:none;align-items:center;justify-content:center;border:none;border-radius:50%;background:var(--line);color:var(--ink2);font-size:13px;line-height:1;cursor:pointer;padding:0;transition:.12s}
+  .search-clear:hover{background:#cfd5e3;color:var(--ink)}
+  .search-clear.show{display:flex}
   .select{border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;font-family:inherit;min-height:44px;color:var(--ink)}
 
   /* 库数量统计条 */
@@ -569,6 +572,7 @@
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="workSearch" placeholder="搜索标题 / 文案 / 标签 / 合集，重复项标红…" oninput="renderWorks()">
+        <button type="button" class="search-clear" id="workSearchClear" onclick="clearSearch('work')" title="清空搜索" aria-label="清空搜索">✕</button>
       </div>
       <select class="select" id="workPlatFilter" onchange="renderWorks()">
         <option value="">全部平台</option>
@@ -599,6 +603,7 @@
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="ideaSearch" placeholder="搜索灵感 / 选题内容…" oninput="renderIdeas()">
+        <button type="button" class="search-clear" id="ideaSearchClear" onclick="clearSearch('idea')" title="清空搜索" aria-label="清空搜索">✕</button>
       </div>
       <select class="select" id="ideaStatusFilter" onchange="renderIdeas()">
         <option value="">全部状态</option>
@@ -624,6 +629,7 @@
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
         <input id="matSearch" placeholder="搜索素材原文 / 出处 / 标签 / 合集…" oninput="renderMaterials()">
+        <button type="button" class="search-clear" id="matSearchClear" onclick="clearSearch('mat')" title="清空搜索" aria-label="清空搜索">✕</button>
       </div>
       <button class="btn btn-soft" id="batchBtnMat" onclick="batchToggleMode('mat')">多选</button>
       <button class="btn btn-primary" onclick="openMaterialModal(null, state.matColFilter)">
@@ -1340,6 +1346,7 @@ function workCardMetrics(w, plat){
   return def.map(([k,name])=>`<div class="metric"><b>${fmt(m[k])}</b><span>${name}</span></div>`).join('');
 }
 function renderWorks(){
+  searchClearToggle('work');
   const $=(id)=>document.getElementById(id);
   const q=(($('workSearch')&&$('workSearch').value)||'').trim().toLowerCase();
   const cf=(state.workColFilter)||'';
@@ -1461,6 +1468,7 @@ function runDedup(){
 
 /* ============ 灵感选题 ============ */
 function renderIdeas(){
+  searchClearToggle('idea');
   renderHotTopics();
   renderRhythm();
   const q=(document.getElementById('ideaSearch').value||'').trim().toLowerCase();
@@ -2555,6 +2563,7 @@ function setColFilter(kind, key){
 }
 /* ============ 素材库 ============ */
 function renderMaterials(){
+  searchClearToggle('mat');
   const cf=(state.matColFilter)||'';
   const stEl=document.getElementById('matStats'); if(stEl) stEl.innerHTML=libStatsHtml(state.materials, cf, 'mat');
   const q=(document.getElementById('matSearch').value||'').trim().toLowerCase();
@@ -4013,6 +4022,17 @@ ACTIONS.saveWorkFromMaterial=saveWorkFromMaterial;
   window.addEventListener('scroll',onScroll,{passive:true});
   onScroll();
 })();
+
+/* ===== 搜索框一键清空（作品库 / 素材库 / 灵感库） ===== */
+const SEARCH_INPUT={work:'workSearch',mat:'matSearch',idea:'ideaSearch'};
+function clearSearch(kind){
+  const inp=document.getElementById(SEARCH_INPUT[kind]); if(inp) inp.value='';
+  if(kind==='work') renderWorks(); else if(kind==='mat') renderMaterials(); else renderIdeas();
+}
+function searchClearToggle(kind){
+  const inp=document.getElementById(SEARCH_INPUT[kind]); const btn=document.getElementById(SEARCH_INPUT[kind]+'Clear');
+  if(inp&&btn) btn.classList.toggle('show', !!(inp.value||'').trim());
+}
 
 /* ===== 批量操作（作品库 / 素材库多选：改合集 · 加标签 · 删除） ===== */
 const BATCH={work:{on:false,sel:new Set(),list:[]},mat:{on:false,sel:new Set(),list:[]}};
