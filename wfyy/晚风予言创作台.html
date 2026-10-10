@@ -283,6 +283,13 @@
   .col-topic-line{font-size:13px;color:#2a3140;line-height:1.6;background:#f7f8fc;border-radius:8px;padding:7px 9px;border-left:3px solid var(--c)}
   .col-topic-meta{font-size:12px;color:#5a6172;font-weight:700}
   .col-topic-src{font-size:11.5px;color:#e0533d;font-weight:700;background:#fff4f1;border:1px solid #ffd9cf;border-radius:7px;padding:4px 7px;line-height:1.45;word-break:break-word}
+  .col-trend{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:6px;margin-right:5px;vertical-align:middle;line-height:1.5}
+  .col-trend.new{color:#d4380d;background:#fff1eb;border:1px solid #ffccc0}
+  .col-trend.up{color:#cf1322;background:#fff1f0;border:1px solid #ffccc0}
+  .col-trend.live{color:#096dd9;background:#e6f4ff;border:1px solid #91d5ff}
+  .col-trend.down{color:#389e0d;background:#f6ffed;border:1px solid #b7eb8f}
+  .hot-plat-sub{font-style:normal;font-size:10px;font-weight:600;color:#9aa1b3;margin-left:5px;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hot-plat.on .hot-plat-sub{color:rgba(255,255,255,.92)}
   .col-empty{font-size:12px;color:var(--ink2);opacity:.8;padding:4px 0}
   .col-topic .mini{align-self:flex-start;margin-top:1px}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
@@ -1548,10 +1555,11 @@ function renderHotTopics(){
   box.innerHTML=`<div class="hot-wrap">
     <div class="hot-head">
       <div class="hot-title-main">✨ ${COLLECTIONS.length} 栏选题灵感</div>
-      <button class="btn btn-primary" id="inspireGen" onclick="genInspiration('all')" style="min-height:36px;padding:6px 12px">🔄 生成选题灵感</button>
-      <button class="btn btn-soft" id="inspireShuffle" onclick="genInspiration('all', false, true)" style="min-height:36px;padding:6px 12px">↻ 换一批</button>
+      <button class="btn btn-primary" id="inspireGen" onclick="genInspiration()" style="min-height:36px;padding:6px 12px">🔄 生成选题灵感</button>
+      <button class="btn btn-soft" id="inspireShuffle" onclick="genInspiration(null, false, true)" style="min-height:36px;padding:6px 12px">↻ 换一批</button>
       <button class="btn btn-soft" onclick="configProxy()" style="min-height:36px;padding:6px 12px" title="配置实时代理（本机 Node / Cloudflare Worker）">⚙ 代理</button>
     </div>
+    ${inspireTabsHtml()}
     ${renderInspire()}
   </div>`;
 }
@@ -1584,7 +1592,7 @@ function refreshHotTopics(){
   if(btn){ btn.disabled=true; btn.textContent='刷新中…'; }
   fetchLiveItems().then(items=>{
     applyLiveItems(items);
-    genInspiration(state.activeHotPlat||'all', true);
+    genInspiration(state.activeHotPlat||'douyin', true);
     if(btn){ btn.disabled=false; btn.textContent='↻ 刷新'; }
   }).catch(e=>{
     const msg=(e&&e.offline)?'当前设备未联网，已保留离线热点库':'精选库与实时热榜都连不上，已保留离线热点库';
@@ -1629,20 +1637,22 @@ async function fetchLiveHotViaProxy(plat){
    页面自动尝试：已配置 Worker URL → 本机 localhost:8787 → 否则提示配置。热榜本身不展示，仅作选题参考。 */
 const INSPIRE_TABS = [...LIVE_PLATFORMS, {key:'all', name:'全网综合', note:'跨平台'}];
 async function genInspiration(plat, cached, shuffle){
-  plat='all'; state.activeHotPlat='all';   // 选题原料统一来自「全网综合」跨平台真实热门话题
+  // 抖音是一等公民：默认以「抖音热门话题+趋势」为选题源头，再结合各赛道生成选题；可切到「全网综合」
+  plat = plat || state.activeHotPlat || 'douyin';
+  state.activeHotPlat = plat;
   const btn=document.getElementById('inspireGen');
   if(btn){ btn.disabled=true; btn.textContent='生成中…'; }
   let items;
   if(cached){
-    items = collectLiveItems();
+    items = collectLiveItems(plat);
   } else {
-    try{ items = await fetchInspireTopics('all'); }catch(e){ items=null; }
+    try{ items = await fetchInspireTopics(plat); }catch(e){ items=null; }
     if(items && items.length){
       state.liveHot = state.liveHot||{};
-      state.liveHot.all = { items: items.map(x=>({t:x.t, heat:x.heat, src:x.src||'全网'})), updatedAt: Date.now() };
+      state.liveHot[plat] = { items: items.map(x=>({t:x.t, heat:x.heat, src:x.src||platName(plat), trend:x.trend||null})), updatedAt: Date.now() };
     } else {
-      items = collectLiveItems();
-      if(items && items.length) flashToast('代理未连接，已用作品库生成选题');
+      items = collectLiveItems(plat);
+      if(items && items.length) flashToast((plat==='douyin'?'抖音':'全网')+'实时未连接，已用缓存/作品库生成选题');
     }
   }
   if(!items || !items.length){
@@ -1669,31 +1679,32 @@ function dedupeInspire(arr){
   return out;
 }
 /* 选题灵感原料聚合（第一性原理：抖音是一等公民，无需代理也应可用）。
-   链路：① 已配置代理 → 逐平台拉取（抖音/微博/小红书/知乎/B站，均带真实热度）
+   链路：① 已配置代理 → 逐平台拉取（抖音为首选，均带真实热度与趋势）
         ② 代理不可用 → 浏览器 CORS 实时源（vvhan/oioweb/pearktrue + jina 兜底，其中 vvhan 已将抖音映射为「抖音」）
-        ③ 仍失败 → 同源静态 hot.json（已由 GitHub Action 每 30 分钟刷新，含抖音+热度）
-   每条带 src(平台) 与 heat(真实热度)，供选题卡标注「来源：抖音热点… · 热度」。 */
+        ③ 仍失败 → 同源静态 hot.json（已由 GitHub Action 每 30 分钟刷新，含抖音+热度+趋势）
+   plat='douyin' 时只取抖音；plat='all' 时取跨平台。每条带 src(平台)/heat(热度)/trend(趋势)，供选题卡标注。 */
 async function fetchInspireTopics(plat){
-  const want = (plat==='all') ? ['douyin','weibo','xhs','zhihu','bili'] : [plat];
+  const onlyDouyin = (plat==='douyin');
+  const want = onlyDouyin ? ['douyin'] : ((plat==='all') ? ['douyin','weibo','xhs','zhihu','bili'] : [plat]);
   const out=[];
   let viaProxy=0;
   await Promise.all(want.map(async p=>{
     try{
       const d=await fetchLiveHotViaProxy(p);
-      (d.items||[]).forEach(it=>{ const t=String(it.t||it.title||'').replace(/\s+/g,' ').trim().slice(0,80); if(t.length>=2) out.push({t, heat:Number(it.heat||it.hot||0)||0, src:platName(p)}); viaProxy++; });
+      (d.items||[]).forEach(it=>{ const t=String(it.t||it.title||'').replace(/\s+/g,' ').trim().slice(0,80); if(t.length>=2) out.push({t, heat:Number(it.heat||it.hot||0)||0, src:platName(p), trend:'实时'}); viaProxy++; });
     }catch(e){}
   }));
   if(viaProxy) return dedupeInspire(out).slice(0,60);
   // 代理不可用：浏览器 CORS 实时（含抖音，无需代理）
   try{
     const b=await fetchLiveTrendingFast().catch(()=>[]);
-    (b||[]).forEach(x=>{ const t=typeof x==='string'?x:String((x&&(x.t||x.title))||'').trim(); if(t.length>=2) out.push({t, heat:Number(x&&x.heat)||0, src:(x&&x.plat)||'全网'}); });
+    (b||[]).forEach(x=>{ const t=typeof x==='string'?x:String((x&&(x.t||x.title))||'').trim(); if(t.length>=2 && (!onlyDouyin || (x&&x.plat)==='抖音')) out.push({t, heat:Number(x&&x.heat)||0, src:(x&&x.plat)||'全网', trend:'实时'}); });
   }catch(e){}
   if(out.length) return dedupeInspire(out).slice(0,60);
-  // 仍失败：同源静态 hot.json 兜底
+  // 仍失败：同源静态 hot.json 兜底（抖音模式只取抖音）
   try{
     const hj=await loadJson('hot');
-    if(Array.isArray(hj)) hj.forEach(x=>{ const t=String(x.t||x.title||'').trim(); if(t.length>=2) out.push({t, heat:Number(x.heat)||0, src:x.plat||'精选'}); });
+    if(Array.isArray(hj)) hj.forEach(x=>{ const t=String(x.t||x.title||'').trim(); const p=String(x.plat||'精选'); if(t.length>=2 && (!onlyDouyin || p.indexOf('抖音')>=0)) out.push({t, heat:Number(x.heat)||0, src:p, trend:x.trend||null}); });
   }catch(e){}
   return dedupeInspire(out).slice(0,60);
 }
@@ -1727,7 +1738,7 @@ function buildColumnTopics(items, music, shuffle){
       // 诗笺/映言/留声 改用真实作品数据（见下方生成器），不走热榜转译，避免生硬结合与编造
       if(m.key==='留声') return;
       const f=deriveCore(m.hit, m.key);
-      byCol[m.key].push({ core:f.core, emo:f.emo, heat:Number(it.heat)||0, kind:(it.src==='常驻'?'常驻':'实时'), plat:String(it.src||'全网'), phrase:String(it.t||'') });
+      byCol[m.key].push({ core:f.core, emo:f.emo, heat:Number(it.heat)||0, kind:(it.src==='常驻'?'常驻':'实时'), plat:String(it.src||'全网'), phrase:String(it.t||''), trend:it.trend||null });
     });
   });
   const result={};
@@ -1747,7 +1758,7 @@ function buildColumnTopics(items, music, shuffle){
 function makeTopicCard(col, a){
   const tpl=COL_TOPIC_GEN[col];
   const title=tpl.titles[Math.floor(Math.random()*tpl.titles.length)](a.core);
-  return { title, points:tpl.points(a.core,a.emo), kind:a.kind, heat:a.heat, plat:a.plat, phrase:a.phrase };
+  return { title, points:tpl.points(a.core,a.emo), kind:a.kind, heat:a.heat, plat:a.plat, phrase:a.phrase, trend:a.trend };
 }
 function renderInspire(){
   const data=state.colTopics||{};
@@ -1781,7 +1792,7 @@ function colTopicHtml(c, cd, ki){
     <div class="col-topic-head">
       <span class="col-topic-title">${esc(cd.title)}</span>
     </div>
-    ${cd.phrase&&cd.plat?`<div class="col-topic-src">🔥 来源：${esc(cd.plat)}热点「${esc(cd.phrase)}」 · ${inspireHeatLabel(cd.heat)}</div>`:''}
+    ${cd.phrase&&cd.plat?`<div class="col-topic-src">${inspireTrendBadge(cd.trend)}🔥 来源：${esc(cd.plat)}热点「${esc(cd.phrase)}」 · ${inspireHeatLabel(cd.heat)}</div>`:''}
     <div class="col-topic-pts">${cd.points.map(p=>`<div class="col-pt">${esc(p)}</div>`).join('')}</div>
     <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
   </div>`;
@@ -1922,20 +1933,36 @@ function inspireHeatLabel(h){
   if(h>=1e4) return '🔥 在榜话题';
   return '🔥 话题';
 }
+function inspireTrendBadge(trend){
+  // 把趋势信号显式标出：新上榜/上升/实时为高动量（值得追），下降/持续为常规
+  const t=String(trend||'');
+  if(t==='新上榜') return '<span class="col-trend new">🆕 新上榜</span>';
+  if(t==='上升') return '<span class="col-trend up">📈 上升</span>';
+  if(t==='实时') return '<span class="col-trend live">⚡ 实时</span>';
+  if(t==='下降') return '<span class="col-trend down">📉 下降</span>';
+  return '';
+}
 function setHotPlat(k){
   state.activeHotPlat=k;
   genInspiration(k);
 }
 function inspireTabsHtml(){
-  // 仅保留「全网综合」入口：选题灵感统一来自跨平台真实热门话题，不再分平台切换
-  return `<div class="live-tabs"><span class="hot-plat on"><b>全网综合</b><i>跨平台真实热门</i></span></div>`;
+  // 抖音为一等公民：默认「抖音热门」；可切「全网综合」。选中态跟随 state.activeHotPlat
+  const tabs=[
+    {k:'douyin', n:'抖音热门', i:'话题+趋势 · 结合你的赛道'},
+    {k:'all', n:'全网综合', i:'跨平台真实热门'},
+  ];
+  const cur=state.activeHotPlat||'douyin';
+  return '<div class="live-tabs">'+tabs.map(t=>`<span class="hot-plat${cur===t.k?' on':''}" style="cursor:pointer" onclick="setHotPlat('${t.k}')"><b>${esc(t.n)}</b><span class="hot-plat-sub">${esc(t.i)}</span></span>`).join('')+'</div>';
 }
-/* 兜底数据源：代理不可用时，用已缓存的 liveHot 或定时热榜 LAST_LIVE_ITEMS */
-function collectLiveItems(){
+/* 兜底数据源：代理不可用时，用已缓存的 liveHot（按平台）或定时热榜 LAST_LIVE_ITEMS */
+function collectLiveItems(plat){
+  const onlyDouyin = (plat==='douyin');
   const out=[]; const seen=new Set();
   const lh=state.liveHot||{};
-  Object.keys(lh).forEach(k=>{ (lh[k].items||[]).forEach(it=>{ const t=it&&it.t; if(t&&!seen.has(t)){ seen.add(t); out.push({t, heat:Number(it.heat)||0, src:it.src||platName(k)});} }); });
-  if(!out.length && LAST_LIVE_ITEMS && LAST_LIVE_ITEMS.length) return LAST_LIVE_ITEMS.slice().map(x=>({t:String((x&&(x.t||x.title))||''), heat:0, src:'定时热榜'}));
+  const keys = plat ? [plat] : Object.keys(lh);
+  keys.forEach(k=>{ (lh[k].items||[]).forEach(it=>{ const t=it&&it.t; if(t&&!seen.has(t)){ const s=it.src||platName(k); if(onlyDouyin && s.indexOf('抖音')<0) return; seen.add(t); out.push({t, heat:Number(it.heat)||0, src:s, trend:it.trend||null}); } }); });
+  if(!out.length && !onlyDouyin && LAST_LIVE_ITEMS && LAST_LIVE_ITEMS.length) return LAST_LIVE_ITEMS.slice().map(x=>({t:String((x&&(x.t||x.title))||''), heat:Number(x.heat)||0, src:x.src||x.plat||'定时热榜', trend:x.trend||null}));
   return out;
 }
 function configProxy(){

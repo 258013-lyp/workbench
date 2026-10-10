@@ -110,16 +110,28 @@ const SOURCES = [
   { name: 'oioweb-douyin', plat: '抖音', fn: genericJSON('https://api.oioweb.cn/api/v1/douyin', '抖音') },
 ];
 
-// 读取上一轮 hot.json，用于计算趋势（新上榜 / 持续在榜）
-function prevPhrases() {
+// 读取上一轮 hot.json，构建「短语→热度」映射，用于计算真实趋势（新上榜 / 上升 / 持平 / 下降）
+function prevHeat() {
   try {
-    if (!existsSync(PREV_PATH)) return new Set();
+    if (!existsSync(PREV_PATH)) return new Map();
     const arr = JSON.parse(readFileSync(PREV_PATH, 'utf8'));
-    if (!Array.isArray(arr)) return new Set();
-    return new Set(arr.map((x) => String(x.t || '').toLowerCase()).filter(Boolean));
+    if (!Array.isArray(arr)) return new Map();
+    const m = new Map();
+    arr.forEach((x) => { const k = String(x.t || '').toLowerCase(); if (k) m.set(k, Number(x.heat) || 0); });
+    return m;
   } catch (e) {
-    return new Set();
+    return new Map();
   }
+}
+function trendOf(phrase, heat, prev) {
+  const k = phrase.toLowerCase();
+  if (!prev.has(k)) return '新上榜';
+  const ph = prev.get(k);
+  if (ph <= 0) return '持续';
+  const r = heat / ph;
+  if (r >= 1.15) return '上升';
+  if (r <= 0.85) return '下降';
+  return '持续';
 }
 
 async function main() {
@@ -161,9 +173,9 @@ async function main() {
     process.exit(0);
   }
 
-  // 趋势：与上轮对比
-  const prev = prevPhrases();
-  merged.forEach((x) => { x.trend = prev.has(x.t.toLowerCase()) ? '持续' : '新'; });
+  // 真实趋势：与本轮抓取前的上一版 hot.json 对比（新上榜 / 上升 / 持平 / 下降）
+  const prev = prevHeat();
+  merged.forEach((x) => { x.trend = trendOf(x.t, x.heat, prev); });
 
   // 平台均衡取样：避免单平台淹没；抖音至少保证 8 条（若源可用）
   const groups = {};
@@ -199,7 +211,7 @@ async function main() {
     const j = Math.floor(Math.random() * (i + 1));
     [out[i], out[j]] = [out[j], out[i]];
   }
-  console.log(`输出 ${out.length} 条，平台分布：` + plats.map((p) => `${p}:${groups[p].length}`).join('，'));
+  console.log(`输出 ${out.length} 条，平台分布：` + plats.map((p) => `${p}:${count[p]}`).join('，'));
 
   const body = JSON.stringify(out.slice(0, TOTAL), null, 2);
   for (const p of OUT_PATHS) {
