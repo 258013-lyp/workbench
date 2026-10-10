@@ -282,12 +282,14 @@
   .col-pt{font-size:12px;color:#3a4151;line-height:1.5;background:#f7f8fc;border-radius:8px;padding:5px 8px;border-left:2px solid var(--c)}
   .col-topic-line{font-size:13px;color:#2a3140;line-height:1.6;background:#f7f8fc;border-radius:8px;padding:7px 9px;border-left:3px solid var(--c)}
   .col-topic-meta{font-size:12px;color:#5a6172;font-weight:700}
+  .col-topic-src{font-size:11.5px;color:#e0533d;font-weight:700;background:#fff4f1;border:1px solid #ffd9cf;border-radius:7px;padding:4px 7px;line-height:1.45;word-break:break-word}
   .col-empty{font-size:12px;color:var(--ink2);opacity:.8;padding:4px 0}
   .col-topic .mini{align-self:flex-start;margin-top:1px}
   .hot-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
   .hot-live{font-size:10px;font-weight:700;color:#fff;background:var(--red);border-radius:10px;padding:2px 7px}
   .hot-ref{font-size:10px;font-weight:700;color:#7a8194;background:#eef0f5;border:1px solid #dfe3ee;border-radius:10px;padding:2px 7px}
   .hot-title{font-size:14px;font-weight:700;line-height:1.35}
+  .hot-src{font-size:11px;color:#e0533d;font-weight:700;margin-top:5px}
   .hot-angle{font-size:12px;color:var(--ink2);margin-top:6px;line-height:1.5}
   /* 三栏结构化选题卡片 */
   .topic-struct{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}
@@ -936,9 +938,12 @@ async function fetchLiveItems(){
               .map(x=>({
                 t:String((x&&(x.t||x.title))||'').slice(0,80),
                 plat:String((x&&x.plat)||'精选').slice(0,12),
+                src:String((x&&x.plat)||'精选').slice(0,12),   // 来源平台（抖音/微博…，用于选题卡「来源」标注）
                 col:(x&&x.col)?String(x.col).slice(0,12):null,
                 angle:x.angle!=null?String(x.angle).slice(0,120):null,
-                tag:x.tag!=null?String(x.tag).slice(0,12):null
+                tag:x.tag!=null?String(x.tag).slice(0,12):null,
+                heat:Number(x&&x.heat)||0,                 // 真实热度（抖音/微博等带热度的源）
+                trend:x&&x.trend?String(x.trend).slice(0,4):null   // 趋势：新上榜 / 持续在榜
               }));
 }
 function hotToTag(word){ const t=(word||'').replace(/[，。、！？!?；;：:""''（）()【】\[\]·\s]/g,'').slice(0,12); return t; }
@@ -1502,7 +1507,8 @@ function topicDisplay(h){
         +'<span class="t-sub">— '+esc(m.singer)+'</span></div>';
     }
   }
-  return '<div class="hot-title">'+esc(h.title)+'</div>';
+  const src = (h && h.fromPlat && h.live) ? '<div class="hot-src">🔥 '+esc(h.fromPlat)+' · '+inspireHeatLabel(h.heat)+'</div>' : '';
+  return '<div class="hot-title">'+esc(h.title)+'</div>'+src;
 }
 function renderHotTopics(){
   const box=document.getElementById('hotTopics');
@@ -1653,13 +1659,43 @@ async function genInspiration(plat, cached, shuffle){
   const total = Object.keys(data).reduce((s,k)=> s + (data[k]?data[k].length:0), 0);
   flashToast('已为 '+COLLECTIONS.length+' 个合集生成 '+total+' 条选题');
 }
-async function fetchInspireTopics(plat){
-  if(plat==='all'){
-    const d = await fetchLiveHotViaProxy('all');
-    return (d.items||[]).map(it=>({ t:it.t, heat:Number(it.heat)||0, src:it.src||'全网' }));
+function dedupeInspire(arr){
+  const seen=new Set(); const out=[];
+  for(const x of arr){
+    const k=String(x&&x.t||'').toLowerCase();
+    if(!k || seen.has(k)) continue;
+    seen.add(k); out.push(x);
   }
-  const d = await fetchLiveHotViaProxy(plat);
-  return (d.items||[]).map(it=>({ t:it.t, heat:Number(it.heat)||0, src:platName(plat) }));
+  return out;
+}
+/* 选题灵感原料聚合（第一性原理：抖音是一等公民，无需代理也应可用）。
+   链路：① 已配置代理 → 逐平台拉取（抖音/微博/小红书/知乎/B站，均带真实热度）
+        ② 代理不可用 → 浏览器 CORS 实时源（vvhan/oioweb/pearktrue + jina 兜底，其中 vvhan 已将抖音映射为「抖音」）
+        ③ 仍失败 → 同源静态 hot.json（已由 GitHub Action 每 30 分钟刷新，含抖音+热度）
+   每条带 src(平台) 与 heat(真实热度)，供选题卡标注「来源：抖音热点… · 热度」。 */
+async function fetchInspireTopics(plat){
+  const want = (plat==='all') ? ['douyin','weibo','xhs','zhihu','bili'] : [plat];
+  const out=[];
+  let viaProxy=0;
+  await Promise.all(want.map(async p=>{
+    try{
+      const d=await fetchLiveHotViaProxy(p);
+      (d.items||[]).forEach(it=>{ const t=String(it.t||it.title||'').replace(/\s+/g,' ').trim().slice(0,80); if(t.length>=2) out.push({t, heat:Number(it.heat||it.hot||0)||0, src:platName(p)}); viaProxy++; });
+    }catch(e){}
+  }));
+  if(viaProxy) return dedupeInspire(out).slice(0,60);
+  // 代理不可用：浏览器 CORS 实时（含抖音，无需代理）
+  try{
+    const b=await fetchLiveTrendingFast().catch(()=>[]);
+    (b||[]).forEach(x=>{ const t=typeof x==='string'?x:String((x&&(x.t||x.title))||'').trim(); if(t.length>=2) out.push({t, heat:Number(x&&x.heat)||0, src:(x&&x.plat)||'全网'}); });
+  }catch(e){}
+  if(out.length) return dedupeInspire(out).slice(0,60);
+  // 仍失败：同源静态 hot.json 兜底
+  try{
+    const hj=await loadJson('hot');
+    if(Array.isArray(hj)) hj.forEach(x=>{ const t=String(x.t||x.title||'').trim(); if(t.length>=2) out.push({t, heat:Number(x.heat)||0, src:x.plat||'精选'}); });
+  }catch(e){}
+  return dedupeInspire(out).slice(0,60);
 }
 async function fetchLiveMusic(){
   const base = (function(){try{return (localStorage.getItem('LIVE_PROXY_URL')||'').trim();}catch(e){return '';}})() || 'http://localhost:8787';
@@ -1691,7 +1727,7 @@ function buildColumnTopics(items, music, shuffle){
       // 诗笺/映言/留声 改用真实作品数据（见下方生成器），不走热榜转译，避免生硬结合与编造
       if(m.key==='留声') return;
       const f=deriveCore(m.hit, m.key);
-      byCol[m.key].push({ core:f.core, emo:f.emo, heat:Number(it.heat)||0, kind:(it.src==='常驻'?'常驻':'实时') });
+      byCol[m.key].push({ core:f.core, emo:f.emo, heat:Number(it.heat)||0, kind:(it.src==='常驻'?'常驻':'实时'), plat:String(it.src||'全网'), phrase:String(it.t||'') });
     });
   });
   const result={};
@@ -1711,7 +1747,7 @@ function buildColumnTopics(items, music, shuffle){
 function makeTopicCard(col, a){
   const tpl=COL_TOPIC_GEN[col];
   const title=tpl.titles[Math.floor(Math.random()*tpl.titles.length)](a.core);
-  return { title, points:tpl.points(a.core,a.emo), kind:a.kind, heat:a.heat };
+  return { title, points:tpl.points(a.core,a.emo), kind:a.kind, heat:a.heat, plat:a.plat, phrase:a.phrase };
 }
 function renderInspire(){
   const data=state.colTopics||{};
@@ -1745,6 +1781,7 @@ function colTopicHtml(c, cd, ki){
     <div class="col-topic-head">
       <span class="col-topic-title">${esc(cd.title)}</span>
     </div>
+    ${cd.phrase&&cd.plat?`<div class="col-topic-src">🔥 来源：${esc(cd.plat)}热点「${esc(cd.phrase)}」 · ${inspireHeatLabel(cd.heat)}</div>`:''}
     <div class="col-topic-pts">${cd.points.map(p=>`<div class="col-pt">${esc(p)}</div>`).join('')}</div>
     <button class="mini" onclick="adoptColTopic('${c.key}',${ki})">＋ 采用</button>
   </div>`;
@@ -1777,6 +1814,8 @@ const COL_MATCH = {
   心事:{ kw:['恋爱','暗恋','分手','失恋','结婚','离婚','婚姻','暧昧','心动','喜欢','前任','异地','出轨','渣男','渣女','遗憾','释然','emo','孤独','思念','想你','哭了','眼泪','委屈','难过','情绪','心里话','闺蜜','兄弟','友情','亲情','家庭','催婚','相亲','表白','陪伴','告别','白月光','意难平','破防','复合','安全感','依赖','聊天','冷战','断联'], strong:['失恋','暗恋','心动','遗憾','释然','emo','孤独','思念','暧昧','分手','出轨','意难平','破防','复合','白月光'] },
   留声:{ kw:['歌曲','歌','音乐','单曲','专辑','演唱会','现场','翻唱','BGM','OST','旋律','歌词','听歌','歌单','老歌','新歌','宝藏歌曲','耳机','循环','歌手','乐队','钢琴','小提琴','治愈系','rap','说唱','民谣','摇滚','音综','音乐节','出圈','神曲','副歌','vocal','舞台','Live','热歌榜','改编','合唱'], strong:['歌词','歌单','单曲循环','演唱会','旋律','翻唱','现场','BGM','OST','音乐节'] }
 };
+/* 增强：补充生活/日常类关键词，让更多抖音生活向热点能进入碎语赛道（第一性原理：抖音生活类热点最贴合本号调性） */
+if(COL_MATCH['碎语']){ COL_MATCH['碎语'].kw.push('老家','回家','假期','旅行','国庆','春节','周末','烟火气','生活里','小日子','上班路上','下班','City Walk','citywalk'); }
 function matchCollections(text){
   const t=text||''; const out=[];
   Object.keys(COL_MATCH).forEach(col=>{
@@ -1852,6 +1891,16 @@ const COL_EVERGREEN_BANK = {
   留声:['某个失眠的夜晚','说不出的心事','现场那一刻的共振','单曲循环的那首老歌'],
 };
 /* ============ 留声：真实作品数据（非编造常驻，实时优先） ============ */
+/* 离线兜底歌单：实时/同源歌曲库均不可用时，留声栏仍有真实可采用的歌曲（避免崩溃，也保证离线可用） */
+const FALLBACK_SONGS = [
+  {name:'晚安', singer:'颜人中'}, {name:'错位时空', singer:'艾辰'}, {name:'水星记', singer:'郭顶'},
+  {name:'句句未提', singer:'于果'}, {name:'其实都没有', singer:'薛之谦'}, {name:'哑巴', singer:'薛之谦'},
+  {name:'如愿', singer:'王菲'}, {name:'平凡之路', singer:'朴树'}, {name:'晴天文案', singer:''},{name:'起风了', singer:'买辣椒也用券'},
+  {name:'孤勇者', singer:'陈奕迅'}, {name:'路过人间', singer:'李宗盛'}, {name:'给你们', singer:'张宇'},
+  {name:'小幸运', singer:'田馥甄'}, {name:'可惜没如果', singer:'林俊杰'}, {name:'夜空中最亮的星', singer:'逃跑计划'},
+  {name:'岁月神偷', singer:'金玟岐'}, {name:'体面', singer:'于文文'}, {name:'说散就散', singer:'JC陈泳彤'},
+  {name:'慢慢喜欢你', singer:'莫文蔚'},
+];
 function shuffleArr(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const x=a[i]; a[i]=a[j]; a[j]=x; } return a; }
 
 // 晚风留声：从真实歌曲库/实时歌单生成结构化选题（非编造常驻，实时优先）
@@ -1932,7 +1981,8 @@ async function applyLiveItems(items){
       angle: it.angle || ('实时热点 · 网友正在讨论，可切入你的'+colOf(col).name+'视角'),
       col: col,
       tags: it.tag ? [it.tag] : [],
-      source:'热点库·'+(it.plat||''), live:true, fetchedAt:now
+      source:'热点库·'+(it.plat||''), live:true, fetchedAt:now,
+      heat:Number(it.heat)||0, trend:it.trend||null, fromPhrase:it.t, fromPlat:it.src||it.plat||''
     };
   });
   /* 用实时热词 × 各栏目赛道，生成严格对口的选题（联网为主 · 每刷新鲜）—— 非结构化栏目 */
