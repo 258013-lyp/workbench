@@ -2583,7 +2583,9 @@ function renderMaterials(){
     return (b.createdAt||0)-(a.createdAt||0);
   });
   BATCH.mat.list=list.map(m=>m.id); batchBtnSync('mat');
-  renderMatFunnel();
+  const matFunnelEl=document.getElementById('matFunnel');
+  if(q || cf){ if(matFunnelEl) matFunnelEl.innerHTML=''; }   // 搜索 / 按合集筛选时，隐藏漏斗，避免挤占搜索结果查看空间
+  else if(matFunnelEl) renderMatFunnel();
   const box=document.getElementById('materialList');
   if(!list.length){
     box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><div>'+(q?'没有匹配的素材':'还没有素材，点「收素材」存一句歌词 / 金句 / 其它')+'</div></div>';
