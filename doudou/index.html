@@ -131,8 +131,8 @@
   /* 防误触：按下时预览将落子的格（木色描边），让用户看清再松手 */
   .cell.press-preview{z-index:3;}
   @keyframes tapFx{0%{transform:scale(1);}35%{transform:scale(1.18);box-shadow:inset 0 0 0 2px var(--wood),0 2px 7px rgba(31,27,22,.22);}100%{transform:scale(1);}}
-  /* 色区放置：高亮「该放当前选中色」的格 */
-  .cell.zone-hl{box-shadow:inset 0 0 0 2.5px var(--sage);background:rgba(122,132,113,.16);}
+  /* 色区放置：高亮「该放当前选中色」的格（加粗+加深，且用内联样式压过陪伴虚影） */
+  .cell.zone-hl{box-shadow:inset 0 0 0 3px var(--sage);background:rgba(122,132,113,.30);}
   /* 错位检查：红/橙圈标错、漏、多 */
   .cell.err-wrong{box-shadow:inset 0 0 0 2.5px #C0563F;}
   .cell.err-miss{box-shadow:inset 0 0 0 2.5px #C0563F;background:rgba(192,86,63,.14);}
@@ -3583,7 +3583,9 @@ function render(){
     else{cell.classList.add('empty');}
     if(!fused&&curRow>=0&&Math.floor(i/COLS)===curRow)cell.classList.add('row-hl');
     /* 色区放置：高亮「目标为当前选中色、且还没摆对」的格 —— 真实按色摆放 */
-    if(!fused&&placeMode&&patternMode&&t===selected&&c!==selected) cell.classList.add('zone-hl');
+    if(!fused&&placeMode&&patternMode&&t===selected&&c!==selected){
+      if(!companionOn||Math.floor(i/COLS)===curRow){ cell.classList.add('zone-hl'); cell.style.boxShadow='inset 0 0 0 3px var(--sage)'; cell.style.background='rgba(122,132,113,.32)'; }
+    }
     /* 错位检查：红圈标出 错 / 漏 / 多 */
     if(!fused&&checkMode){
       if(t!==null&&c===null) cell.classList.add('err-miss');
@@ -3636,9 +3638,10 @@ function render(){
   /* 色区放置提示 */
   const zh=document.getElementById('zoneHint');
   if(!fused&&placeMode&&patternMode){
-    let n=0;for(let i=0;i<TOTAL;i++)if(target[i]===selected&&grid[i]!==selected)n++;
+    let n=0;for(let i=0;i<TOTAL;i++)if(target[i]===selected&&grid[i]!==selected&&(!companionOn||Math.floor(i/COLS)===curRow))n++;
     zh.style.display='flex';
-    zh.innerHTML=`<span class="zc-chip" style="background:${PAL[selected].hex}"></span>本步：把 <b>${PAL[selected].name}</b> 放到高亮格（还差 ${n} 颗）· 换色即换区`;
+    const linkNote=companionOn?' · 仅当前行':'';
+    zh.innerHTML=`<span class="zc-chip" style="background:${PAL[selected].hex}"></span>本步：把 <b>${PAL[selected].name}</b> 放到高亮格（还差 ${n} 颗）· 换色即换区${linkNote}`;
   } else zh.style.display='none';
 
   /* 错位检查汇总 */
@@ -3718,6 +3721,7 @@ function selectColor(k){
   document.querySelectorAll('.swatch').forEach(s=>{const on=s.dataset.key===k;s.classList.toggle('active',on);if(on)s.scrollIntoView({inline:'center',block:'nearest'});});
   document.querySelectorAll('.pm-swatch').forEach(s=>{const on=s.dataset.key===k;s.classList.toggle('on',on);if(on)s.scrollIntoView({inline:'center',block:'nearest'});});
   document.getElementById('paletteStock').textContent=PAL[k].name+' · 库存 '+PAL[k].stock;
+  if(placeMode) render();   /* 色区放置开启时换色要立即刷新高亮区与提示（先开功能再换色也同步） */
 }
 /* 桌面鼠标滚轮：纵向滚轮也能横向滚动色盘（否则只能 Shift+滚轮，像摆设） */
 paletteEl.addEventListener('wheel',e=>{
