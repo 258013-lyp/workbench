@@ -1671,7 +1671,7 @@ function renderStickers(){
   );
   list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if(!list.length){
-    box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><path d="M7.5 7.5h.01"/></svg><div>'+(q?'没有匹配的贴图文案':'还没有贴图，点「存贴图文案」攒一句封面标题 / 正文金句')+'</div></div>';
+    box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><path d="M7.5 7.5h.01"/></svg><div>'+(q?'没有匹配的贴图文案':'还没有贴图，点「存贴图文案」攒一句正文金句')+'</div></div>';
     return;
   }
   box.innerHTML=list.map(s=>{
@@ -1703,7 +1703,7 @@ function openStickerModal(id){
     <h3>${s?'编辑贴图文案':'存一条贴图文案'} <span style="font-size:12px;font-weight:500;color:var(--ink2)">· 公众号贴图</span></h3>
     <div class="warn-box" id="stickerWarn"></div>
     <div class="field"><label>用途分类</label><select id="s_scene">${sceneOpts}</select></div>
-    <div class="field"><label>文案主标题（封面标题 / 金句一句话）</label><textarea id="s_title" placeholder="如：别让今天的情绪，赔上明天的运气" oninput="liveStickerCheck()">${s?esc(s.title):''}</textarea></div>
+    <div class="field"><label>文案主标题（金句一句话）</label><textarea id="s_title" placeholder="如：别让今天的情绪，赔上明天的运气" oninput="liveStickerCheck()">${s?esc(s.title):''}</textarea></div>
     <div class="field"><label>正文 / 完整文案（可选）</label><textarea id="s_content" placeholder="正文里要展开的完整文案或说明…" oninput="liveStickerCheck()">${s?esc(s.content):''}</textarea></div>
     <div class="field"><label>主题标签（逗号分隔）</label><input id="s_tags" value="${s?(s.tags||[]).join(', '):''}" placeholder="如：治愈, 标题, 成长"></div>
     <div class="field"><label>备注 / 用法（可选）</label><input id="s_note" value="${s?esc(s.note):''}" placeholder="适合哪类账号 / 怎么用…"></div>
