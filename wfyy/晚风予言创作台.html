@@ -547,6 +547,9 @@
     <button class="tab" data-tab="materials" onclick="switchTab('materials')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>素材库
     </button>
+    <button class="tab" data-tab="stickers" onclick="switchTab('stickers')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><path d="M7.5 7.5h.01"/></svg>公众号贴图
+    </button>
     <button class="tab" data-tab="data" onclick="switchTab('data')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>数据看板
     </button>
@@ -639,6 +642,32 @@
     <div class="lib-stats" id="matStats"></div>
     <div id="matFunnel"></div>
     <div class="list" id="materialList"></div>
+  </section>
+
+  <!-- ===== 公众号贴图（独立模块，与素材库互不关联） ===== -->
+  <section class="panel" id="panel-stickers">
+    <div class="banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><path d="M7.5 7.5h.01"/></svg>
+      公众号贴图是你攒的「推文弹药」：把封面标题、正文金句、引导关注/互动的文案存进来，做选题时随手取用。它与素材库完全独立——不共享合集、不互相查重、也不串入作品与灵感。
+    </div>
+    <div class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        <input id="stickerSearch" placeholder="搜索主文案 / 正文 / 备注 / 标签…" oninput="renderStickers()">
+      </div>
+      <select class="select" id="stickerSceneFilter" onchange="renderStickers()">
+        <option value="">全部用途</option>
+        <option value="title">封面标题</option>
+        <option value="quote">正文金句</option>
+        <option value="guide">引导关注</option>
+        <option value="interact">互动留言</option>
+        <option value="other">其它文案</option>
+      </select>
+      <button class="btn btn-primary" onclick="openStickerModal()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>存贴图文案
+      </button>
+    </div>
+    <div class="list" id="stickerList"></div>
   </section>
 
   <!-- ===== 数据复盘 ===== -->
@@ -753,6 +782,15 @@ const STATUS = ['灵感','选题中','已排期','已发布'];
 const STATUS_CLASS = ['st-0','st-1','st-2','st-3'];
 const MAT_TYPES = ['歌词','金句','其它'];
 const MAT_TYPE_DEFAULT = {碎语:'金句',心事:'金句',留声:'歌词'};
+/* 公众号贴图：独立分类维度，与 COLLECTIONS 完全无关，仅用于贴图库自身的用途归类 */
+const STICKER_SCENES = [
+  {key:'title', name:'封面标题', color:'#E08CA8', desc:'推文封面/标题位吸睛文案'},
+  {key:'quote', name:'正文金句', color:'#7C8FE0', desc:'正文里可引用的高光句子'},
+  {key:'guide', name:'引导关注', color:'#6BAE8F', desc:'结尾/文中引导关注、点赞、在看'},
+  {key:'interact', name:'互动留言', color:'#D99A5B', desc:'评论区互动/话题引导话术'},
+  {key:'other', name:'其它文案', color:'#9B7FD0', desc:'其它可用的推文文案素材'},
+];
+function sceneOf(key){ return STICKER_SCENES.find(c=>c.key===key) || STICKER_SCENES[STICKER_SCENES.length-1]; }
 const TAG_FETCHED = '2026-08-25';
 const TAG_BASE = {
   '抖音':{ 碎语:['治愈系','人间清醒','成长','碎碎念','生活感悟','反焦虑','松弛感','慢生活'], 心事:['情感共鸣','遗憾','心动','释然','深夜emo','未说出口的话','孤独患者'], 留声:['治愈歌单','单曲循环','歌词文案','我的宝藏歌曲','耳机里的世界','深夜音乐'] },
@@ -1183,7 +1221,7 @@ function HOT_SEED(){
 }
 
 /* ============ 状态 ============ */
-let state = { works:[], ideas:[], materials:[], hotTopics:[], tagPool:[], activeCol:null, liveHot:{}, activeHotPlat:'all', fiveColIdeas:{}, inspire:[] };
+let state = { works:[], ideas:[], materials:[], stickers:[], hotTopics:[], tagPool:[], activeCol:null, liveHot:{}, activeHotPlat:'all', fiveColIdeas:{}, inspire:[] };
 let curTab = 'works';
 let editing = null; // {type, id}
 let cloud = loadCloud();
@@ -1242,7 +1280,7 @@ function load(){
     try{ save(); }catch(e){}
   } else {
     state = {
-      works: safeArr(d.works), ideas: safeArr(d.ideas), materials: safeArr(d.materials),
+      works: safeArr(d.works), ideas: safeArr(d.ideas), materials: safeArr(d.materials), stickers: safeArr(d.stickers),
       hotTopics: safeArr(d.hotTopics), tagPool: safeArr(d.tagPool),
       activeCol: d.activeCol||null, tagUpdated: d.tagUpdated||null,
       liveHot: d.liveHot||{}, activeHotPlat: d.activeHotPlat||'all', fiveColIdeas: d.fiveColIdeas||{}, inspire: d.inspire||[]
@@ -1295,6 +1333,11 @@ function sampleData(){
       {id:uid(),collection:'留声',type:'歌词',content:'这一路上走走停停，顺着少年漂流的痕迹。',author:'《起风了》- 买辣椒也用券',tags:['青春','成长'],used:true,note:'已配「那一年的夏天」',createdAt:Date.now()},
       {id:uid(),collection:'碎语',type:'金句',content:'城市的灯火，也是一种陪伴。',author:'生活观察',tags:['治愈','城市','孤独'],used:false,note:'深夜散步灵感，待开主题',createdAt:Date.now()},
       {id:uid(),collection:'心事',type:'金句',content:'有些话放在心里，就成了永远的遗憾。',author:'',tags:['遗憾','心动'],used:true,note:'已配《晚安》做一期',createdAt:Date.now()},
+    ],
+    stickers:[
+      {id:uid(),scene:'title',title:'别让今天的情绪，赔上明天的运气',content:'',tags:['治愈','标题'],note:'适合情感/成长类账号封面',used:false,createdAt:Date.now()},
+      {id:uid(),scene:'quote',title:'所谓成长，就是把哭声调成静音的过程',content:'正文里可用：我们都在学着体面地告别情绪。',tags:['成长','金句'],note:'正文金句，配故事型推文',used:false,createdAt:Date.now()},
+      {id:uid(),scene:'guide',title:'如果这句戳中你，点个「在看」让我知道',content:'',tags:['引导','互动'],note:'结尾引导关注/在看',used:false,createdAt:Date.now()},
     ]
   };
 }
@@ -2561,6 +2604,101 @@ function setColFilter(kind, key){
   if(kind==='work'){ state.workColFilter = (state.workColFilter===key)? '' : key; renderWorks(); }
   else { state.matColFilter = (state.matColFilter===key)? '' : key; renderMaterials(); }
 }
+/* ============ 公众号贴图（独立模块，与素材库不关联） ============ */
+/* 贴图查重：仅在贴图库内部比对，绝不串入素材库 */
+function findSimilarSticker(inputTitle, excludeId){
+  const c=(inputTitle||'').trim().toLowerCase();
+  if(!c||c.length<2) return [];
+  return state.stickers.filter(s=>{
+    if(s.id===excludeId) return false;
+    const st=(s.title||'').toLowerCase();
+    const sc=(s.content||'').toLowerCase();
+    return (st.includes(c)||c.includes(st)||sc.includes(c)||c.includes(sc));
+  });
+}
+function renderStickers(){
+  const box=document.getElementById('stickerList');
+  if(!box) return;
+  const q=(document.getElementById('stickerSearch').value||'').trim().toLowerCase();
+  const sf=document.getElementById('stickerSceneFilter').value;
+  let list=state.stickers.slice();
+  if(sf) list=list.filter(s=>s.scene===sf);
+  if(q) list=list.filter(s=>
+    (s.title||'').toLowerCase().includes(q) ||
+    (s.content||'').toLowerCase().includes(q) ||
+    (s.note||'').toLowerCase().includes(q) ||
+    (s.tags||[]).join(' ').toLowerCase().includes(q)
+  );
+  list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(!list.length){
+    box.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><path d="M7.5 7.5h.01"/></svg><div>'+(q?'没有匹配的贴图文案':'还没有贴图，点「存贴图文案」攒一句封面标题 / 正文金句')+'</div></div>';
+    return;
+  }
+  box.innerHTML=list.map(s=>{
+    const c=sceneOf(s.scene);
+    return `<div class="item">
+      <div class="item-top">
+        <span class="col-tag" style="background:${c.color}">${c.name}</span>
+        <p class="item-title">${s.used?'✅ ':''}${esc(s.title)}</p>
+        ${s.used?`<span class="st st-3">已用</span>`:`<span class="st st-0">未用</span>`}
+      </div>
+      ${s.content?`<div class="item-sub">正文：${esc(s.content)}</div>`:''}
+      <div class="item-meta">
+        ${(s.tags||[]).map(t=>`<span class="chip chip-tag">#${esc(t)}</span>`).join('')}
+        ${s.note?`<span class="chip chip-tag" style="background:var(--accent-soft);color:var(--orange)">💡 ${esc(s.note)}</span>`:''}
+      </div>
+      <div class="item-actions">
+        <button class="mini" onclick="act('toggleStickerUsed','${encId(s.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>${s.used?'标记未用':'标记已用'}</button>
+        <button class="mini" onclick="act('openStickerModal','${encId(s.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16 4l4 4-11 11-4 1 1-4z"/></svg>编辑</button>
+        <button class="mini" onclick="act('delSticker','${encId(s.id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openStickerModal(id){
+  editing={type:'sticker',id:id||null};
+  const s=id? state.stickers.find(x=>x.id===id):null;
+  const sceneOpts=STICKER_SCENES.map(c=>`<option value="${c.key}" ${(s&&s.scene===c.key)||(!s&&c.key==='title')?'selected':''}>${c.name}</option>`).join('');
+  const html=`
+    <h3>${s?'编辑贴图文案':'存一条贴图文案'} <span style="font-size:12px;font-weight:500;color:var(--ink2)">· 公众号贴图</span></h3>
+    <div class="warn-box" id="stickerWarn"></div>
+    <div class="field"><label>用途分类</label><select id="s_scene">${sceneOpts}</select></div>
+    <div class="field"><label>文案主标题（封面标题 / 金句一句话）</label><textarea id="s_title" placeholder="如：别让今天的情绪，赔上明天的运气" oninput="liveStickerCheck()">${s?esc(s.title):''}</textarea></div>
+    <div class="field"><label>正文 / 完整文案（可选）</label><textarea id="s_content" placeholder="正文里要展开的完整文案或说明…" oninput="liveStickerCheck()">${s?esc(s.content):''}</textarea></div>
+    <div class="field"><label>主题标签（逗号分隔）</label><input id="s_tags" value="${s?(s.tags||[]).join(', '):''}" placeholder="如：治愈, 标题, 成长"></div>
+    <div class="field"><label>备注 / 用法（可选）</label><input id="s_note" value="${s?esc(s.note):''}" placeholder="适合哪类账号 / 怎么用…"></div>
+    <div class="field"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="s_used" ${s&&s.used?'checked':''} style="width:16px;height:16px;accent-color:var(--primary)"> 已用于推文</label></div>
+    <div class="modal-actions">
+      <button class="btn btn-line" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveSticker()">${s?'保存':'存入贴图库'}</button>
+    </div>`;
+  openModal(html);
+  if(s) liveStickerCheck();
+}
+function liveStickerCheck(){
+  const title=document.getElementById('s_title').value;
+  const content=document.getElementById('s_content')? document.getElementById('s_content').value:'';
+  const hits=findSimilarSticker(title+'\n'+content,editing.id);
+  const box=document.getElementById('stickerWarn');
+  if(hits.length){ box.classList.add('show'); box.innerHTML='<b>⚠ 贴图库已有相似文案：</b><br>'+hits.map(h=>'• '+esc(h.title)+(h.content?'（'+esc(h.content).slice(0,24)+(h.content.length>24?'…':'')+'）':'')).join('<br>'); }
+  else box.classList.remove('show');
+}
+function saveSticker(){
+  const g=id=>document.getElementById(id).value;
+  const rec={ scene:g('s_scene'), title:g('s_title').trim(), content:g('s_content').trim(),
+    tags:g('s_tags').split(',').map(x=>x.trim()).filter(Boolean),
+    note:g('s_note').trim(), used:document.getElementById('s_used').checked };
+  if(!rec.title){ alert('请填写文案主标题'); return; }
+  if(editing.id){ const i=state.stickers.findIndex(x=>x.id===editing.id); state.stickers[i]={...state.stickers[i],...rec}; }
+  else { rec.id=uid(); rec.createdAt=Date.now(); state.stickers.unshift(rec); }
+  save(); closeModal(); renderStickers();
+}
+function toggleStickerUsed(id){
+  const s=state.stickers.find(x=>x.id===id); if(!s)return;
+  s.used=!s.used; save(); renderStickers();
+}
+function delSticker(id){ if(!confirm('确定删除这条贴图文案？'))return; state.stickers=state.stickers.filter(x=>x.id!==id); save(); renderStickers(); }
+
 /* ============ 素材库 ============ */
 function renderMaterials(){
   searchClearToggle('mat');
@@ -3388,7 +3526,7 @@ function delWork(id){ if(!confirm('确定删除这条作品记录？'))return; s
 function delIdea(id){ if(!confirm('确定删除这条灵感？'))return; state.ideas=safeArr(state.ideas).filter(i=>i.id!==id); save(); renderIdeas(); renderToday(); renderCalendar(); updateCalBadge(); }
 
 /* 快速添加：根据当前 tab 打开对应弹窗 */
-function quickAdd(){ if(curTab==='ideas') openIdeaModal(); else if(curTab==='materials') openMaterialModal(null, state.matColFilter); else openWorkModal(); }
+function quickAdd(){ if(curTab==='ideas') openIdeaModal(); else if(curTab==='materials') openMaterialModal(null, state.matColFilter); else if(curTab==='stickers') openStickerModal(); else openWorkModal(); }
 
 /* ============ 云同步（GitHub） ============ */
 function loadCloud(){
@@ -3995,12 +4133,13 @@ function switchTab(tab){
   if(tab==='works') renderWorks();
   if(tab==='ideas') renderIdeas();
   if(tab==='materials') renderMaterials();
+  if(tab==='stickers') renderStickers();
   if(tab==='calendar') renderCalendar();
 }
 
 /* 合集筛选已合并进数量统计条，无需独立下拉 */
 function initFilters(){}
-function renderAll(){ renderToday(); renderWorks(); renderIdeas(); renderMaterials(); renderData(); renderCalendar(); }
+function renderAll(){ renderToday(); renderWorks(); renderIdeas(); renderMaterials(); renderStickers(); renderData(); renderCalendar(); }
 
 /* 内联 onclick 只允许调用 act(动作名, 编码id)，动作白名单在此登记 */
 ACTIONS.openWorkModal=openWorkModal;
@@ -4016,6 +4155,9 @@ ACTIONS.publishFromMaterial=publishFromMaterial;
 ACTIONS.openMaterialModal=openMaterialModal;
 ACTIONS.delMaterial=delMaterial;
 ACTIONS.saveWorkFromMaterial=saveWorkFromMaterial;
+ACTIONS.openStickerModal=openStickerModal;
+ACTIONS.delSticker=delSticker;
+ACTIONS.toggleStickerUsed=toggleStickerUsed;
 
 /* 回到顶部：作品库/素材库等长列表滚动后一键回顶 */
 (function(){
