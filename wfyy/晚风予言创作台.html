@@ -648,7 +648,7 @@
   <section class="panel" id="panel-stickers">
     <div class="banner">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L3 13V3h10l7.59 7.59a2 2 0 0 1 0 2.82z"/><path d="M7.5 7.5h.01"/></svg>
-      公众号贴图是你攒的「推文弹药」：把封面标题、正文金句、引导关注/互动的文案存进来，做选题时随手取用。它与素材库完全独立——不共享合集、不互相查重、也不串入作品与灵感。
+      公众号贴图是你攒的「推文弹药」：把正文里能直接引用的金句存进来，做选题时随手取用。它与素材库完全独立——不共享合集、不互相查重、也不串入作品与灵感。
     </div>
     <div class="toolbar">
       <div class="search">
@@ -657,11 +657,7 @@
       </div>
       <select class="select" id="stickerSceneFilter" onchange="renderStickers()">
         <option value="">全部用途</option>
-        <option value="title">封面标题</option>
         <option value="quote">正文金句</option>
-        <option value="guide">引导关注</option>
-        <option value="interact">互动留言</option>
-        <option value="other">其它文案</option>
       </select>
       <button class="btn btn-primary" onclick="openStickerModal()">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>存贴图文案
@@ -784,11 +780,7 @@ const MAT_TYPES = ['歌词','金句','其它'];
 const MAT_TYPE_DEFAULT = {碎语:'金句',心事:'金句',留声:'歌词'};
 /* 公众号贴图：独立分类维度，与 COLLECTIONS 完全无关，仅用于贴图库自身的用途归类 */
 const STICKER_SCENES = [
-  {key:'title', name:'封面标题', color:'#E08CA8', desc:'推文封面/标题位吸睛文案'},
   {key:'quote', name:'正文金句', color:'#7C8FE0', desc:'正文里可引用的高光句子'},
-  {key:'guide', name:'引导关注', color:'#6BAE8F', desc:'结尾/文中引导关注、点赞、在看'},
-  {key:'interact', name:'互动留言', color:'#D99A5B', desc:'评论区互动/话题引导话术'},
-  {key:'other', name:'其它文案', color:'#9B7FD0', desc:'其它可用的推文文案素材'},
 ];
 function sceneOf(key){ return STICKER_SCENES.find(c=>c.key===key) || STICKER_SCENES[STICKER_SCENES.length-1]; }
 const TAG_FETCHED = '2026-08-25';
@@ -1335,9 +1327,9 @@ function sampleData(){
       {id:uid(),collection:'心事',type:'金句',content:'有些话放在心里，就成了永远的遗憾。',author:'',tags:['遗憾','心动'],used:true,note:'已配《晚安》做一期',createdAt:Date.now()},
     ],
     stickers:[
-      {id:uid(),scene:'title',title:'别让今天的情绪，赔上明天的运气',content:'',tags:['治愈','标题'],note:'适合情感/成长类账号封面',used:false,createdAt:Date.now()},
       {id:uid(),scene:'quote',title:'所谓成长，就是把哭声调成静音的过程',content:'正文里可用：我们都在学着体面地告别情绪。',tags:['成长','金句'],note:'正文金句，配故事型推文',used:false,createdAt:Date.now()},
-      {id:uid(),scene:'guide',title:'如果这句戳中你，点个「在看」让我知道',content:'',tags:['引导','互动'],note:'结尾引导关注/在看',used:false,createdAt:Date.now()},
+      {id:uid(),scene:'quote',title:'城市的灯火，也是一种陪伴',content:'深夜散步灵感，适合情绪类正文引用。',tags:['治愈','城市'],note:'正文金句',used:false,createdAt:Date.now()},
+      {id:uid(),scene:'quote',title:'有些话放在心里，就成了永远的遗憾',content:'适合情感类正文引用。',tags:['遗憾','心动'],note:'正文金句',used:false,createdAt:Date.now()},
     ]
   };
 }
@@ -2658,7 +2650,7 @@ function renderStickers(){
 function openStickerModal(id){
   editing={type:'sticker',id:id||null};
   const s=id? state.stickers.find(x=>x.id===id):null;
-  const sceneOpts=STICKER_SCENES.map(c=>`<option value="${c.key}" ${(s&&s.scene===c.key)||(!s&&c.key==='title')?'selected':''}>${c.name}</option>`).join('');
+  const sceneOpts=STICKER_SCENES.map(c=>`<option value="${c.key}" ${(s&&s.scene===c.key)||(!s&&c.key==='quote')?'selected':''}>${c.name}</option>`).join('');
   const html=`
     <h3>${s?'编辑贴图文案':'存一条贴图文案'} <span style="font-size:12px;font-weight:500;color:var(--ink2)">· 公众号贴图</span></h3>
     <div class="warn-box" id="stickerWarn"></div>
