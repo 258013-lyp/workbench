@@ -4,6 +4,9 @@
 
 一个**离线可用、数据不出设备**的移动端 Web App（PWA）。可安装到手机桌面，像原生 App 一样打开即用。
 
+**线上地址**：https://258013-lyp.github.io/workbench/shiyu/
+（仓库：https://github.com/258013-lyp/workbench ，目录 `shiyu/`）
+
 ---
 
 ## 一分钟跑起来
@@ -13,7 +16,7 @@ cd 拾愈
 python -m http.server 8899
 ```
 
-浏览器打开 `http://localhost:8899`。
+浏览器打开 `http://localhost:8899`。手机直接访问线上地址即可（HTTPS，相机可用，共享 WiFi 下还能装到桌面）。
 
 **手机使用**：相机需要安全上下文（HTTPS 或 localhost）。两种方式：
 
