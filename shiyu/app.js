@@ -14,7 +14,8 @@
     current: null,       // 当前结果
     saved: false,
     mapMonth: new Date(),
-    remindTimer: null
+    remindTimer: null,
+    busy: false           // 生成中标志，防止并发/重入
   };
 
   /* ---------------- 提示 ---------------- */
@@ -124,6 +125,9 @@
 
   /* ---------------- 生成流程 ---------------- */
   async function generate(dataUrl, img) {
+    if (state.busy) return;            // 防止快速连点/重入导致并发生成与重复花 API
+    state.busy = true;
+    try {
     showLoading(true, '正在读你的此刻…');
     const features = S.analyzeImage(img);
     const seed = S.hashStr(dataUrl.slice(-200) + Date.now());
@@ -134,7 +138,7 @@
     const composed = S.compose(emotionId, features.hints, seed);
     let copy = composed.copy;
     let detail = composed.detail;
-    let sticker = S.pickSticker(emotionId, seed);
+    let stickerKeys = S.stickersFor(emotionId, features, seed);
     let source = '本地分析';
 
     const st = state.settings;
@@ -145,20 +149,44 @@
         toast('模型没接上，已用本地判断');
       } else if (r) {
         emotionId = r.emotionId; confidence = r.confidence;
-        copy = r.copy; detail = r.detail; sticker = r.sticker;
+        copy = r.copy; detail = r.detail;
+        stickerKeys = [r.sticker];
         source = '模型识别';
       }
     }
 
+    const placed = S.plan(features, stickerKeys, seed);
+
+    /* 双通道之二：联网 AI 生成贴合此照片的专属贴纸（失败则降级本地图库） */
+    let stickerImg = null;
+    if (st.genOn && st.genKey) {
+      showLoading(true, 'AI 正在为你画一张专属贴纸…');
+      const g = await S.genSticker(st, dataUrl, S.EMOTION_MAP[emotionId].label, features.hints);
+      if (g.img) stickerImg = g.img;
+      else toast('AI 生成没接上，已用本地贴纸');
+    }
+    if (stickerImg) {
+      placed[0] = { key: '__gen__', img: stickerImg, x: placed[0].x, y: placed[0].y, r: placed[0].r };
+    }
+
     state.current = {
       id: S.uid(), ts: Date.now(), dataUrl,
-      emotionId, confidence, copy, detail, sticker,
+      emotionId, confidence, copy, detail,
+      stickers: stickerKeys, placed,
       style: state.settings.style,
-      anchor: pickAnchor(seed), features
+      stickerImg,
+      features
     };
     state.saved = false;
     renderResult();
     showLoading(false);
+    } catch (err) {
+      console.error(err);
+      showLoading(false);
+      toast('生成出了点问题，再试一次');
+    } finally {
+      state.busy = false;
+    }
   }
 
   function pickAnchor(seed) {
@@ -192,7 +220,68 @@
     $('#btnSave').disabled = false;
     $('#btnSave').textContent = state.saved ? '已存入今日档案' : '存入今日档案';
 
+    applyGlow();
+    buildStickerNodes();
     layoutSticker();
+  }
+
+  /* 情绪柔光：在照片上蒙一层极淡的情绪色，只做氛围，不改照片本身 */
+  function applyGlow() {
+    const c = state.current; if (!c) return;
+    const tint = $('#photoTint'); if (!tint) return;
+    const emo = S.EMOTION_MAP[c.emotionId];
+    if (state.settings.glow) {
+      const col = emo ? emo.color : '#C87B4A';
+      tint.style.opacity = '1';
+      tint.style.background =
+        'radial-gradient(120% 85% at 50% 28%, ' + hexA(col, 0.24) + ' 0%, ' + hexA(col, 0) + ' 68%),' +
+        'linear-gradient(0deg, ' + hexA(col, 0.16) + ' 0%, ' + hexA(col, 0) + ' 52%)';
+    } else {
+      tint.style.opacity = '0';
+    }
+  }
+
+  function hexA(hex, a) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return 'rgba(200,123,74,' + a + ')';
+    const n = parseInt(m[1], 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  /* 根据 c.placed 构建可拖拽的贴纸节点（保留旧节点以复用拖拽监听） */
+  function buildStickerNodes() {
+    const c = state.current; if (!c) return;
+    const holder = $('#stickerHolder');
+    if (!holder) return;
+    const want = (c.placed || []).length;
+    const have = holder.children.length;
+    if (have < want) {
+      for (let i = have; i < want; i++) {
+        const node = document.createElement('div');
+        node.className = 'sticker-node';
+        holder.appendChild(node);
+      }
+    } else if (have > want) {
+      for (let i = want; i < have; i++) holder.removeChild(holder.lastChild);
+    }
+    (c.placed || []).forEach((p, i) => {
+      const node = holder.children[i];
+      if (!node) return;
+      node.dataset.idx = i;
+      node.innerHTML = '';
+      if (p.img) {
+        /* 联网生成的贴纸地址来自外部，用属性赋值而非拼进 innerHTML，避免注入 */
+        const im = document.createElement('img');
+        im.className = 'sticker-img';
+        im.alt = '';
+        im.src = p.img;
+        node.appendChild(im);
+      } else {
+        node.innerHTML = S.stickerSVG(p.key, {
+          size: 100, stamp: c.style === 'stamp', rotate: c.style === 'stamp' ? p.r : 0
+        });
+      }
+    });
   }
 
   function layoutSticker() {
@@ -201,54 +290,49 @@
     if (!c || !holder) return;
     const photo = $('#resultPhoto');
     const w = photo.clientWidth, h = photo.clientHeight;
-    const size = Math.max(64, Math.min(w, h) * 0.22);
-    holder.style.width = size + 'px';
-    holder.style.height = size + 'px';
-    holder.style.left = (c.anchor.x * w - size / 2) + 'px';
-    holder.style.top = (c.anchor.y * h - size / 2) + 'px';
-    holder.style.transform = 'rotate(' + c.anchor.r + 'deg)';
-    holder.innerHTML = S.stickerSVG(c.sticker, {
-      size: size,
-      color: emoInk(c.emotionId),
-      stamp: c.style === 'stamp',
-      rotate: c.style === 'stamp' ? c.anchor.r : 0
+    const size = Math.max(56, Math.min(w, h) * 0.20);
+    (c.placed || []).forEach((p, i) => {
+      const node = holder.children[i];
+      if (!node) return;
+      node.style.width = size + 'px';
+      node.style.height = size + 'px';
+      node.style.left = (p.x * w - size / 2) + 'px';
+      node.style.top = (p.y * h - size / 2) + 'px';
+      node.style.transform = 'rotate(' + p.r + 'deg)';
     });
   }
 
-  function emoInk(id) {
-    const map = {
-      tired: '#5C6577', calm: '#54766C', happy: '#B8762C', sad: '#5A6B85',
-      anxious: '#8A6248', hope: '#5C8249', lonely: '#645F7A', warm: '#A85F33'
-    };
-    return map[id] || '#3A342C';
-  }
-
-  /* 拖动注脚 */
+  /* 拖动注脚（事件委托，支持多贴纸各自拖拽） */
   (function enableDrag() {
     const holder = $('#stickerHolder');
     if (!holder) return;
-    let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+    let dragging = false, idx = -1, startX = 0, startY = 0, origX = 0, origY = 0;
     holder.addEventListener('pointerdown', e => {
+      const node = e.target.closest('.sticker-node'); if (!node) return;
       const c = state.current; if (!c) return;
-      dragging = true;
-      holder.classList.add('dragging');
-      holder.setPointerCapture(e.pointerId);
+      dragging = true; idx = +node.dataset.idx;
+      node.classList.add('dragging');
+      try { node.setPointerCapture(e.pointerId); } catch (err) {}
       startX = e.clientX; startY = e.clientY;
       const photo = $('#resultPhoto');
-      origX = c.anchor.x * photo.clientWidth;
-      origY = c.anchor.y * photo.clientHeight;
+      origX = c.placed[idx].x * photo.clientWidth;
+      origY = c.placed[idx].y * photo.clientHeight;
     });
     holder.addEventListener('pointermove', e => {
       if (!dragging) return;
-      const c = state.current;
+      const c = state.current; if (!c) return;
       const photo = $('#resultPhoto');
       const nx = origX + (e.clientX - startX);
       const ny = origY + (e.clientY - startY);
-      c.anchor.x = S.clamp(nx / photo.clientWidth, 0.08, 0.92);
-      c.anchor.y = S.clamp(ny / photo.clientHeight, 0.08, 0.92);
+      c.placed[idx].x = S.clamp(nx / photo.clientWidth, 0.06, 0.94);
+      c.placed[idx].y = S.clamp(ny / photo.clientHeight, 0.06, 0.94);
       layoutSticker();
     });
-    const end = () => { dragging = false; holder.classList.remove('dragging'); };
+    const end = e => {
+      dragging = false;
+      const n = e.target.closest && e.target.closest('.sticker-node');
+      if (n) n.classList.remove('dragging');
+    };
     holder.addEventListener('pointerup', end);
     holder.addEventListener('pointercancel', end);
   })();
@@ -266,13 +350,30 @@
     $('#resultDetail').textContent = c.detail;
   });
 
-  $('#btnStickerAgain').addEventListener('click', () => {
+  $('#btnStickerAgain').addEventListener('click', async () => {
     const c = state.current; if (!c) return;
-    c.sticker = S.pickSticker(c.emotionId, S.hashStr(c.sticker + Date.now()), c.sticker);
+    if (state.settings.genOn && state.settings.genKey) {
+      showLoading(true, 'AI 重画中…');
+      const g = await S.genSticker(state.settings, c.dataUrl, S.EMOTION_MAP[c.emotionId].label, c.features.hints);
+      showLoading(false);
+      if (g.img) {
+        c.stickerImg = g.img;
+        const r = c.placed[0] || { x: 0.18, y: 0.8, r: 0 };
+        c.placed[0] = { key: '__gen__', img: g.img, x: r.x, y: r.y, r: r.r };
+        buildStickerNodes(); layoutSticker();
+        return;
+      }
+      toast('AI 没接上，换本地贴纸');
+    }
+    const seed = S.hashStr((c.stickers || []).join() + Date.now());
+    c.stickers = S.stickersFor(c.emotionId, c.features, seed);
+    c.placed = S.plan(c.features, c.stickers, seed);
+    buildStickerNodes();
     layoutSticker();
   });
 
   function closeResult() {
+    stopRead();
     state.current = null;
     state.saved = false;
     $('#result').hidden = true;
@@ -289,8 +390,9 @@
     const item = {
       id: c.id, ts: c.ts, dataUrl: c.dataUrl,
       emotionId: c.emotionId, confidence: c.confidence,
-      copy: c.copy, detail: c.detail, sticker: c.sticker,
-      style: c.style, anchor: c.anchor
+      copy: c.copy, detail: c.detail,
+      stickers: c.stickers, placed: c.placed,
+      style: c.style
     };
     await S.idbPut(item);
     state.moments = await S.idbAll();
@@ -305,9 +407,35 @@
     const c = state.current; if (!c) return;
     try {
       const url = await buildPoster(c);
-      S.download(url, '拾愈_' + S.dateKey(new Date(c.ts)) + '_' + c.id + '.png');
-      toast('已保存图片');
+      await shareOrDownload(url, '拾愈_' + S.dateKey(new Date(c.ts)) + '_' + c.id + '.png');
+      toast('图片已就绪');
     } catch (e) { toast('导出失败'); }
+  });
+
+  /* 语音朗读（Web Speech，中文） */
+  let reading = false;
+  function pickZhVoice() {
+    const vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    return vs.find(v => /zh|cmn|Chinese|中文/i.test(v.lang + ' ' + v.name)) || null;
+  }
+  function stopRead() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    reading = false;
+    const lbl = $('#btnReadLabel'); if (lbl) lbl.textContent = '读给我听';
+  }
+  $('#btnRead').addEventListener('click', () => {
+    const c = state.current; if (!c) return;
+    if (reading) { stopRead(); return; }
+    if (!('speechSynthesis' in window)) { toast('当前设备暂不支持朗读'); return; }
+    const u = new SpeechSynthesisUtterance(c.copy);
+    u.lang = 'zh-CN';
+    const v = pickZhVoice(); if (v) u.voice = v;
+    u.rate = 0.92; u.pitch = 1.0;
+    u.onend = stopRead; u.onerror = stopRead;
+    reading = true;
+    $('#btnReadLabel').textContent = '停止朗读';
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
   });
 
   async function buildPoster(c) {
@@ -324,21 +452,26 @@
     const dw = img.width * r, dh = img.height * r;
     ctx.drawImage(img, (W - dw) / 2, (PH - dh) / 2, dw, dh);
 
-    /* 注脚 */
-    const size = Math.min(W, PH) * 0.20;
-    const svg = S.stickerSVG(c.sticker, { size: size * 2, color: emoInk(c.emotionId), stamp: c.style === 'stamp', rotate: 0 });
-    const svgImg = await new Promise((res, rej) => {
-      const i = new Image();
-      i.onload = () => res(i); i.onerror = rej;
-      i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    });
-    const ax = c.anchor.x * W - size / 2;
-    const ay = c.anchor.y * PH - size / 2;
-    ctx.save();
-    ctx.translate(ax + size / 2, ay + size / 2);
-    ctx.rotate(c.anchor.r * Math.PI / 180);
-    ctx.drawImage(svgImg, -size / 2, -size / 2, size, size);
-    ctx.restore();
+    /* 注脚（多贴纸，含 AI 生成的图片贴纸） */
+    const size = Math.min(W, PH) * 0.16;
+    const placed = c.placed && c.placed.length ? c.placed : [{ key: (c.stickers && c.stickers[0]) || 'spark', x: 0.18, y: 0.8, r: 0 }];
+    for (const p of placed) {
+      const src = p.img ? p.img
+        : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(S.stickerSVG(p.key, { size: size * 2, stamp: c.style === 'stamp', rotate: 0 }));
+      const svgImg = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i); i.onerror = rej;
+        i.src = src;
+      });
+      const ax = p.x * W - size / 2;
+      const ay = p.y * PH - size / 2;
+      const ayClamped = Math.min(Math.max(ay, 8), PH - size - 8);
+      ctx.save();
+      ctx.translate(ax + size / 2, ayClamped + size / 2);
+      ctx.rotate(p.r * Math.PI / 180);
+      ctx.drawImage(svgImg, -size / 2, -size / 2, size, size);
+      ctx.restore();
+    }
 
     /* 文案 */
     const emo = S.EMOTION_MAP[c.emotionId];
@@ -586,6 +719,185 @@
     renderMap();
   });
 
+  /* ---------------- 分享 / 复盘长图 ---------------- */
+  async function shareOrDownload(url, filename) {
+    try {
+      const blob = await (await fetch(url)).blob();
+      const file = new File([blob], filename, { type: blob.type || 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: '拾愈' });
+        return;
+      }
+    } catch (e) { /* 用户取消或不支持 → 走下载 */ }
+    S.download(url, filename);
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function loadImage(src) {
+    return new Promise((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src;
+    });
+  }
+
+  async function buildRecap(monthDate) {
+    const y = monthDate.getFullYear(), mo = monthDate.getMonth();
+    const ym = y + '-' + S.pad(mo + 1);
+    const items = state.moments
+      .filter(m => S.dateKey(new Date(m.ts)).startsWith(ym))
+      .sort((a, b) => a.ts - b.ts);
+    if (!items.length) throw new Error('empty');
+
+    const W = 1080, pad = 64;
+    const picks = items.slice(-4);
+    const H = Math.max(920, 670 + picks.length * 284 + 130);
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#FBF7F0'; ctx.fillRect(0, 0, W, H);
+
+    /* 头部 */
+    let cy = 96;
+    ctx.fillStyle = '#9A9082';
+    ctx.font = '400 26px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('拾愈 · 月度复盘', pad, cy);
+    cy += 76;
+    ctx.fillStyle = '#3A342C';
+    ctx.font = '500 56px "Songti SC","SimSun","PingFang SC",serif';
+    ctx.fillText(y + ' 年 ' + (mo + 1) + ' 月', pad, cy);
+    cy += 48;
+    ctx.fillStyle = '#6E6558';
+    ctx.font = '400 26px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('这个月，你留下了 ' + items.length + ' 个被接住的瞬间。', pad, cy);
+    cy += 64;
+
+    /* 统计三卡 */
+    const byEmo = {};
+    items.forEach(m => { byEmo[m.emotionId] = (byEmo[m.emotionId] || 0) + 1; });
+    const ranked = Object.entries(byEmo).sort((a, b) => b[1] - a[1]);
+    const topEmo = ranked[0] ? S.EMOTION_MAP[ranked[0][0]] : null;
+    const daysActive = new Set(items.map(m => S.dateKey(new Date(m.ts)))).size;
+    const cards = [
+      { n: String(items.length), t: '个瞬间' },
+      { n: String(daysActive), t: '天被记录' },
+      { n: topEmo ? topEmo.label : '—', t: '出现最多' }
+    ];
+    const cw = (W - pad * 2 - 32) / 3;
+    cards.forEach((c, i) => {
+      const x = pad + i * (cw + 16);
+      ctx.fillStyle = '#FFFFFF';
+      roundRect(ctx, x, cy, cw, 150, 20); ctx.fill();
+      ctx.fillStyle = (topEmo && i === 2) ? topEmo.color : '#3A342C';
+      ctx.font = '500 50px "Songti SC","SimSun",serif';
+      ctx.fillText(c.n, x + 28, cy + 78);
+      ctx.fillStyle = '#9A9082';
+      ctx.font = '400 24px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.fillText(c.t, x + 28, cy + 122);
+    });
+    cy += 150 + 56;
+
+    /* 情绪构成条 */
+    ctx.fillStyle = '#3A342C';
+    ctx.font = '500 30px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('情绪构成', pad, cy);
+    cy += 26;
+    const barH = 26, barW = W - pad * 2;
+    let bx = pad;
+    ranked.forEach(([id, n]) => {
+      const w = n / items.length * barW;
+      ctx.fillStyle = S.EMOTION_MAP[id].color;
+      ctx.fillRect(bx, cy, Math.max(w - 3, 2), barH);
+      bx += w;
+    });
+    if (!ranked.length) { ctx.fillStyle = '#E4DED2'; ctx.fillRect(pad, cy, barW, barH); }
+    cy += barH + 22;
+    ctx.font = '400 22px "PingFang SC","Microsoft YaHei",sans-serif';
+    let lx = pad;
+    ranked.slice(0, 6).forEach(([id, n]) => {
+      const e = S.EMOTION_MAP[id];
+      ctx.fillStyle = e.color;
+      ctx.beginPath(); ctx.arc(lx + 6, cy + 8, 6, 0, 7); ctx.fill();
+      ctx.fillStyle = '#6E6558';
+      const t = e.label + ' ' + n;
+      ctx.fillText(t, lx + 20, cy + 15);
+      lx += 26 + ctx.measureText(t).width + 30;
+    });
+    cy += 70;
+
+    /* 最近的瞬间 */
+    ctx.fillStyle = '#3A342C';
+    ctx.font = '500 30px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('最近的瞬间', pad, cy);
+    cy += 36;
+    for (const m of picks) {
+      const emo = S.EMOTION_MAP[m.emotionId];
+      ctx.fillStyle = '#FFFFFF';
+      roundRect(ctx, pad, cy, W - pad * 2, 260, 22); ctx.fill();
+      const img = await loadImage(m.dataUrl);
+      const tw = 200, th = 220;
+      ctx.save();
+      roundRect(ctx, pad + 20, cy + 20, tw, th, 14); ctx.clip();
+      const r = Math.max(tw / img.width, th / img.height);
+      const dw = img.width * r, dh = img.height * r;
+      ctx.drawImage(img, pad + 20 + (tw - dw) / 2, cy + 20 + (th - dh) / 2, dw, dh);
+      ctx.restore();
+      const tx = pad + 20 + tw + 32;
+      ctx.fillStyle = '#9A9082';
+      ctx.font = '400 22px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.fillText(S.timeLabel(m.ts) + ' · ' + emo.label, tx, cy + 58);
+      ctx.fillStyle = '#3A342C';
+      ctx.font = '500 30px "Songti SC","SimSun",serif';
+      const lines = S.wrapText(ctx, m.copy, W - tx - pad - 12, 2);
+      lines.forEach((t, i) => ctx.fillText(t, tx, cy + 112 + i * 48));
+      ctx.fillStyle = '#9A9082';
+      ctx.font = '400 20px "PingFang SC","Microsoft YaHei",sans-serif';
+      const dl = S.wrapText(ctx, m.detail || '', W - tx - pad - 12, 1);
+      if (dl[0]) ctx.fillText(dl[0], tx, cy + 216);
+      if (m.placed && m.placed[0]) {
+        try {
+          const pm = m.placed[0];
+          const src = pm.img ? pm.img
+            : 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(S.stickerSVG(pm.key, { size: 160 }));
+          const si = await loadImage(src);
+          ctx.drawImage(si, pad + 20 + tw - 26, cy + 8, 56, 56);
+        } catch (e) {}
+      }
+      cy += 260 + 24;
+    }
+
+    /* 底部 */
+    cy += 34;
+    ctx.fillStyle = '#9A9082';
+    ctx.font = '400 24px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('拾愈 · 随手一拍，治愈一整天', pad, cy);
+    const today = S.dateKey(new Date());
+    ctx.fillText(today, W - pad - ctx.measureText(today).width, cy);
+
+    return await new Promise(res => cv.toBlob(b => res(URL.createObjectURL(b)), 'image/png', 0.95));
+  }
+
+  $('#btnRecap').addEventListener('click', async () => {
+    const y = state.mapMonth.getFullYear(), mo = state.mapMonth.getMonth();
+    try {
+      showLoading(true, '正在生成本月复盘…');
+      const url = await buildRecap(state.mapMonth);
+      showLoading(false);
+      await shareOrDownload(url, '拾愈复盘_' + y + '-' + S.pad(mo + 1) + '.png');
+      toast('复盘长图已就绪');
+    } catch (e) {
+      showLoading(false);
+      toast(e.message === 'empty' ? '这个月还没有瞬间' : '生成失败，再试一次');
+    }
+  });
+
   /* ---------------- 设置 ---------------- */
   function fillSettings() {
     const s = state.settings;
@@ -595,6 +907,13 @@
     $('#cfgKey').value = s.apiKey || '';
     $('#cfgRemind').checked = !!s.remindOn;
     $('#cfgRemindHour').value = S.pad(s.remindHour) + ':00';
+    $('#cfgGlow').checked = !!s.glow;
+    $('#cfgGenOn').checked = !!s.genOn;
+    $('#cfgGenProvider').value = s.genProvider || 'openai';
+    $('#cfgGenBase').value = s.genBase || '';
+    $('#cfgGenVision').value = s.genVision || '';
+    $('#cfgGenImage').value = s.genImage || '';
+    $('#cfgGenKey').value = s.genKey || '';
     $$('#segStyle .seg-btn').forEach(b => b.classList.toggle('is-on', b.dataset.style === s.style));
   }
 
@@ -603,12 +922,74 @@
     state.settings.style = b.dataset.style;
     S.saveSettings(state.settings);
     $$('#segStyle .seg-btn').forEach(x => x.classList.toggle('is-on', x === b));
-    if (state.current) { state.current.style = b.dataset.style; layoutSticker(); }
+    if (state.current) { state.current.style = b.dataset.style; buildStickerNodes(); layoutSticker(); }
   });
 
-  ['cfgProvider', 'cfgBase', 'cfgModel', 'cfgKey'].forEach(id => {
+  $('#cfgGlow').addEventListener('change', () => {
+    state.settings.glow = $('#cfgGlow').checked;
+    S.saveSettings(state.settings);
+    applyGlow();
+  });
+
+  /* 选服务商后自动填网关/模型（国产优先），手动改过的值仍可被覆盖为用户意图——这里只在切换时填预设 */
+  $('#cfgGenProvider').addEventListener('change', () => {
+    const p = S.GEN_PRESETS[$('#cfgGenProvider').value] || S.GEN_PRESETS.openai;
+    $('#cfgGenBase').value = p.base;
+    $('#cfgGenVision').value = p.vision || '';
+    $('#cfgGenImage').value = p.image || '';
+    state.settings.genProvider = $('#cfgGenProvider').value;
+    state.settings.genBase = p.base;
+    state.settings.genVision = p.vision || '';
+    state.settings.genImage = p.image || '';
+    S.saveSettings(state.settings);
+  });
+  ['cfgGenBase', 'cfgGenVision', 'cfgGenImage', 'cfgGenKey'].forEach(id => {
     $('#' + id).addEventListener('change', () => {
-      state.settings.provider = $('#cfgProvider').value;
+      state.settings.genBase = $('#cfgGenBase').value.trim();
+      state.settings.genVision = $('#cfgGenVision').value.trim();
+      state.settings.genImage = $('#cfgGenImage').value.trim();
+      state.settings.genKey = $('#cfgGenKey').value.trim();
+      S.saveSettings(state.settings);
+    });
+  });
+  $('#cfgGenOn').addEventListener('change', () => {
+    state.settings.genOn = $('#cfgGenOn').checked;
+    S.saveSettings(state.settings);
+  });
+
+  $('#btnTestGen').addEventListener('click', async () => {
+    const st = {
+      genOn: true, genProvider: $('#cfgGenProvider').value,
+      genBase: $('#cfgGenBase').value.trim(), genVision: $('#cfgGenVision').value.trim(),
+      genImage: $('#cfgGenImage').value.trim(), genKey: $('#cfgGenKey').value.trim()
+    };
+    const out = $('#genStatus');
+    if (!st.genKey) { out.textContent = '请先填 API Key。'; return; }
+    out.textContent = '生成中…';
+    const tiny = document.createElement('canvas');
+    tiny.width = 64; tiny.height = 64;
+    const c2 = tiny.getContext('2d');
+    c2.fillStyle = '#C8B49A'; c2.fillRect(0, 0, 64, 64);
+    const r = await S.genSticker(st, tiny.toDataURL('image/jpeg', 0.8), '平静', ['光']);
+    if (r.img) out.textContent = '连上了，已生成一张贴纸。';
+    else out.textContent = '没接上：' + (r.error || '未知，检查地址/模型/Key');
+  });
+
+  /* VLM 选服务商后自动填网关与模型（国产优先），手动改的值以用户为准 */
+  $('#cfgProvider').addEventListener('change', () => {
+    const v = $('#cfgProvider').value;
+    state.settings.provider = v;
+    if (v && v !== 'off') {
+      const p = S.GEN_PRESETS[v] || S.GEN_PRESETS.openai;
+      $('#cfgBase').value = p.base;
+      $('#cfgModel').value = p.vision || '';
+      state.settings.baseUrl = p.base;
+      state.settings.model = p.vision || '';
+    }
+    S.saveSettings(state.settings);
+  });
+  ['cfgBase', 'cfgModel', 'cfgKey'].forEach(id => {
+    $('#' + id).addEventListener('change', () => {
       state.settings.baseUrl = $('#cfgBase').value.trim();
       state.settings.model = $('#cfgModel').value.trim();
       state.settings.apiKey = $('#cfgKey').value.trim();
@@ -719,6 +1100,10 @@
   drawBrand();
   fillSettings();
   startCamera();
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
   renderToday().then(() => { updateStat(); scheduleRemind(); });
 
   /* 页面隐藏时释放相机 */
@@ -727,5 +1112,5 @@
     else if ($('#view-shoot').classList.contains('is-on') && !state.current) startCamera();
   });
 
-  window.SYAPP = { state, switchView, toast, generate, renderResult, startCamera, stopCamera };
+  window.SYAPP = { state, switchView, toast, generate, renderResult, startCamera, stopCamera, buildRecap, buildPoster };
 })();
