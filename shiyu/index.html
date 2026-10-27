@@ -48,6 +48,7 @@
       <div class="result" id="result" hidden>
         <button class="result-close" id="btnCloseResult" aria-label="关闭">✕</button>
         <div class="result-photo" id="resultPhoto">
+          <div class="photo-tint" id="photoTint"></div>
           <div class="sticker-holder" id="stickerHolder"></div>
         </div>
         <div class="result-meta">
@@ -68,7 +69,12 @@
             <button class="btn btn-main" id="btnSave">存入今日档案</button>
             <button class="btn btn-ghost" id="btnExport">导出图片</button>
           </div>
-          <p class="result-tip" id="resultTip">拖动画面上的小东西，可以换位置</p>
+          <div class="result-actions">
+            <button class="btn btn-ghost btn-wide" id="btnRead">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M16 8.5a4 4 0 0 1 0 7"/><path d="M18.5 6a7 7 0 0 1 0 12"/></svg>
+              <span id="btnReadLabel">读给我听</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -114,6 +120,9 @@
       <div class="month-grid" id="monthGrid"></div>
       <div class="map-legend" id="mapLegend"></div>
       <div class="map-stats" id="mapStats"></div>
+      <div class="map-actions">
+        <button class="btn btn-main btn-wide" id="btnRecap">生成本月复盘长图</button>
+      </div>
       <div class="map-days" id="mapDays"></div>
     </div>
   </section>
@@ -127,7 +136,11 @@
           <button class="seg-btn is-on" data-style="ink">手绘注脚</button>
           <button class="seg-btn" data-style="stamp">印章</button>
         </div>
-        <p class="panel-hint">注脚是画在真实照片上的一个小东西，不改变照片本身。</p>
+        <div class="switch-row">
+          <span>情绪柔光（照片蒙一层淡淡情绪色）</span>
+          <label class="switch"><input type="checkbox" id="cfgGlow"><span></span></label>
+        </div>
+        <p class="panel-hint">注脚是画在真实照片上的一个小东西，柔光只做氛围，不改变照片本身。</p>
       </div>
 
       <div class="panel">
@@ -137,7 +150,13 @@
           <label>服务商</label>
           <select id="cfgProvider">
             <option value="off">不使用（纯离线）</option>
-            <option value="openai">OpenAI 兼容接口</option>
+            <option value="qwen">通义千问 / 通义万相</option>
+            <option value="zhipu">智谱 GLM / CogView</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="kimi">Kimi（月之暗面）</option>
+            <option value="doubao">豆包 / 火山方舟</option>
+            <option value="hunyuan">腾讯混元</option>
+            <option value="openai">OpenAI 兼容</option>
             <option value="gemini">Google Gemini</option>
           </select>
         </div>
@@ -155,6 +174,46 @@
         </div>
         <button class="btn btn-ghost btn-wide" id="btnTestApi">测试连接</button>
         <p class="panel-hint" id="apiStatus"></p>
+      </div>
+
+      <div class="panel">
+        <h3 class="panel-title">AI 生成贴纸（联网·可选）</h3>
+        <div class="switch-row">
+          <span>用 AI 生成贴合这张照片的专属贴纸</span>
+          <label class="switch"><input type="checkbox" id="cfgGenOn"><span></span></label>
+        </div>
+        <p class="panel-hint">开启后，每次拍照多走一步：视觉模型读图、生图模型画出一张专属贴纸盖在照片上。需自备 API，关闭则走本地图库贴纸。<br>读图：通义/智谱/DeepSeek/Kimi/豆包/混元 大多走 OpenAI 兼容协议，选服务商后地址自动填。生图：目前支持 通义万相(qwen-image)、智谱 CogView；其余国产模型仅支持读图，贴纸自动回退本地图库。</p>
+        <div class="field">
+          <label>服务商</label>
+          <select id="cfgGenProvider">
+            <option value="qwen">通义千问 / 通义万相</option>
+            <option value="zhipu">智谱 GLM / CogView</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="kimi">Kimi（月之暗面）</option>
+            <option value="doubao">豆包 / 火山方舟</option>
+            <option value="hunyuan">腾讯混元</option>
+            <option value="openai">OpenAI 兼容</option>
+            <option value="gemini">Google Gemini</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>接口地址</label>
+          <input id="cfgGenBase" type="text" placeholder="选服务商后自动填，可改" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>视觉模型（读图）</label>
+          <input id="cfgGenVision" type="text" placeholder="选服务商后自动填，可改" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>生图模型</label>
+          <input id="cfgGenImage" type="text" placeholder="支持生图才需要，可改" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input id="cfgGenKey" type="password" placeholder="仅保存在本机" autocomplete="off">
+        </div>
+        <button class="btn btn-ghost btn-wide" id="btnTestGen">测试生成</button>
+        <p class="panel-hint" id="genStatus"></p>
       </div>
 
       <div class="panel">
