@@ -2597,15 +2597,32 @@ function setColFilter(kind, key){
   else { state.matColFilter = (state.matColFilter===key)? '' : key; renderMaterials(); }
 }
 /* ============ 公众号贴图（独立模块，与素材库不关联） ============ */
-/* 贴图查重：仅在贴图库内部比对，绝不串入素材库 */
+/* 文本相似度：归一化（仅保留中文/字母/数字、转小写）后，用「包含」+「字符二元组重叠」判断，
+   避免只因标点差异、少数字/词差异或词序微调就把重复贴图文案漏掉 */
+function normCmp(s){
+  return (s||'').toLowerCase().replace(/[^\u4e00-\u9fa5a-z0-9]/g,'');
+}
+function textSim(a,b){
+  a=normCmp(a); b=normCmp(b);
+  if(!a||!b) return 0;
+  if(a.includes(b)||b.includes(a)) return 1;
+  if(a.length<3||b.length<3) return 0;
+  const A=new Set(), B=new Set();
+  for(let i=0;i<a.length-1;i++) A.add(a.slice(i,i+2));
+  for(let i=0;i<b.length-1;i++) B.add(b.slice(i,i+2));
+  let inter=0; A.forEach(x=>{ if(B.has(x)) inter++; });
+  const contain = A.size? inter/Math.min(A.size,B.size) : 0;
+  const union = A.size+B.size-inter;
+  const jaccard = union? inter/union : 0;
+  return Math.max(contain, jaccard);
+}
+/* 贴图查重：仅在贴图库内部比对，绝不串入素材库（相似即提醒，不要求完全一致） */
 function findSimilarSticker(inputTitle, excludeId){
-  const c=(inputTitle||'').trim().toLowerCase();
-  if(!c||c.length<2) return [];
+  const c=normCmp(inputTitle);
+  if(c.length<2) return [];
   return state.stickers.filter(s=>{
     if(s.id===excludeId) return false;
-    const st=(s.title||'').toLowerCase();
-    const sc=(s.content||'').toLowerCase();
-    return (st.includes(c)||c.includes(st)||sc.includes(c)||c.includes(sc));
+    return Math.max(textSim(inputTitle, s.title), textSim(inputTitle, s.content)) >= 0.6;
   });
 }
 function renderStickers(){
@@ -2750,14 +2767,13 @@ function renderMaterials(){
   }).join('');
 }
 
-/* 素材查重：避免重复收藏同一句 */
+/* 素材查重：避免重复收藏同一句（相似即提醒，不要求完全一致） */
 function findSimilarMaterial(inputContent, excludeId){
-  const c=(inputContent||'').trim().toLowerCase();
-  if(!c||c.length<2) return [];
+  const c=normCmp(inputContent);
+  if(c.length<2) return [];
   return state.materials.filter(m=>{
     if(m.id===excludeId) return false;
-    const mt=(m.content||'').toLowerCase();
-    return (mt.includes(c)||c.includes(mt));
+    return textSim(inputContent, m.content) >= 0.6;
   });
 }
 
