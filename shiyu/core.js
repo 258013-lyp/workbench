@@ -916,6 +916,7 @@ window.SY = (function () {
     if (f.W < -0.02 && f.L < 0.56 && f.skyRatio > 0.08 && f.edgeDensity > 0.005) hints.push('雨');
     f.hints = hints;
     f.domColor = dominantColor(data);
+    try { f.phash = computePhash(img); } catch (e) { f.phash = null; }
     return f;
   }
 
@@ -940,6 +941,64 @@ window.SY = (function () {
     const shift = l < 0.45 ? 0.75 : 1;
     const mix = (c) => Math.round(clamp(c * shift + 245 * (1 - shift) * 0.55, 0, 255));
     return '#' + [mix(r), mix(g), mix(b)].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+
+  /* ---------------- 感知哈希 & 相似度 ---------------- */
+  function bitsToHex(bits) {
+    let s = '';
+    for (let i = 0; i < bits.length; i += 4) {
+      s += (bits[i] * 8 + bits[i + 1] * 4 + bits[i + 2] * 2 + bits[i + 3]).toString(16);
+    }
+    return s;
+  }
+
+  /* 8x8 平均哈希：把图压到 8x8 灰度，按均值二值化，得到 64 位指纹。
+     对缩放/裁切/轻微调色稳定，用于「相似素材提醒」的底层比对。 */
+  function computePhash(img) {
+    const pc = document.createElement('canvas');
+    pc.width = 8; pc.height = 8;
+    const pctx = pc.getContext('2d', { willReadFrequently: true });
+    pctx.drawImage(img, 0, 0, 8, 8);
+    const pd = pctx.getImageData(0, 0, 8, 8).data;
+    const pl = [];
+    for (let i = 0; i < pd.length; i += 4) {
+      pl.push((0.299 * pd[i] + 0.587 * pd[i + 1] + 0.114 * pd[i + 2]) / 255);
+    }
+    const mean = pl.reduce((a, b) => a + b, 0) / pl.length;
+    const bits = pl.map(v => (v >= mean ? 1 : 0));
+    return bitsToHex(bits);
+  }
+
+  function phashFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => { try { resolve(computePhash(im)); } catch (e) { reject(e); } };
+      im.onerror = () => reject(new Error('img load fail'));
+      im.src = dataUrl;
+    });
+  }
+
+  function hammingHex(a, b) {
+    if (!a || !b || a.length !== b.length) return 1e9;
+    let d = 0;
+    for (let i = 0; i < a.length; i++) {
+      const x = parseInt(a[i], 16) ^ parseInt(b[i], 16);
+      d += (x & 1) + (x >> 1 & 1) + (x >> 2 & 1) + (x >> 3 & 1);
+    }
+    return d;
+  }
+
+  /* 在已存档案里找与当前图最相似的瞬间（感知哈希汉明距离，越小越像） */
+  function findSimilar(curPhash, moments, max) {
+    if (!curPhash || !moments || !moments.length) return null;
+    let best = null, bestHam = 1e9;
+    for (const m of moments) {
+      if (!m.phash) continue;
+      const ham = hammingHex(curPhash, m.phash);
+      if (ham < bestHam) { bestHam = ham; best = m; }
+    }
+    if (best && bestHam <= (max == null ? 9 : max)) return { moment: best, hamming: bestHam };
+    return null;
   }
 
   /* ---------------- 情绪判定 ---------------- */
@@ -972,6 +1031,17 @@ window.SY = (function () {
     const margin = top[1] - (sorted[1] ? sorted[1][1] : 0);
     const confidence = clamp(36 + margin * 15, 32, 93);
     return { emotionId: top[0], confidence: Math.round(confidence), scores: s };
+  }
+
+  /* 情绪混合向量：真实情绪常是混合的，这里返回前几名情绪的归一化权重，
+     第一名未必独大——这让文案能「也带着一点别的情绪」。 */
+  function judgeEmotionMix(f, seed) {
+    const r = judgeEmotion(f, seed);
+    const entries = Object.entries(r.scores).map(([k, v]) => [k, Math.max(0, v)]).sort((a, b) => b[1] - a[1]);
+    const slice = entries.slice(0, 3);
+    const total = slice.reduce((a, e) => a + e[1], 0) || 1;
+    const mix = slice.map(([k, v]) => ({ id: k, w: v / total }));
+    return { primary: r.emotionId, confidence: r.confidence, scores: r.scores, mix };
   }
 
   /* ---------------- 文案挑选 ---------------- */
@@ -1008,18 +1078,27 @@ window.SY = (function () {
       '夜': '我看见了夜里还亮着的一小块。',
       '绿': '我看见了那一处绿。',
       '人': '我看见了你自己。',
-      '窗': '我看见了窗那边透进来的动静。'
+      '窗': '我看见了窗那边透进来的动静。',
+      '桌面': '我看见了你待着的那块桌面。',
+      '雨': '我看见了湿湿的那一层。'
     };
     const first = hint && map[hint] ? map[hint] : '我看见了这一下。';
     return first + (e ? e.note + '。' : '');
   }
 
   /* 组合文案 + 详情，保证两者不指向同一个线索 */
-  function compose(emotionId, hints, seed) {
+  function compose(emotionId, hints, seed, mix) {
     const usable = (hints || []).filter(Boolean);
-    const a = pickCopy(emotionId, usable, seed);
+    let useId = emotionId;
+    const rnd = seededRandom((seed || 7) + 101);
+    if (mix && mix.length > 1) {
+      const w1 = mix[0].w, w2 = mix[1].w;
+      /* 第二情绪权重不可忽略时，按比例有小概率用它的文案，让语气带一点混合感 */
+      if (w2 > 0.18 && rnd() < (w2 / (w1 + w2)) * 0.8) useId = mix[1].id;
+    }
+    const a = pickCopy(useId, usable, seed);
     const b = pickDetail(emotionId, usable, a.hint);
-    return { copy: a.line, detail: b };
+    return { copy: a.line, detail: b, mixEmotion: useId };
   }
 
   function pickSticker(emotionId, seed, exclude) {
@@ -1489,11 +1568,12 @@ window.SY = (function () {
   return {
     $, $$, uid, hashStr, seededRandom, clamp, pad, dateKey, dayLabel, timeLabel,
     EMOTIONS, EMOTION_MAP, EMOTION_COPY, HINT_COPY, STICKERS, STICKER_KEYS, ANCHORS, HINT_POOL,
-    analyzeImage, defaultFeatures, judgeEmotion, pickCopy, pickDetail, pickSticker,
+    analyzeImage, defaultFeatures, judgeEmotion, judgeEmotionMix, pickCopy, pickDetail, pickSticker,
     pickStickers, planStickers, idbAll, idbPut, idbDel, loadSettings, saveSettings, defaultSettings,
     callVLM, stickerSVG, exportPoster, download, wrapText,
     describeSticker, genImage, genSticker, GEN_PRESETS,
-    analyze: analyzeImage, judge: judgeEmotion, copyFor: pickCopy, detailFor: pickDetail,
-    stickerFor: pickSticker, stickersFor: pickStickers, plan: planStickers, compose
+    analyze: analyzeImage, judge: judgeEmotion, judgeMix: judgeEmotionMix, copyFor: pickCopy, detailFor: pickDetail,
+    stickerFor: pickSticker, stickersFor: pickStickers, plan: planStickers, compose,
+    findSimilar, phashFromDataUrl, computePhash
   };
 })();
