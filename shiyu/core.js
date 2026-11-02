@@ -1142,31 +1142,83 @@ window.SY = (function () {
     return chosen;
   }
 
-  /* 智能落位：避开人脸区域；主贴纸尽量靠近最亮处（光/太阳场景），多贴纸分散到对角 */
-  function planStickers(features, keys, seed) {
+  /* 显著性落位：把注脚放在"最不抢戏"的区域。
+     思路——先算 3x3 的边缘密度图，边缘越密=主体/重点；取边缘最稀疏的格放贴纸，
+     天然避开人脸格与高边缘（主体）区；'光'类贴纸仍靠近最亮格。 */
+  function computeSaliency(img) {
+    const N = 96;
+    const cv = document.createElement('canvas');
+    cv.width = N; cv.height = N;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, N, N);
+    let data;
+    try { data = ctx.getImageData(0, 0, N, N).data; } catch (e) { return null; }
+    const cellEdge = new Array(9).fill(0), cellCnt = new Array(9).fill(0), cellLum = new Array(9).fill(0);
+    for (let y = 1; y < N - 1; y++) {
+      for (let x = 1; x < N - 1; x++) {
+        const i = (y * N + x) * 4;
+        const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        const r2 = 0.299 * data[i + 4] + 0.587 * data[i + 5] + 0.114 * data[i + 6];
+        const d2 = 0.299 * data[i + N * 4] + 0.587 * data[i + N * 4 + 1] + 0.114 * data[i + N * 4 + 2];
+        const e = Math.abs(l - r2) + Math.abs(l - d2);
+        const gi = ((y / N * 3) | 0) * 3 + ((x / N * 3) | 0);
+        cellEdge[gi] += e; cellCnt[gi]++; cellLum[gi] += l;
+      }
+    }
+    for (let k = 0; k < 9; k++) {
+      cellEdge[k] = cellCnt[k] ? cellEdge[k] / cellCnt[k] : 0;
+      cellLum[k] = cellCnt[k] ? cellLum[k] / cellCnt[k] : 0;
+    }
+    let brightCell = 4, bv = -1;
+    for (let k = 0; k < 9; k++) if (cellLum[k] > bv) { bv = cellLum[k]; brightCell = k; }
+    return { cellEdge, brightCell };
+  }
+
+  function cellIndex(cx, cy) {
+    const ix = clamp((cx * 3) | 0, 0, 2), iy = clamp((cy * 3) | 0, 0, 2);
+    return iy * 3 + ix;
+  }
+
+  function planStickers(features, keys, seed, img) {
     const f = features || {};
     const hasFace = (f.faceRatio > 0.14 && f.skinRatio > 0.03);
     const rnd = seededRandom(seed || 9);
-    const corners = [
-      { x: 0.16, y: 0.80, r: -8 },
-      { x: 0.84, y: 0.78, r: 8 },
-      { x: 0.18, y: 0.30, r: 6 },
-      { x: 0.82, y: 0.28, r: -6 },
-      { x: 0.50, y: 0.86, r: 3 }
-    ];
-    let main;
-    if (f.brightX != null && (f.hints || []).includes('光')) {
-      main = { x: clamp(f.brightX, 0.12, 0.88), y: clamp(f.brightY, 0.12, 0.88), r: (rnd() - 0.5) * 16 };
-    } else {
-      main = corners[Math.floor(rnd() * 2)];
+    let sal = null;
+    try { if (img) sal = computeSaliency(img); } catch (e) { sal = null; }
+
+    const faceCell = hasFace ? cellIndex(f.faceCX, f.faceCY) : -1;
+    /* 安静格：边缘密度升序（越安静越靠前），并排除人脸格 */
+    const quiet = sal
+      ? [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(k => k !== faceCell).sort((a, b) => sal.cellEdge[a] - sal.cellEdge[b])
+      : [];
+
+    const used = new Set();
+    function placeAt(idx, jitter) {
+      const x = ((idx % 3) + 0.5) / 3 + (jitter ? (rnd() - 0.5) * 0.08 : 0);
+      const y = ((idx / 3 | 0) + 0.5) / 3 + (jitter ? (rnd() - 0.5) * 0.08 : 0);
+      return { x: clamp(x, 0.1, 0.9), y: clamp(y, 0.1, 0.9), r: (rnd() - 0.5) * 14 };
     }
-    const out = [{ key: keys[0], x: main.x, y: main.y, r: main.r }];
-    const rest = corners.filter(c => Math.hypot(c.x - main.x, c.y - main.y) > 0.32);
-    const restShuffled = rest.slice().sort(() => rnd() - 0.5);
+
+    /* 主贴纸：'光'类靠近最亮格；否则放最安静格 */
+    let mainIdx;
+    if (sal && (f.hints || []).includes('光')) mainIdx = sal.brightCell;
+    else if (quiet.length) mainIdx = quiet[0];
+    else mainIdx = Math.floor(rnd() * 9);
+    used.add(mainIdx);
+    const out = [{ key: keys[0], ...placeAt(mainIdx, true) }];
+
+    /* 其余：从最安静的剩余格依次取，天然分散、不压主体 */
+    const q = quiet.filter(k => !used.has(k));
     for (let i = 1; i < keys.length; i++) {
-      const a = restShuffled[(i - 1) % restShuffled.length] || corners[(i + 2) % corners.length];
-      const y = (hasFace && a.y < 0.4) ? 0.7 : a.y;
-      out.push({ key: keys[i], x: a.x, y, r: a.r });
+      let idx;
+      if (q.length) idx = q.shift();
+      else {
+        const corners = [0, 2, 6, 8, 1, 3, 5, 7];
+        idx = corners.find(k => !used.has(k));
+        if (idx == null) idx = Math.floor(rnd() * 9);
+      }
+      used.add(idx);
+      out.push({ key: keys[i], ...placeAt(idx, true) });
     }
     return out;
   }
