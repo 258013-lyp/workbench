@@ -216,6 +216,7 @@
   function renderResult() {
     const c = state.current;
     if (!c) return;
+    $('#userNote').value = '';
     const emo = S.EMOTION_MAP[c.emotionId];
 
     const photo = $('#resultPhoto');
@@ -249,6 +250,12 @@
       sn.hidden = true;
     }
     $('#resultCopy').textContent = c.copy;
+    const sup = $('#supportNote');
+    if (['sad', 'lonely', 'anxious'].includes(c.emotionId) && c.confidence >= 66) {
+      sup.hidden = false;
+    } else {
+      sup.hidden = true;
+    }
     $('#resultDetail').textContent = c.detail;
     $('#btnSave').disabled = false;
     $('#btnSave').textContent = state.saved ? '已存入今日档案' : '存入今日档案';
@@ -420,13 +427,15 @@
 
   $('#btnSave').addEventListener('click', async () => {
     const c = state.current; if (!c) return;
+    const note = ($('#userNote').value || '').trim().slice(0, 40);
     const item = {
       id: c.id, ts: c.ts, dataUrl: c.dataUrl,
       emotionId: c.emotionId, confidence: c.confidence,
       copy: c.copy, detail: c.detail,
       stickers: c.stickers, placed: c.placed,
       style: c.style,
-      phash: c.features ? c.features.phash : null
+      phash: c.features ? c.features.phash : null,
+      userNote: note
     };
     await S.idbPut(item);
     state.moments = await S.idbAll();
@@ -644,6 +653,7 @@
           '<div class="tl-card"><img class="tl-thumb" src="' + m.dataUrl + '" alt="">' +
           '<div class="tl-body"><div class="tl-time">' + S.timeLabel(m.ts) + ' · ' + emo.label + '</div>' +
           '<p class="tl-copy">' + escapeHtml(m.copy) + '</p>' +
+          (m.userNote ? '<p class="tl-usernote">「' + escapeHtml(m.userNote) + '」</p>' : '') +
           '<div class="tl-meta">' + escapeHtml(m.detail || '') + '</div>' +
           '<div class="tl-del" data-del="' + m.id + '">删除这一个</div></div></div></div>';
       }).join('') + '</div>';
