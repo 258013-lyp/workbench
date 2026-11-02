@@ -1526,6 +1526,14 @@ window.SY = (function () {
         const line = wrapText(ctx, item.copy, W - 128, 2);
         line.forEach((t, i) => ctx.fillText(t, 64, bandY + 132 + i * 66));
 
+        if (item.userNote) {
+          ctx.font = '400 24px "Songti SC","SimSun","PingFang SC",serif';
+          ctx.fillStyle = '#9A9082';
+          const ul = wrapText(ctx, '「' + item.userNote + '」', W - 128, 2);
+          const after = bandY + 132 + line.length * 66 + 28;
+          ul.forEach((t, i) => ctx.fillText(t, 64, after + i * 40));
+        }
+
         ctx.font = '400 22px "PingFang SC","Microsoft YaHei",sans-serif';
         ctx.fillStyle = '#9A9082';
         ctx.fillText('拾愈 · ' + dateKey(new Date(item.ts)), 64, H - 46);
