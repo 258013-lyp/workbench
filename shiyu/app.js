@@ -158,7 +158,7 @@
       }
     }
 
-    const placed = S.plan(features, stickerKeys, seed);
+    const placed = S.plan(features, stickerKeys, seed, img);
 
     /* 双通道之二：联网 AI 生成贴合此照片的专属贴纸（失败则降级本地图库） */
     let stickerImg = null;
