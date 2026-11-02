@@ -135,11 +135,13 @@
     const judged = S.judgeEmotion(features, seed);
     let emotionId = judged.emotionId;
     let confidence = judged.confidence;
-    const composed = S.compose(emotionId, features.hints, seed);
+    const mix = S.judgeEmotionMix(features, seed);
+    const composed = S.compose(emotionId, features.hints, seed, mix);
     let copy = composed.copy;
     let detail = composed.detail;
     let stickerKeys = S.stickersFor(emotionId, features, seed);
     let source = '本地分析';
+    let usedVLM = false;
 
     const st = state.settings;
     if (st.provider && st.provider !== 'off' && st.apiKey) {
@@ -152,6 +154,7 @@
         copy = r.copy; detail = r.detail;
         stickerKeys = [r.sticker];
         source = '模型识别';
+        usedVLM = true;
       }
     }
 
@@ -169,13 +172,19 @@
       placed[0] = { key: '__gen__', img: stickerImg, x: placed[0].x, y: placed[0].y, r: placed[0].r };
     }
 
+    const sim = await detectSimilar(features.phash);
     state.current = {
       id: S.uid(), ts: Date.now(), dataUrl,
       emotionId, confidence, copy, detail,
       stickers: stickerKeys, placed,
       style: state.settings.style,
       stickerImg,
-      features
+      features,
+      source,
+      emotionMix: usedVLM ? null : mix,
+      similar: sim ? sim.id : null,
+      similarKey: sim ? S.dateKey(new Date(sim.ts)) : null,
+      similarHamming: sim ? sim.hamming : null
     };
     state.saved = false;
     renderResult();
@@ -193,6 +202,15 @@
     const r = S.seededRandom(seed);
     const a = S.ANCHORS[Math.floor(r() * S.ANCHORS.length)];
     return { x: a.x, y: a.y, r: a.r };
+  }
+
+  /* 相似素材提醒：用当前图的感知哈希，在本地档案里找最像的那张 */
+  async function detectSimilar(phash) {
+    if (!state.moments || !state.moments.length) {
+      try { state.moments = await S.idbAll(); } catch (e) {}
+    }
+    const r = S.findSimilar(phash, state.moments, 9);
+    return r ? r.moment : null;
   }
 
   function renderResult() {
@@ -215,6 +233,21 @@
     $('#emotionName').textContent = emo.label;
     $('#emotionConf').textContent = '情绪强度 ' + c.confidence;
     $('#emotionSource').textContent = c.source || '本地分析';
+    const mixEl = $('#emotionMix');
+    if (c.emotionMix && c.emotionMix.length > 1 && c.emotionMix[1].w > 0.18) {
+      mixEl.hidden = false;
+      mixEl.textContent = '也带着一点 ' + S.EMOTION_MAP[c.emotionMix[1].id].label;
+    } else {
+      mixEl.hidden = true;
+    }
+    const sn = $('#similarNote'), stx = $('#similarText');
+    if (c.similar && c.similarKey) {
+      sn.hidden = false;
+      stx.textContent = '这张和 ' + S.dayLabel(c.similarKey) + ' 那张有点像';
+      $('#btnSimilarOpen').onclick = () => openDay(c.similarKey);
+    } else {
+      sn.hidden = true;
+    }
     $('#resultCopy').textContent = c.copy;
     $('#resultDetail').textContent = c.detail;
     $('#btnSave').disabled = false;
@@ -343,7 +376,7 @@
   $('#btnCopyAgain').addEventListener('click', () => {
     const c = state.current; if (!c) return;
     const seed = S.hashStr(c.copy + Date.now());
-    const composed = S.compose(c.emotionId, c.features.hints, seed);
+    const composed = S.compose(c.emotionId, c.features.hints, seed, c.emotionMix);
     c.copy = composed.copy;
     c.detail = composed.detail;
     $('#resultCopy').textContent = c.copy;
@@ -392,7 +425,8 @@
       emotionId: c.emotionId, confidence: c.confidence,
       copy: c.copy, detail: c.detail,
       stickers: c.stickers, placed: c.placed,
-      style: c.style
+      style: c.style,
+      phash: c.features ? c.features.phash : null
     };
     await S.idbPut(item);
     state.moments = await S.idbAll();
@@ -1096,6 +1130,20 @@
     });
   }
 
+  /* ---------------- 旧档案补算感知哈希 ---------------- */
+  /* 升级前存的瞬间没有 phash，启动时按 dataUrl 补算一遍并写回，确保相似提醒覆盖全部历史 */
+  async function backfillPhash() {
+    if (!state.moments || !state.moments.length) return;
+    for (const m of state.moments) {
+      if (m.phash || !m.dataUrl) continue;
+      try {
+        const h = await S.phashFromDataUrl(m.dataUrl);
+        m.phash = h;
+        await S.idbPut(Object.assign({}, m, { phash: h }));
+      } catch (e) {}
+    }
+  }
+
   /* ---------------- 启动 ---------------- */
   drawBrand();
   fillSettings();
@@ -1104,7 +1152,7 @@
     window.speechSynthesis.getVoices();
     window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
   }
-  renderToday().then(() => { updateStat(); scheduleRemind(); });
+  renderToday().then(() => { updateStat(); scheduleRemind(); backfillPhash(); });
 
   /* 页面隐藏时释放相机 */
   document.addEventListener('visibilitychange', () => {
