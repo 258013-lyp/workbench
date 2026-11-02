@@ -122,6 +122,11 @@ input,select{font-family:inherit;font-size:15px}
 .similar-note .similar-ico{font-size:14px}
 .similar-note .btn-mini{margin-left:auto;padding:4px 12px;font-size:12px;border:1px solid var(--line-2);background:#fff;color:#7A6A55;border-radius:999px;cursor:pointer}
 .similar-note .btn-mini:active{transform:scale(.97)}
+.user-note{margin:0 0 14px}
+.user-note input{width:100%;border:none;border-bottom:1px solid var(--line-2);background:transparent;padding:8px 2px;font-size:15px;color:var(--ink);outline:none}
+.user-note input::placeholder{color:var(--ink-3)}
+.support-note{margin:0 0 16px;padding:10px 12px;border-radius:14px;background:#F3EDE6;color:#8A7A66;font-size:13px;line-height:1.6}
+.tl-usernote{font-family:"Songti SC","SimSun","Noto Serif CJK SC",serif;font-size:15px;color:#8A7A66;margin:8px 0 0;font-style:italic}
 .result-copy{
   font-family:"Songti SC","SimSun","Noto Serif CJK SC",serif;
   font-size:25px;line-height:1.62;margin:0 0 14px;letter-spacing:.01em;
