@@ -343,6 +343,27 @@
     });
   }
 
+  /* 点按单个贴纸 → 随机换成另一个（保留位置/旋转，只换图案） */
+  function swapSticker(idx) {
+    const c = state.current; if (!c || !c.placed[idx]) return;
+    const cur = c.placed[idx];
+    const hints = (c.features && c.features.hints) || [];
+    let pool = [];
+    hints.forEach(h => { if (S.HINT_POOL[h]) pool = pool.concat(S.HINT_POOL[h]); });
+    const e = S.EMOTION_MAP[c.emotionId];
+    if (!pool.length && e && e.stickers) pool = e.stickers.slice();
+    if (!pool.length) pool = S.STICKER_KEYS.slice();
+    const others = c.placed.map((p, i) => i === idx ? null : (p.key || '')).filter(Boolean);
+    let cand = Array.from(new Set(pool)).filter(k => k !== cur.key && !others.includes(k));
+    if (!cand.length) cand = S.STICKER_KEYS.filter(k => k !== (cur.key || '') && !others.includes(k));
+    if (!cand.length) return;
+    const next = cand[Math.floor(Math.random() * cand.length)];
+    c.placed[idx].key = next;
+    c.placed[idx].img = null;
+    buildStickerNodes();
+    layoutSticker();
+  }
+
   /* 拖动注脚（事件委托，支持多贴纸各自拖拽） */
   (function enableDrag() {
     const holder = $('#stickerHolder');
@@ -373,6 +394,11 @@
       dragging = false;
       const n = e.target.closest && e.target.closest('.sticker-node');
       if (n) n.classList.remove('dragging');
+      if (idx >= 0 && n) {
+        const dist = Math.hypot((e.clientX || 0) - startX, (e.clientY || 0) - startY);
+        if (dist < 6) swapSticker(idx);   /* 几乎没移动 = 点按 = 换一个 */
+      }
+      idx = -1;
     };
     holder.addEventListener('pointerup', end);
     holder.addEventListener('pointercancel', end);
