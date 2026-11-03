@@ -1093,6 +1093,46 @@
     toast('已清空');
   });
 
+  /* 导出纯文字日记（不含图片，便于留存/分享；含「我也想说一句」） */
+  $('#btnExportDiary').addEventListener('click', () => {
+    if (!state.moments || !state.moments.length) { toast('还没有日记'); return; }
+    const lines = ['# 拾愈 · 我的文字日记', ''];
+    state.moments.slice().sort((a, b) => a.ts - b.ts).forEach(m => {
+      const emo = S.EMOTION_MAP[m.emotionId];
+      lines.push('## ' + S.dateKey(new Date(m.ts)) + ' ' + S.timeLabel(m.ts) + ' · ' + (emo ? emo.label : ''));
+      lines.push('> ' + (m.copy || ''));
+      if (m.detail) lines.push('> ' + m.detail);
+      if (m.userNote) lines.push('> 我：' + m.userNote);
+      lines.push('');
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    S.download(URL.createObjectURL(blob), '拾愈文字日记_' + S.dateKey() + '.md');
+    toast('已导出文字日记');
+  });
+
+  /* 导入存档：与「导出全部」配套，把整份档案（含图片）并入本机，实现跨设备转移 */
+  $('#btnImport').addEventListener('click', () => $('#fileImport').click());
+  $('#fileImport').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const arr = Array.isArray(data) ? data : (data.moments || []);
+      let n = 0;
+      for (const m of arr) {
+        if (!m || !m.copy) continue;
+        await S.idbPut(Object.assign({}, m, { id: S.uid() }));
+        n++;
+      }
+      state.moments = await S.idbAll();
+      renderToday(); renderMap(); updateStat(); updateBadge(); backfillPhash();
+      toast('已导入 ' + n + ' 个瞬间');
+    } catch (err) {
+      toast('导入失败：文件格式不对');
+    }
+    e.target.value = '';
+  });
+
   async function updateStat() {
     const all = await S.idbAll();
     $('#dataStat').textContent = '当前存有 ' + all.length + ' 个瞬间。';
