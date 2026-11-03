@@ -774,7 +774,52 @@ window.SY = (function () {
                { t: 'path', d: 'M33 25 L28 34 L32 34 L30 43 L38 32 L34 32 Z', fill: '#F2C84A', line: '#C9A23A' } ] },
     wand: { name: '星星棒', fill: '#FBE6A6', line: '#C9A23A',
       parts: [ { t: 'path', d: 'M16 48 L38 26', noHalo: true, fill: 'none', line: '#9A7A4A', sw: 4 },
-               { t: 'path', d: 'M44 9 l2.4 8.6 8.6 2.4 -8.6 2.4 -2.4 8.6 -2.4 -8.6 -8.6 -2.4 8.6 -2.4 Z' } ] }
+               { t: 'path', d: 'M44 9 l2.4 8.6 8.6 2.4 -8.6 2.4 -2.4 8.6 -2.4 -8.6 -8.6 -2.4 8.6 -2.4 Z' } ] },
+
+    /* ---------- 中式真实生活小物 ---------- */
+    fan: { name: '小风扇', fill: '#BFE3F0', line: '#5A8AA0',
+      parts: [ { t: 'circle', cx: 32, cy: 26, r: 15, fill: '#D6EEF6', line: '#5A8AA0' },
+               { t: 'circle', cx: 32, cy: 26, r: 12, fill: '#FFFFFF', line: 'none' },
+               { t: 'path', d: 'M32 26 L32 14 M32 26 L43 31 M32 26 L21 31 M32 26 L40 18 M32 26 L24 18 M32 26 L44 26 M32 26 L20 26 M32 26 L40 34 M32 26 L24 34', noHalo: true, fill: 'none', line: '#9AC3D4', sw: 1.5 },
+               { t: 'circle', cx: 32, cy: 26, r: 3, fill: '#5A8AA0', line: 'none' },
+               { t: 'path', d: 'M32 41 L32 52', noHalo: true, fill: 'none', line: '#5A8AA0', sw: 3 },
+               { t: 'rect', x: 23, y: 52, width: 18, height: 5, rx: 2, fill: '#5A8AA0', line: '#3A6A80' } ],
+      face: [ { t: 'circle', cx: 27, cy: 24, r: 2.2 }, { t: 'circle', cx: 37, cy: 24, r: 2.2 },
+              { t: 'path', d: 'M28 30 q4 3 8 0', noFill: true } ] },
+    ebike: { name: '电动车', fill: '#F2B07A', line: '#9A5A2A',
+      parts: [ { t: 'circle', cx: 15, cy: 47, r: 9, fill: '#FFFFFF', line: '#9A5A2A' },
+               { t: 'circle', cx: 15, cy: 47, r: 3, fill: '#9A5A2A', line: 'none' },
+               { t: 'circle', cx: 49, cy: 47, r: 9, fill: '#FFFFFF', line: '#9A5A2A' },
+               { t: 'circle', cx: 49, cy: 47, r: 3, fill: '#9A5A2A', line: 'none' },
+               { t: 'path', d: 'M15 47 L31 31 L45 31 L49 47 M31 31 L27 47', noHalo: true, fill: 'none', line: '#9A5A2A', sw: 3 },
+               { t: 'path', d: 'M45 31 L40 22 L52 22 L49 31 Z', fill: '#F2B07A', line: '#9A5A2A' },
+               { t: 'rect', x: 26, y: 25, width: 10, height: 6, rx: 2, fill: '#9A5A2A', line: 'none' } ],
+      face: [ { t: 'circle', cx: 30, cy: 23, r: 1.8 }, { t: 'circle', cx: 38, cy: 23, r: 1.8 },
+              { t: 'path', d: 'M30 27 q4 2 8 0', noFill: true } ] },
+    baozi: { name: '包子', fill: '#FBF3E4', line: '#C9A66A',
+      parts: [ { t: 'path', d: 'M10 42 Q10 18 32 18 Q54 18 54 42 Q54 50 32 50 Q10 50 10 42 Z', fill: '#FBF3E4', line: '#C9A66A' },
+               { t: 'path', d: 'M32 18 Q26 10 18 16 M32 18 Q38 10 46 16', noHalo: true, fill: 'none', line: '#C9A66A', sw: 1.5 },
+               { t: 'ellipse', cx: 32, cy: 20, rx: 8, ry: 3, fill: '#F0E2C8', line: '#C9A66A' } ],
+      face: [ { t: 'circle', cx: 27, cy: 34, r: 2.2 }, { t: 'circle', cx: 37, cy: 34, r: 2.2 },
+              { t: 'ellipse', cx: 23, cy: 38, rx: 2.4, ry: 1.6, blush: '#F0A0A0' }, { t: 'ellipse', cx: 41, cy: 38, rx: 2.4, ry: 1.6, blush: '#F0A0A0' },
+              { t: 'path', d: 'M29 39 q3 2 6 0', noFill: true } ] },
+    noodle: { name: '面碗', fill: '#F0C0A0', line: '#B5702A',
+      parts: [ { t: 'path', d: 'M10 32 Q32 30 54 32 L48 50 Q32 54 16 50 Z', fill: '#F4D8C0', line: '#B5702A' },
+               { t: 'ellipse', cx: 32, cy: 32, rx: 22, ry: 6, fill: '#FBEAD4', line: '#B5702A' },
+               { t: 'path', d: 'M22 30 Q26 18 30 30 M30 30 Q34 16 38 30 M38 30 Q42 18 46 30', noHalo: true, fill: 'none', line: '#E0A040', sw: 2 },
+               { t: 'path', d: 'M40 14 L52 26 M46 12 L56 24', noHalo: true, fill: 'none', line: '#C98A4A', sw: 2 } ],
+      face: [ { t: 'circle', cx: 27, cy: 41, r: 2 }, { t: 'circle', cx: 37, cy: 41, r: 2 },
+              { t: 'path', d: 'M29 44 q3 2 6 0', noFill: true } ] },
+    lantern: { name: '灯笼', fill: '#E84A4A', line: '#B5302A',
+      parts: [ { t: 'rect', x: 26, y: 10, width: 12, height: 4, rx: 1, fill: '#F2C84A', line: '#B5702A' },
+               { t: 'ellipse', cx: 32, cy: 32, rx: 18, ry: 20, fill: '#E84A4A', line: '#B5302A' },
+               { t: 'path', d: 'M32 14 L32 50 M20 18 Q32 32 20 46 M44 18 Q32 32 44 46', noHalo: true, fill: 'none', line: '#B5302A', sw: 1.5 },
+               { t: 'rect', x: 26, y: 50, width: 12, height: 4, rx: 1, fill: '#F2C84A', line: '#B5702A' },
+               { t: 'path', d: 'M32 54 L32 60', noHalo: true, fill: 'none', line: '#E84A4A', sw: 2 },
+               { t: 'path', d: 'M29 60 L32 56 L35 60 Z', fill: '#F2C84A', line: '#B5702A' } ],
+      face: [ { t: 'circle', cx: 27, cy: 30, r: 2.2 }, { t: 'circle', cx: 37, cy: 30, r: 2.2 },
+              { t: 'ellipse', cx: 23, cy: 34, rx: 2.4, ry: 1.6, blush: '#F0A0A0' }, { t: 'ellipse', cx: 41, cy: 34, rx: 2.4, ry: 1.6, blush: '#F0A0A0' },
+              { t: 'path', d: 'M29 35 q3 2 6 0', noFill: true } ] }
   };
 
   const STICKER_KEYS = Object.keys(STICKERS);
@@ -1113,11 +1158,11 @@ window.SY = (function () {
   const HINT_POOL = {
     '天空': ['sun', 'cloud', 'bird', 'star', 'spark', 'balloon', 'plane', 'mountain'],
     '光':   ['sun', 'spark', 'lamp', 'star', 'flower'],
-    '夜':   ['moon', 'star', 'lamp', 'window', 'spark', 'owl'],
+    '夜':   ['moon', 'star', 'lamp', 'window', 'spark', 'owl', 'lantern', 'noodle'],
     '绿':   ['leaf', 'sprout', 'flower', 'capybara', 'dino', 'cactus', 'mushroom'],
     '人':   ['heart', 'cup', 'paw', 'cat', 'star', 'balloon', 'milktea', 'coffee'],
-    '桌面': ['cup', 'book', 'lamp', 'yarn', 'heart', 'milktea', 'coffee', 'donut'],
-    '窗':   ['window', 'lamp', 'cloud', 'leaf', 'cactus'],
+    '桌面': ['cup', 'book', 'lamp', 'yarn', 'heart', 'milktea', 'coffee', 'donut', 'fan', 'noodle'],
+    '窗':   ['window', 'lamp', 'cloud', 'leaf', 'cactus', 'ebike'],
     '雨':   ['rain', 'raindrop', 'cloud', 'umbrella']
   };
 
@@ -1312,7 +1357,7 @@ window.SY = (function () {
       'confidence(0-100整数), copy(一句话中文文案,20字内,具体、像从心里说出来,',
       '禁止出现"治愈""岁月静好""加油""晚安""放下"等空词,禁止解释情绪),',
       'detail(一句"我看见了…",25字内,必须指向画面里的具体物件或光线),',
-      'sticker(从 sun,star,moon,cloud,rain,raindrop,rainbow,spark,flower,leaf,sprout,wave,wind,cactus,mushroom,mountain,snow,plane,boat,tent,lamp,cup,book,yarn,paw,heart,window,balloon,umbrella,music,bird,milktea,coffee,donut,cake,watermelon,icecream,battery,wand,cat,bear,bunny,dog,duck,capybara,dino,pig,chick,panda,penguin,turtle,fox,hamster,owl 中选一个最贴合此刻的)',
+      'sticker(从 sun,star,moon,cloud,rain,raindrop,rainbow,spark,flower,leaf,sprout,wave,wind,cactus,mushroom,mountain,snow,plane,boat,tent,lamp,cup,book,yarn,paw,heart,window,balloon,umbrella,music,bird,milktea,coffee,donut,cake,watermelon,icecream,battery,wand,cat,bear,bunny,dog,duck,capybara,dino,pig,chick,panda,penguin,turtle,fox,hamster,owl,fan,ebike,baozi,noodle,lantern 中选一个最贴合此刻的)',
       JSON.stringify({ 'ok': 1 })
     ].join('');
 
