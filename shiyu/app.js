@@ -362,6 +362,14 @@
     c.placed[idx].img = null;
     buildStickerNodes();
     layoutSticker();
+    /* 换好了：重放一次弹出动画，给"换了一个"的反馈 */
+    const holder = $('#stickerHolder');
+    const node = holder && holder.children[idx];
+    if (node) {
+      node.style.animation = 'none';
+      void node.offsetWidth;   /* 强制回流，使动画从头再播一次 */
+      node.style.animation = '';
+    }
   }
 
   /* 拖动注脚（事件委托，支持多贴纸各自拖拽） */
