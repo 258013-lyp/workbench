@@ -240,11 +240,14 @@
 
       <div class="panel">
         <h3 class="panel-title">数据</h3>
-        <p class="panel-hint">所有照片和文字只存在这台设备的浏览器里，不上传、不联网。清理浏览器数据会一并清除。</p>
+        <p class="panel-hint">所有照片和文字只存在这台设备的浏览器里，不上传、不联网。可导出备份，或导入到另一台设备。</p>
         <div class="panel-btns">
           <button class="btn btn-ghost" id="btnExportAll">导出全部</button>
+          <button class="btn btn-ghost" id="btnExportDiary">导出文字日记</button>
+          <button class="btn btn-ghost" id="btnImport">导入存档</button>
           <button class="btn btn-danger" id="btnClearAll">清除全部</button>
         </div>
+        <input type="file" id="fileImport" accept="application/json" hidden>
         <p class="panel-hint" id="dataStat"></p>
       </div>
 
