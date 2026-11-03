@@ -58,21 +58,21 @@ window.SY = (function () {
   /* ---------------- 情绪字典 ---------------- */
   const EMOTIONS = [
     { id: 'tired',  label: '疲惫', color: '#7E8CA0', soft: '#E6E9EF',
-      note: '今天的消耗比补充多', stickers: ['lamp', 'moon', 'cloud', 'charger', 'alarm'] },
+      note: '今天的消耗比补充多', stickers: ['lamp', 'moon', 'cloud', 'charger', 'alarm', 'busstop', 'sharedbike'] },
     { id: 'calm',   label: '平静', color: '#7F9E93', soft: '#E4EDEA',
-      note: '此刻不需要用力', stickers: ['wave', 'leaf', 'wind', 'fish', 'tea', 'sheep'] },
+      note: '此刻不需要用力', stickers: ['wave', 'leaf', 'wind', 'fish', 'tea', 'sheep', 'courtyard', 'phoenix'] },
     { id: 'happy',  label: '愉悦', color: '#D99341', soft: '#F8EEDF',
-      note: '有一秒是亮着的', stickers: ['sun', 'star', 'spark', 'butterfly', 'plant'] },
+      note: '有一秒是亮着的', stickers: ['sun', 'star', 'spark', 'butterfly', 'plant', 'mooncake', 'bbq'] },
     { id: 'sad',    label: '委屈', color: '#7A8DA8', soft: '#E7EBF2',
-      note: '有点沉，先别急着好吧', stickers: ['raindrop', 'cloud', 'moon', 'hotpot'] },
+      note: '有点沉，先别急着好吧', stickers: ['raindrop', 'cloud', 'moon', 'hotpot', 'courtyard'] },
     { id: 'anxious',label: '焦虑', color: '#AC8265', soft: '#F2E8E1',
-      note: '心里有太多同时在响', stickers: ['yarn', 'wave', 'rain', 'phone', 'wallet', 'box'] },
+      note: '心里有太多同时在响', stickers: ['yarn', 'wave', 'rain', 'phone', 'wallet', 'box', 'busstop', 'sharedbike'] },
     { id: 'hope',   label: '期待', color: '#7BA168', soft: '#E9F0E3',
-      note: '有件事还没发生，但已经在路上', stickers: ['sprout', 'bird', 'sun', 'train', 'dandelion'] },
+      note: '有件事还没发生，但已经在路上', stickers: ['sprout', 'bird', 'sun', 'train', 'dandelion', 'busstop', 'mooncake'] },
     { id: 'lonely', label: '孤独', color: '#8A87A0', soft: '#EAE9F0',
-      note: '一个人待着，也算数', stickers: ['moon', 'star', 'window', 'hotpot', 'phone', 'takeout'] },
+      note: '一个人待着，也算数', stickers: ['moon', 'star', 'window', 'hotpot', 'phone', 'takeout', 'courtyard', 'streetlamp'] },
     { id: 'warm',   label: '温暖', color: '#C87B4A', soft: '#F7E9DF',
-      note: '被接住了一小会儿', stickers: ['paw', 'cup', 'heart', 'tea', 'house'] }
+      note: '被接住了一小会儿', stickers: ['paw', 'cup', 'heart', 'tea', 'house', 'courtyard', 'mooncake', 'dumpling'] }
   ];
 
   const EMOTION_MAP = {};
@@ -1112,7 +1112,63 @@ window.SY = (function () {
                { t: 'ellipse', cx: 32, cy: 24, rx: 9, ry: 3, fill: '#C98A5A', line: '#8A6A40' },
                { t: 'path', d: 'M16 50 h32', noHalo: true, fill: 'none', line: '#8A6A40', sw: 3 } ],
       face: [ { t: 'circle', cx: 27, cy: 36, r: 1.8 }, { t: 'circle', cx: 37, cy: 36, r: 1.8 },
-              { t: 'path', d: 'M28 40 q4 2 8 0', noFill: true } ] }
+              { t: 'path', d: 'M28 40 q4 2 8 0', noFill: true } ] },
+
+    /* ---------- 第 9 类：中式街景 / 市井烟火 ---------- */
+    bbq: { name: '烧烤摊', fill: '#E8A060', line: '#9A5A2A',
+      parts: [ { t: 'rect', x: 14, y: 34, width: 36, height: 14, rx: 3, fill: '#E8A060', line: '#9A5A2A' },
+               { t: 'path', d: 'M10 48 L54 48', noHalo: true, fill: 'none', line: '#9A5A2A', sw: 3 },
+               { t: 'path', d: 'M20 34 L20 16 M28 34 L28 14 M36 34 L36 16 M44 34 L44 14', noHalo: true, fill: 'none', line: '#C98A4A', sw: 2 },
+               { t: 'circle', cx: 20, cy: 13, r: 3, fill: '#B5702A', line: '#9A5A2A' },
+               { t: 'circle', cx: 28, cy: 11, r: 3, fill: '#B5702A', line: '#9A5A2A' },
+               { t: 'circle', cx: 36, cy: 13, r: 3, fill: '#B5702A', line: '#9A5A2A' },
+               { t: 'circle', cx: 44, cy: 11, r: 3, fill: '#B5702A', line: '#9A5A2A' } ],
+      face: [ { t: 'circle', cx: 30, cy: 41, r: 1.8 }, { t: 'circle', cx: 38, cy: 41, r: 1.8 },
+              { t: 'path', d: 'M31 44 q3 2 6 0', noFill: true } ] },
+    courtyard: { name: '老家院子', fill: '#E8D2B0', line: '#8A6A40',
+      parts: [ { t: 'rect', x: 10, y: 24, width: 44, height: 28, rx: 2, fill: '#E8D2B0', line: '#8A6A40' },
+               { t: 'path', d: 'M10 24 L32 12 L54 24 Z', fill: '#C98A5A', line: '#8A6A40' },
+               { t: 'rect', x: 27, y: 34, width: 10, height: 18, rx: 1, fill: '#8A6A40', line: 'none' },
+               { t: 'circle', cx: 18, cy: 38, r: 5, fill: '#BFE0B0', line: '#5C8A4A' },
+               { t: 'rect', x: 44, y: 32, width: 6, height: 12, rx: 1, fill: '#C9A86A', line: '#8A6A40' } ],
+      face: [] },
+    streetlamp: { name: '路灯', fill: '#F2D9A8', line: '#B07A2C',
+      parts: [ { t: 'path', d: 'M30 52 V20', noHalo: true, fill: 'none', line: '#9A7A4A', sw: 4 },
+               { t: 'path', d: 'M30 20 Q30 12 42 12', noHalo: true, fill: 'none', line: '#9A7A4A', sw: 4 },
+               { t: 'ellipse', cx: 44, cy: 16, rx: 7, ry: 5, fill: '#FBE38A', line: '#B07A2C' },
+               { t: 'path', d: 'M30 52 L26 52 M30 52 L34 52', noHalo: true, fill: 'none', line: '#9A7A4A', sw: 3 } ],
+      face: [] },
+    phoenix: { name: '梧桐', fill: '#A8C088', line: '#5C8A4A',
+      parts: [ { t: 'path', d: 'M30 52 L30 30', noHalo: true, fill: 'none', line: '#8A6A40', sw: 4 },
+               { t: 'path', d: 'M30 38 L20 30 M30 34 L40 26', noHalo: true, fill: 'none', line: '#8A6A40', sw: 3 },
+               { t: 'ellipse', cx: 30, cy: 20, rx: 22, ry: 16, fill: '#BFD8A0', line: '#5C8A4A' },
+               { t: 'ellipse', cx: 30, cy: 16, rx: 12, ry: 9, fill: '#CFE4B0', line: '#5C8A4A' } ],
+      face: [] },
+    busstop: { name: '公交站', fill: '#9AB8D0', line: '#4C6A88',
+      parts: [ { t: 'path', d: 'M12 50 V20 L52 20 V50', noHalo: true, fill: 'none', line: '#4C6A88', sw: 3 },
+               { t: 'rect', x: 44, y: 22, width: 12, height: 14, rx: 2, fill: '#E84A4A', line: '#B5302A' },
+               { t: 'path', d: 'M47 26 h6 M47 30 h6', noHalo: true, fill: 'none', line: '#FFFFFF', sw: 1.5 } ],
+      face: [] },
+    sharedbike: { name: '共享单车', fill: '#9AD08A', line: '#4C8A4C',
+      parts: [ { t: 'circle', cx: 16, cy: 46, r: 9, fill: '#FFFFFF', line: '#4C8A4C' },
+               { t: 'circle', cx: 16, cy: 46, r: 3, fill: '#4C8A4C', line: 'none' },
+               { t: 'circle', cx: 49, cy: 46, r: 9, fill: '#FFFFFF', line: '#4C8A4C' },
+               { t: 'circle', cx: 49, cy: 46, r: 3, fill: '#4C8A4C', line: 'none' },
+               { t: 'path', d: 'M16 46 L31 30 L44 30 L49 46 M31 30 L27 46', noHalo: true, fill: 'none', line: '#4C8A4C', sw: 3 },
+               { t: 'path', d: 'M44 30 L40 20 L52 20 L49 30 Z', fill: '#F2E2B0', line: '#8A6A40' },
+               { t: 'rect', x: 25, y: 25, width: 11, height: 6, rx: 2, fill: '#4C8A4C', line: 'none' } ],
+      face: [ { t: 'circle', cx: 30, cy: 22, r: 1.8 }, { t: 'circle', cx: 38, cy: 22, r: 1.8 } ] },
+    mooncake: { name: '月饼', fill: '#D8B070', line: '#9A6A30',
+      parts: [ { t: 'circle', cx: 32, cy: 33, r: 18, fill: '#D8B070', line: '#9A6A30' },
+               { t: 'circle', cx: 32, cy: 33, r: 13, fill: '#E0BE84', line: '#9A6A30' },
+               { t: 'path', d: 'M32 24 L35 30 L41 30 L36 34 L38 40 L32 36 L26 40 L28 34 L23 30 L29 30 Z', fill: '#C99A5A', line: '#9A6A30' } ],
+      face: [] },
+    dumpling: { name: '饺子', fill: '#F2E6D0', line: '#C9A06A',
+      parts: [ { t: 'path', d: 'M14 40 Q20 28 28 40 Q22 46 14 40 Z', fill: '#F2E6D0', line: '#C9A06A' },
+               { t: 'path', d: 'M28 40 Q36 26 46 40 Q38 48 28 40 Z', fill: '#F2E6D0', line: '#C9A06A' },
+               { t: 'path', d: 'M42 40 Q50 28 56 40 Q48 46 42 40 Z', fill: '#F2E6D0', line: '#C9A06A' },
+               { t: 'path', d: 'M16 38 q4 -3 8 0 M30 38 q4 -3 8 0 M44 38 q4 -3 8 0', noHalo: true, fill: 'none', line: '#C9A06A', sw: 1.5 } ],
+      face: [] }
   };
 
   const STICKER_KEYS = Object.keys(STICKERS);
@@ -1452,9 +1508,9 @@ window.SY = (function () {
   /* 画面线索 → 贴纸候选池（按拍摄内容合理匹配，而非随机） */
   const HINT_POOL = {
     '天空': ['sun', 'cloud', 'bird', 'star', 'spark', 'balloon', 'plane', 'mountain', 'train'],
-    '光':   ['sun', 'spark', 'lamp', 'star', 'flower', 'firefly', 'phone'],
-    '夜':   ['moon', 'star', 'lamp', 'window', 'spark', 'owl', 'lantern', 'noodle', 'firefly', 'takeout', 'hotpot', 'charger', 'phone'],
-    '绿':   ['leaf', 'sprout', 'flower', 'capybara', 'dino', 'cactus', 'mushroom', 'dandelion', 'butterfly', 'plant'],
+    '光':   ['sun', 'spark', 'lamp', 'star', 'flower', 'firefly', 'phone', 'streetlamp'],
+    '夜':   ['moon', 'star', 'lamp', 'window', 'spark', 'owl', 'lantern', 'noodle', 'firefly', 'takeout', 'hotpot', 'charger', 'phone', 'bbq', 'streetlamp'],
+    '绿':   ['leaf', 'sprout', 'flower', 'capybara', 'dino', 'cactus', 'mushroom', 'dandelion', 'butterfly', 'plant', 'phoenix'],
     '人':   ['heart', 'cup', 'paw', 'cat', 'star', 'balloon', 'milktea', 'coffee', 'phone', 'headphone', 'tea'],
     '桌面': ['cup', 'book', 'lamp', 'yarn', 'heart', 'milktea', 'coffee', 'donut', 'fan', 'noodle', 'plant', 'takeout', 'phone', 'tea', 'charger'],
     '窗':   ['window', 'lamp', 'cloud', 'leaf', 'cactus', 'ebike', 'clothes', 'phone'],
@@ -1627,6 +1683,7 @@ window.SY = (function () {
       genKey: '',
       style: 'ink',         // ink 手绘 | stamp 印章
       glow: false,          // 情绪柔光
+      detailOn: true,       // 显示线索注脚（"我看见了…"）
       remindHour: 20,
       remindOn: false
     };
@@ -1652,7 +1709,7 @@ window.SY = (function () {
       'confidence(0-100整数), copy(一句话中文文案,20字内,具体、像从心里说出来,',
       '禁止出现"治愈""岁月静好""加油""晚安""放下"等空词,禁止解释情绪),',
       'detail(一句"我看见了…",25字内,必须指向画面里的具体物件或光线),',
-      'sticker(从 sun,star,moon,cloud,rain,raindrop,rainbow,spark,flower,leaf,sprout,wave,wind,cactus,mushroom,mountain,snow,plane,boat,tent,lamp,cup,book,yarn,paw,heart,window,balloon,umbrella,music,bird,milktea,coffee,donut,cake,watermelon,icecream,battery,wand,cat,bear,bunny,dog,duck,capybara,dino,pig,chick,panda,penguin,turtle,fox,hamster,owl,fan,ebike,baozi,noodle,lantern,firefly,dandelion,butterfly,fish,crab,subway,train,house,box,clothes,takeout,hotpot,plant,phone,charger,headphone,alarm,wallet,tea,sheep,snail 中选一个最贴合此刻的)',
+      'sticker(从 sun,star,moon,cloud,rain,raindrop,rainbow,spark,flower,leaf,sprout,wave,wind,cactus,mushroom,mountain,snow,plane,boat,tent,lamp,cup,book,yarn,paw,heart,window,balloon,umbrella,music,bird,milktea,coffee,donut,cake,watermelon,icecream,battery,wand,cat,bear,bunny,dog,duck,capybara,dino,pig,chick,panda,penguin,turtle,fox,hamster,owl,fan,ebike,baozi,noodle,lantern,firefly,dandelion,butterfly,fish,crab,subway,train,house,box,clothes,takeout,hotpot,plant,phone,charger,headphone,alarm,wallet,tea,sheep,snail,bbq,courtyard,streetlamp,phoenix,busstop,sharedbike,mooncake,dumpling 中选一个最贴合此刻的)',
       JSON.stringify({ 'ok': 1 })
     ].join('');
 
