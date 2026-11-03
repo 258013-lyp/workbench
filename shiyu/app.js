@@ -257,6 +257,7 @@
       sup.hidden = true;
     }
     $('#resultDetail').textContent = c.detail;
+    $('#resultDetail').hidden = state.settings.detailOn === false;
     $('#btnSave').disabled = false;
     $('#btnSave').textContent = state.saved ? '已存入今日档案' : '存入今日档案';
 
@@ -388,6 +389,7 @@
     c.detail = composed.detail;
     $('#resultCopy').textContent = c.copy;
     $('#resultDetail').textContent = c.detail;
+    $('#resultDetail').hidden = state.settings.detailOn === false;
   });
 
   $('#btnStickerAgain').addEventListener('click', async () => {
@@ -952,6 +954,7 @@
     $('#cfgRemind').checked = !!s.remindOn;
     $('#cfgRemindHour').value = S.pad(s.remindHour) + ':00';
     $('#cfgGlow').checked = !!s.glow;
+    $('#cfgDetail').checked = s.detailOn !== false;
     $('#cfgGenOn').checked = !!s.genOn;
     $('#cfgGenProvider').value = s.genProvider || 'openai';
     $('#cfgGenBase').value = s.genBase || '';
@@ -973,6 +976,11 @@
     state.settings.glow = $('#cfgGlow').checked;
     S.saveSettings(state.settings);
     applyGlow();
+  });
+  $('#cfgDetail').addEventListener('change', () => {
+    state.settings.detailOn = $('#cfgDetail').checked;
+    S.saveSettings(state.settings);
+    renderResult();
   });
 
   /* 选服务商后自动填网关/模型（国产优先），手动改过的值仍可被覆盖为用户意图——这里只在切换时填预设 */
