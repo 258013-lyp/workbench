@@ -47,8 +47,16 @@
   /* ---------------- 相机 ---------------- */
   async function startCamera() {
     stopCamera();
+    const empty = $('#stageEmpty');
+    const emptyT = empty ? empty.querySelector('.empty-t') : null;
+    const emptyS = empty ? empty.querySelector('.empty-s') : null;
+    const fail = (t, s) => {
+      if (empty) empty.style.display = '';
+      if (emptyT) emptyT.textContent = t;
+      if (emptyS) emptyS.textContent = s;
+    };
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      $('#stageEmpty').style.display = '';
+      fail('这台设备打不开相机', '点左下角相册图标，选一张照片也能用。');
       return;
     }
     try {
@@ -56,14 +64,20 @@
         video: { facingMode: state.facing, width: { ideal: 1440 }, height: { ideal: 1920 } },
         audio: false
       };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e1) {
+        /* 某些设备指定 facingMode 会失败，放宽约束重试 */
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
       state.stream = stream;
       const v = $('#video');
       v.srcObject = stream;
-      await v.play().catch(() => {});
-      $('#stageEmpty').style.display = 'none';
+      try { await v.play(); } catch (e) {}
+      if (empty) empty.style.display = 'none';
     } catch (e) {
-      $('#stageEmpty').style.display = '';
+      fail('相机暂时打不开', '可能是没授权或设备不支持。点左下角相册图标，选一张照片也能用。');
     }
   }
 
@@ -88,15 +102,23 @@
 
   $('#btnShoot').addEventListener('click', () => {
     const v = $('#video');
-    if (!v.videoWidth) { toast('相机未就绪，可从相册选一张'); return; }
-    const cv = $('#canvas');
-    const W = 1080;
-    const ratio = v.videoHeight / v.videoWidth;
-    cv.width = W; cv.height = Math.round(W * ratio);
-    const ctx = cv.getContext('2d');
-    const sx = (v.videoWidth - cv.height * v.videoWidth / v.videoHeight) / 2;
-    ctx.drawImage(v, sx, 0, cv.height * v.videoWidth / v.videoHeight, v.videoHeight, 0, 0, cv.width, cv.height);
-    handleCanvas(cv);
+    const capture = () => {
+      if (!v.videoWidth || !v.videoHeight) { toast('相机还没就绪，可从相册选一张'); return; }
+      const cv = $('#canvas');
+      const W = 1080;
+      const ratio = v.videoHeight / v.videoWidth;
+      cv.width = W; cv.height = Math.round(W * ratio);
+      const ctx = cv.getContext('2d');
+      const sx = (v.videoWidth - cv.height * v.videoWidth / v.videoHeight) / 2;
+      ctx.drawImage(v, sx, 0, cv.height * v.videoWidth / v.videoHeight, v.videoHeight, 0, 0, cv.width, cv.height);
+      handleCanvas(cv);
+    };
+    /* 流已在但画面还没起来（如 iOS 自动播放被拦），先在用户手势里 play 再拍 */
+    if ((!v.videoWidth || !v.videoHeight) && state.stream) {
+      v.play().then(capture).catch(capture);
+    } else {
+      capture();
+    }
   });
 
   function handleFile(file) {
