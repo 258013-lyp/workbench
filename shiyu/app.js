@@ -1217,8 +1217,13 @@
 
   /* ---------------- PWA ---------------- */
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    let swReloaded = false;
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+    /* 新版本 SW 接管后自动刷新一次，确保用户始终看到最新部署（避免旧缓存空壳页） */
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!swReloaded) { swReloaded = true; location.reload(); }
     });
   }
 
