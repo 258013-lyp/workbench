@@ -1548,7 +1548,7 @@ window.SY = (function () {
     return { line, hint: usedHint };
   }
 
-  function pickDetail(emotionId, hints, avoidHint) {
+  function pickDetail(emotionId, hints, avoidHint, seed) {
     const e = EMOTION_MAP[emotionId];
     const usable = (hints || []).filter(h => h !== avoidHint);
     const hint = usable.length ? usable[0] : (hints && hints[0]) || null;
