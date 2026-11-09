@@ -1,4 +1,4 @@
-const CACHE = 'shiyu-v3';
+const CACHE = 'shiyu-v4';
 const ASSETS = [
   './',
   './index.html',
