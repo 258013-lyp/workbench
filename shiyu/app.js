@@ -100,7 +100,7 @@
     e.target.value = '';
   });
 
-  $('#btnShoot').addEventListener('click', () => {
+  $('#btnShoot').addEventListener('click', async () => {
     const v = $('#video');
     const capture = () => {
       if (!v.videoWidth || !v.videoHeight) { toast('相机还没就绪，可从相册选一张'); return; }
@@ -113,12 +113,14 @@
       ctx.drawImage(v, sx, 0, cv.height * v.videoWidth / v.videoHeight, v.videoHeight, 0, 0, cv.width, cv.height);
       handleCanvas(cv);
     };
-    /* 流已在但画面还没起来（如 iOS 自动播放被拦），先在用户手势里 play 再拍 */
-    if ((!v.videoWidth || !v.videoHeight) && state.stream) {
-      v.play().then(capture).catch(capture);
-    } else {
-      capture();
+    /* 拍照这一下本身就是用户手势：若相机还没起好，就在手势里重开相机，
+       绕开部分移动端"页面加载即调 getUserMedia 被拦截"的限制；再不济 capture 会提示用相册 */
+    if (!state.stream || !v.videoWidth || !v.videoHeight) {
+      await startCamera();
+      try { await v.play(); } catch (e) {}
+      await new Promise(r => setTimeout(r, 400));
     }
+    capture();
   });
 
   function handleFile(file) {
