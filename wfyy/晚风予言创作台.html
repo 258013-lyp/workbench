@@ -2,6 +2,23 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<script>
+/* 启动兜底：若末尾启动脚本因网络中断/缓存残缺未执行（页面一直转圈），6 秒后强制自救 */
+window.__wfyyBootTimer=setTimeout(function(){
+  var box=document.getElementById('bootScreen');
+  if(!box) return; // 已正常启动
+  try{
+    // 能补跑就补跑（函数已定义但启动段没执行到）
+    if(typeof load==='function' && typeof renderAll==='function'){
+      if(typeof state==='undefined' || !state){ load(); }
+      if(typeof initFilters==='function') initFilters();
+      renderAll();
+      booted=true;
+    }
+  }catch(e){ console.warn('[boot rescue]',e); }
+  var b=document.getElementById('bootScreen'); if(b) b.remove();
+},6000);
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
@@ -4322,6 +4339,7 @@ try{
   initFilters();
   renderAll();
   booted = true;
+  try{ if(window.__wfyyBootTimer) clearTimeout(window.__wfyyBootTimer); }catch(e){}
   var bootScreen=document.getElementById('bootScreen'); if(bootScreen) bootScreen.remove();
   (function(){ try{ localStorage.setItem('__wfyy_test','1'); localStorage.removeItem('__wfyy_test'); const n=(state.works||[]).length+(state.ideas||[]).length+(state.materials||[]).length; saveStateInfo('💾 已从本机恢复 '+n+' 条 · 自动保存中'); }catch(e){ saveStateInfo('⚠ 本机存储不可用（隐私/无痕模式），数据不会自动保存——请用「本地版」下载离线副本或开启「云同步」', true); } })();
   if(cloud.enabled) cloudPull();
