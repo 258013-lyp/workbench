@@ -3,21 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <script>
-/* 启动兜底：若末尾启动脚本因网络中断/缓存残缺未执行（页面一直转圈），6 秒后强制自救 */
-window.__wfyyBootTimer=setTimeout(function(){
-  var box=document.getElementById('bootScreen');
-  if(!box) return; // 已正常启动
-  try{
-    // 能补跑就补跑（函数已定义但启动段没执行到）
-    if(typeof load==='function' && typeof renderAll==='function'){
-      if(typeof state==='undefined' || !state){ load(); }
-      if(typeof initFilters==='function') initFilters();
-      renderAll();
-      booted=true;
+/* 启动兜底：网络中断/缓存残缺导致末尾启动脚本没执行时，持续轮询自救（配合 CSS 14s 自动淡出） */
+(function(){
+  window.__wfyyBootDone=false;
+  var tries=0;
+  var t=setInterval(function(){
+    if(window.__wfyyBootDone){ clearInterval(t); return; }
+    var box=document.getElementById('bootScreen');
+    if(!box){ window.__wfyyBootDone=true; clearInterval(t); return; } // 已正常启动
+    tries++;
+    // 3 秒后开始尝试补跑：函数已定义就重跑启动，确保数据渲染出来
+    if(tries>=3){
+      try{
+        if(typeof load==='function' && typeof renderAll==='function'){
+          if(typeof state==='undefined' || !state) load();
+          if(typeof initFilters==='function') initFilters();
+          renderAll();
+          booted=true;
+        }
+      }catch(e){ console.warn('[boot rescue]',e); }
+      var b=document.getElementById('bootScreen'); if(b) b.remove();
+      window.__wfyyBootDone=true; clearInterval(t);
     }
-  }catch(e){ console.warn('[boot rescue]',e); }
-  var b=document.getElementById('bootScreen'); if(b) b.remove();
-},6000);
+  },1000);
+  window.__wfyyBootTimer=t;
+})();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
@@ -322,7 +332,8 @@ window.__wfyyBootTimer=setTimeout(function(){
   .cov-row:last-child{border-bottom:none}
   .cov-name{flex:1;min-width:120px;font-size:13px;color:var(--ink);font-weight:600}
   .cov-miss{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
-#bootScreen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#eaf2ff,#f7f9ff);color:#3a4a66}
+#bootScreen{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#eaf2ff,#f7f9ff);color:#3a4a66;animation:bootAutoHide 14s ease-in forwards}
+@keyframes bootAutoHide{0%,78%{opacity:1}100%{opacity:0;visibility:hidden;pointer-events:none}}
 .boot-spin{width:42px;height:42px;border:4px solid #d3e0f5;border-top-color:#5b8def;border-radius:50%;animation:bootspin .8s linear infinite;margin-bottom:14px}
 @keyframes bootspin{to{transform:rotate(360deg)}}
 .boot-tip{font-size:14px;letter-spacing:.5px}
@@ -3036,7 +3047,7 @@ try{
   initFilters();
   renderAll();
   booted = true;
-  try{ if(window.__wfyyBootTimer) clearTimeout(window.__wfyyBootTimer); }catch(e){}
+  try{ window.__wfyyBootDone=true; if(window.__wfyyBootTimer) clearInterval(window.__wfyyBootTimer); }catch(e){}
   var bootScreen=document.getElementById('bootScreen'); if(bootScreen) bootScreen.remove();
   (function(){ try{ localStorage.setItem('__wfyy_test','1'); localStorage.removeItem('__wfyy_test'); const n=(state.works||[]).length+(state.ideas||[]).length+(state.materials||[]).length; saveStateInfo('💾 已从本机恢复 '+n+' 条 · 自动保存中'); }catch(e){ saveStateInfo('⚠ 本机存储不可用（隐私/无痕模式），数据不会自动保存——请用「本地版」下载离线副本或开启「云同步」', true); } })();
   if(cloud.enabled) cloudPull();
