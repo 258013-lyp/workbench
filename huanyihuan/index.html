@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#FAF6EF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="缓一缓">
+<meta name="description" content="一瓶奶茶到一笔房租，每笔收支都记清楚。拿不准的消费，踩一脚刹车再决定。记账为主，冲动为辅。">
+<meta name="og:title" content="缓一缓 · 记好每一笔，冲动缓一缓">
+<meta name="og:description" content="一个把记账做扎实、再帮你识别消费冲动的小工具。收支、分类、预算、账本，一目了然。">
+<meta name="og:type" content="website">
+<title>缓一缓 · 记好每一笔，冲动缓一缓</title>
+<link rel="preload" href="fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-temp="warm">
+
+<div class="ambient" id="ambient"><span></span><span></span></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" id="brandMark"></span>
+    <span class="brand-name">缓一缓</span>
+  </div>
+  <div class="top-stat" id="topStat"></div>
+</header>
+
+<main id="app">
+
+  <!-- ============ 踩刹车 ============ -->
+  <section class="view is-on" id="view-brake">
+    <div class="scroll" id="brakeHome">
+      <div class="hero hero-ledger">
+        <p class="hero-kicker">每一笔，都算数</p>
+        <h1 class="hero-title" id="heroTitle">记一笔</h1>
+        <p class="hero-sub" id="heroSub">花了多少先记下来，拿不准的再缓一缓。</p>
+      </div>
+
+      <div class="entry entry-ledger">
+        <div class="type-switch" id="typeSwitch">
+          <button class="type-btn is-on" data-kind="expense" type="button">支出</button>
+          <button class="type-btn" data-kind="income" type="button">收入</button>
+        </div>
+
+        <div class="amount-wrap">
+          <span class="amount-symbol" id="amountSymbol">¥</span>
+          <input id="amountInput" class="amount-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" autocomplete="off">
+        </div>
+
+        <div class="cat-block" id="catBlock">
+          <p class="field-cap">花在哪了</p>
+          <div class="cat-grid" id="catGrid"></div>
+        </div>
+
+        <div class="entry-name-wrap">
+          <input id="nameInput" class="name-input" type="text" maxlength="24" placeholder="备注一句（可不填）" autocomplete="off">
+        </div>
+
+        <div class="date-row">
+          <label for="dateInput">日期</label>
+          <input id="dateInput" class="date-input" type="date">
+        </div>
+
+        <div class="need-quick" id="needQuick" hidden>
+          <span id="needQuickLabel">这是你的固定刚需</span>
+          <button class="need-quick-btn" id="btnNeedQuick">直接记一笔 ›</button>
+        </div>
+
+        <button class="btn btn-calm btn-wide btn-add" id="btnQuickAdd" type="button">
+          <span id="btnAddLabel">记下这一笔</span>
+        </button>
+        <button class="btn btn-link" id="btnCancelEdit" type="button" hidden>取消修改</button>
+      </div>
+
+      <div class="brake-entry" id="brakeEntry">
+        <div class="brake-entry-copy">
+          <p class="brake-entry-title">拿不准这该不该买？</p>
+          <p class="brake-entry-sub">踩一脚刹车，看看这一下值不值</p>
+        </div>
+        <button class="brake-orb brake-orb-sm" id="btnBrake" type="button">
+          <span class="orb-ring orb-ring-1"></span>
+          <span class="orb-ring orb-ring-2"></span>
+          <span class="orb-core">踩刹车</span>
+        </button>
+      </div>
+
+      <div class="piggy" id="piggy">
+        <div class="piggy-ring">
+          <svg viewBox="0 0 100 100" width="100" height="100">
+            <circle class="piggy-track" cx="50" cy="50" r="42"></circle>
+            <circle class="piggy-bar" id="piggyBar" cx="50" cy="50" r="42"></circle>
+          </svg>
+          <div class="piggy-inner">
+            <span class="piggy-num" id="piggyNum">0</span>
+            <span class="piggy-unit">次忍住</span>
+          </div>
+        </div>
+        <div class="piggy-info">
+          <p class="piggy-label">这个月没花出去的</p>
+          <p class="piggy-money" id="piggyMoney">¥ 0</p>
+          <p class="piggy-note" id="piggyNote">等你第一次说「算了」，这里就热闹了。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 代价页（踩刹车后的子状态） -->
+    <div class="cost-view" id="costView" hidden>
+      <button class="back-btn" id="btnBackCost">‹ 返回</button>
+      <div class="cost-head">
+        <p class="cost-kicker">这一下</p>
+        <p class="cost-amount"><span>¥</span><em id="costAmount">0</em></p>
+        <p class="cost-name" id="costName"></p>
+        <p class="cost-ask" id="costAsk">这笔，能等到明天吗？</p>
+      </div>
+      <div class="cost-cards" id="costCards"></div>
+      <div class="judgment" id="judgment">
+        <span class="judge-quote">“</span>
+        <p id="judgeText"></p>
+      </div>
+      <div class="exit-btns">
+        <button class="btn btn-calm" id="btnSkip">算了，不买了</button>
+        <button class="btn btn-warm" id="btnBuy">还是买</button>
+        <button class="btn btn-need" id="btnNeed">这是必需的，直接过 ›</button>
+      </div>
+    </div>
+
+    <!-- 情绪结账（买之后的 sub状态） -->
+    <div class="checkout-view" id="checkoutView" hidden>
+      <button class="back-btn" id="btnBackCheckout">‹ 返回</button>
+      <div class="checkout-head">
+        <p class="cost-kicker">买都买了</p>
+        <h2 class="checkout-title">刚才为啥买的？</h2>
+        <p class="checkout-sub">说实话，下次刹车才掐得准。</p>
+      </div>
+      <div class="emotion-grid" id="emotionGrid"></div>
+      <div class="checkout-note">
+        <input id="checkoutNote" class="name-input" type="text" maxlength="30" placeholder="给下次的自己留句话（可不填）" autocomplete="off">
+      </div>
+      <button class="btn btn-calm btn-wide" id="btnCheckoutSave">记下这一笔</button>
+    </div>
+
+    <!-- 忍住后的反馈 -->
+    <div class="saved-view" id="savedView" hidden>
+      <div class="saved-glyph" id="savedGlyph">✓</div>
+      <h2 class="saved-title" id="savedTitle">漂亮，忍住了</h2>
+      <p class="saved-money" id="savedMoney">¥ 0 留住了</p>
+      <p class="saved-sub" id="savedSub">钱还在卡里，快乐也没少。</p>
+      <div class="drop-card rank-common" id="dropCard" hidden>
+        <div class="drop-shine"></div>
+        <div class="drop-top">
+          <span class="rank-badge" id="dropRank">普通</span>
+          <span class="drop-new" id="dropNew" hidden>NEW</span>
+        </div>
+        <div class="drop-inner">
+          <div class="drop-seal" id="dropIcon">🛑</div>
+          <div class="drop-body">
+            <p class="drop-title" id="dropTitle"></p>
+            <p class="drop-desc" id="dropDesc"></p>
+          </div>
+        </div>
+        <p class="drop-streak" id="dropStreak"></p>
+      </div>
+      <div class="rankup-banner" id="rankupBanner" hidden>
+        <span class="rankup-icon" id="rankupIcon">🐣</span>
+        <span>段位升级 · <b id="rankupName">克制新人</b></span>
+      </div>
+      <button class="btn btn-calm btn-wide" id="btnSavedDone">收好，继续</button>
+    </div>
+
+    <!-- 买了之后的反向成就 -->
+    <div class="saved-view" id="badgeView" hidden>
+      <p class="badge-kicker">解锁了一个成就</p>
+      <div class="badge-card rank-common" id="badgeCard">
+        <div class="drop-shine"></div>
+        <div class="drop-top">
+          <span class="rank-badge" id="badgeRank">普通</span>
+          <span class="drop-new" id="badgeNew" hidden>NEW</span>
+        </div>
+        <div class="badge-emblem" id="badgeIcon">✦</div>
+        <p class="badge-title" id="badgeTitle"></p>
+        <p class="badge-desc" id="badgeDesc"></p>
+      </div>
+      <p class="badge-foot">买都买了，笑一下就过去。</p>
+      <button class="btn btn-warm btn-wide" id="btnBadgeDone">好吧</button>
+    </div>
+  </section>
+
+  <!-- ============ 账本 ============ -->
+  <section class="view" id="view-held">
+    <div class="scroll">
+      <div class="list-head list-head-row">
+        <div>
+          <p class="list-kicker">每一笔都在这里</p>
+          <h2 class="list-title">我的账本</h2>
+        </div>
+        <div class="month-nav">
+          <button class="month-arrow" id="monthPrev" type="button" aria-label="上个月">‹</button>
+          <span class="month-label" id="monthLabel"></span>
+          <button class="month-arrow" id="monthNext" type="button" aria-label="下个月">›</button>
+        </div>
+      </div>
+
+      <div class="ledger-summary" id="heldSummary"></div>
+      <div class="budget-strip" id="budgetStrip">
+        <div class="bs-head">
+          <span>本月预算还剩</span>
+          <b id="bsLeft">¥ 0</b>
+        </div>
+        <div class="bs-track"><i id="bsFill"></i></div>
+        <p class="bs-note" id="bsNote"></p>
+      </div>
+      <div class="cat-bars" id="catBars"></div>
+
+      <div class="ledger-toolbar">
+        <span class="ledger-section-title">流水明细</span>
+        <div class="ledger-filters" id="ledgerFilters">
+          <button class="lf is-on" data-filter="all" type="button">全部</button>
+          <button class="lf" data-filter="expense" type="button">支出</button>
+          <button class="lf" data-filter="income" type="button">收入</button>
+        </div>
+      </div>
+      <div class="ledger-search">
+        <span class="ls-icon">⌕</span>
+        <input id="searchInput" type="search" placeholder="搜备注或分类" autocomplete="off">
+      </div>
+      <div class="record-list" id="heldList"></div>
+
+      <div class="bought-block" id="boughtBlock" hidden>
+        <p class="bought-title">也有没忍住的时候</p>
+        <div class="record-list" id="boughtList"></div>
+      </div>
+      <div class="bought-block" id="needBlock" hidden>
+        <p class="bought-title">日常必需 · 花得没心理负担</p>
+        <div class="record-list" id="needList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 画像 ============ -->
+  <section class="view" id="view-portrait">
+    <div class="scroll">
+      <div class="list-head">
+        <p class="list-kicker">数据不会骗你</p>
+        <h2 class="list-title">我的画像</h2>
+      </div>
+      <div id="portraitEmpty" class="portrait-empty">
+        <div class="pe-mark">◌</div>
+        <p>记录还不够，画像长不出来</p>
+        <p class="pe-sub">多踩几次刹车，我就摸清你什么时候最容易上头。</p>
+      </div>
+      <div id="portraitBody" hidden>
+        <div class="portrait-grid" id="portraitGrid"></div>
+        <div class="trend-card" id="trendCard">
+          <p class="trend-title">这个月的花钱节奏</p>
+          <div class="trend-chart" id="trendChart"></div>
+          <p class="trend-foot" id="trendFoot"></p>
+        </div>
+        <div class="insight" id="insight"></div>
+        <button class="btn btn-outline btn-wide" id="btnCard">生成「这个月的我」</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 图鉴 ============ -->
+  <section class="view" id="view-codex">
+    <div class="scroll">
+      <div class="list-head">
+        <p class="list-kicker">你的收集与成长</p>
+        <h2 class="list-title">卡片图鉴</h2>
+      </div>
+
+      <!-- 段位英雄卡 -->
+      <div class="rank-hero" id="rankHero">
+        <div class="rank-hero-glow"></div>
+        <div class="rank-emblem" id="rankEmblem">🐣</div>
+        <div class="rank-info">
+          <p class="rank-overline">当前段位</p>
+          <p class="rank-name" id="rankName">刹车学徒</p>
+          <p class="rank-desc" id="rankDesc">第一次踩刹车，从这里开始</p>
+        </div>
+        <div class="rank-progress">
+          <div class="rank-progress-bar"><i id="rankProgressFill"></i></div>
+          <p class="rank-progress-text" id="rankProgressText">再忍 3 次升级</p>
+        </div>
+      </div>
+
+      <!-- 记账段位（与克制段位并列，让只记账的人也成长） -->
+      <div class="save-rank" id="saveRankCard">
+        <span class="sr-emblem" id="srEmblem">📒</span>
+        <div class="sr-body">
+          <p class="sr-top"><b id="srName">刚开本</b><span id="srCount">0 笔支出</span></p>
+          <div class="sr-bar"><i id="srFill"></i></div>
+          <p class="sr-next" id="srNext">再记 5 笔升级</p>
+        </div>
+      </div>
+
+      <!-- 收集进度 -->
+      <div class="codex-summary" id="codexSummary"></div>
+
+      <!-- 分类切换 -->
+      <div class="codex-tabs" id="codexTabs">
+        <button class="codex-tab is-on" data-kind="card">金句卡</button>
+        <button class="codex-tab" data-kind="badge">成就徽章</button>
+      </div>
+
+      <div class="codex-grid" id="codexGrid"></div>
+      <p class="codex-foot">未解锁的卡片显示为剪影。继续踩刹车、继续记录，慢慢集齐。</p>
+    </div>
+  </section>
+
+  <!-- ============ 设置 ============ -->
+  <section class="view" id="view-settings">
+    <div class="scroll">
+      <div class="list-head">
+        <p class="list-kicker">让判断更准</p>
+        <h2 class="list-title">设置</h2>
+      </div>
+      <div class="panel">
+        <div class="field">
+          <label for="cfgWage">你的时薪（元）</label>
+          <p class="field-hint">用来算「这一下等于你多久的班」</p>
+          <input id="cfgWage" type="number" min="1" step="1" inputmode="decimal" placeholder="例如 50">
+        </div>
+        <div class="field">
+          <label for="cfgBudget">每月可自由花的钱（元）</label>
+          <p class="field-hint">用来提醒你还剩多少可以放心花</p>
+          <input id="cfgBudget" type="number" min="1" step="1" inputmode="decimal" placeholder="例如 2000">
+        </div>
+      </div>
+      <div class="panel">
+        <div class="data-row"><span>数据只存在这台设备，不上传</span></div>
+        <button class="btn btn-ghost btn-wide" id="btnExport">导出我的记录</button>
+        <button class="btn btn-danger btn-wide" id="btnClear">清空全部记录</button>
+      </div>
+      <p class="about">缓一缓 · 想买之前，先看见。</p>
+    </div>
+  </section>
+
+</main>
+
+<nav class="tabbar" id="tabbar">
+  <button class="tab is-on" data-view="brake"><span class="tab-ico ico-brake"></span><span>踩刹车</span></button>
+  <button class="tab" data-view="held"><span class="tab-ico ico-held"></span><span>账本</span></button>
+  <button class="tab" data-view="codex"><span class="tab-ico ico-codex"></span><span>图鉴</span></button>
+  <button class="tab" data-view="portrait"><span class="tab-ico ico-portrait"></span><span>画像</span></button>
+  <button class="tab" data-view="settings"><span class="tab-ico ico-settings"></span><span>设置</span></button>
+</nav>
+
+<!-- 分享卡 -->
+<div class="sheet" id="cardSheet" hidden>
+  <div class="sheet-inner">
+    <button class="sheet-close" id="cardClose">✕</button>
+    <div class="share-card" id="shareCard"></div>
+    <button class="btn btn-calm btn-wide" id="btnSaveCard">保存为图片</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
