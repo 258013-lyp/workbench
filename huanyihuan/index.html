@@ -50,7 +50,12 @@
         <div class="amount-wrap">
           <span class="amount-symbol" id="amountSymbol">¥</span>
           <input id="amountInput" class="amount-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" autocomplete="off">
+          <button class="voice-btn" id="btnVoice" type="button" aria-label="语音记账" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+          </button>
         </div>
+
+        <div class="tpl-row" id="tplRow" hidden></div>
 
         <div class="cat-block" id="catBlock">
           <p class="field-cap">花在哪了</p>
@@ -74,7 +79,24 @@
         <button class="btn btn-calm btn-wide btn-add" id="btnQuickAdd" type="button">
           <span id="btnAddLabel">记下这一笔</span>
         </button>
-        <button class="btn btn-link" id="btnCancelEdit" type="button" hidden>取消修改</button>
+        <div class="entry-foot">
+          <button class="btn btn-link" id="btnSaveTpl" type="button">存为常用</button>
+          <button class="btn btn-link" id="btnCancelEdit" type="button" hidden>取消修改</button>
+        </div>
+      </div>
+
+      <div class="wish-block" id="wishBlock">
+        <button class="wish-head" id="btnWishToggle" type="button">
+          <span>想买，先放这儿</span><span class="wish-count" id="wishCount">0</span>
+        </button>
+        <div class="wish-body" id="wishBody" hidden>
+          <div class="wish-form">
+            <input id="wishName" type="text" maxlength="30" placeholder="想买什么" autocomplete="off">
+            <input id="wishAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="¥" autocomplete="off">
+            <button id="btnAddWish" type="button">＋</button>
+          </div>
+          <div id="wishList"></div>
+        </div>
       </div>
 
       <div class="brake-entry" id="brakeEntry">
@@ -214,7 +236,16 @@
         <div class="bs-track"><i id="bsFill"></i></div>
         <p class="bs-note" id="bsNote"></p>
       </div>
+      <div class="forecast-card" id="forecastCard" hidden>
+        <span class="fc-ico">◷</span><p id="forecastText"></p>
+      </div>
       <div class="cat-bars" id="catBars"></div>
+      <div class="budget-tip" id="budgetTip" hidden>
+        <div class="bt-head"><span>按往月开销定上限</span><button id="btnCloseBudget" type="button">×</button></div>
+        <div id="budgetTipList"></div>
+        <button class="btn btn-calm btn-wide" id="btnApplyBudget" type="button">就按这个来</button>
+      </div>
+      <button class="btn btn-link btn-budget-tip" id="btnBudgetTip" type="button">给花得多的定个上限</button>
 
       <div class="ledger-toolbar">
         <span class="ledger-section-title">流水明细</span>
@@ -261,6 +292,16 @@
           <p class="trend-foot" id="trendFoot"></p>
         </div>
         <div class="insight" id="insight"></div>
+        <div class="review-card" id="reviewCard">
+          <div class="review-head">
+            <p class="trend-title">回头看看</p>
+            <div class="review-tabs" id="reviewTabs">
+              <button class="is-on" data-period="week" type="button">本周</button>
+              <button data-period="month" type="button">本月</button>
+            </div>
+          </div>
+          <div id="reviewBody"></div>
+        </div>
         <button class="btn btn-outline btn-wide" id="btnCard">生成「这个月的我」</button>
       </div>
     </div>
@@ -331,10 +372,21 @@
           <p class="field-hint">用来提醒你还剩多少可以放心花</p>
           <input id="cfgBudget" type="number" min="1" step="1" inputmode="decimal" placeholder="例如 2000">
         </div>
+        <div class="field">
+          <label for="cfgPayday">每月发薪日</label>
+          <input id="cfgPayday" type="number" min="1" max="31" step="1" inputmode="numeric" placeholder="例如 10">
+        </div>
+      </div>
+      <div class="panel" id="tplManagePanel">
+        <p class="panel-title">常用账</p>
+        <div id="tplManageList"></div>
       </div>
       <div class="panel">
         <div class="data-row"><span>数据只存在这台设备，不上传</span></div>
         <button class="btn btn-ghost btn-wide" id="btnExport">导出我的记录</button>
+        <p class="export-hint" id="exportHint"></p>
+        <button class="btn btn-ghost btn-wide" id="btnImport">从备份恢复</button>
+        <input id="importFile" type="file" accept="application/json,.json" hidden>
         <button class="btn btn-danger btn-wide" id="btnClear">清空全部记录</button>
       </div>
       <p class="about">缓一缓 · 想买之前，先看见。</p>
