@@ -1,4 +1,4 @@
-const CACHE = 'huanyihuan-v5';
+const CACHE = 'huanyihuan-v6';
 const ASSETS = [
   './',
   './index.html',
