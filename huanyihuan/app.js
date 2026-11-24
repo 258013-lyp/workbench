@@ -16,6 +16,10 @@
   let ledgerMonth = S.monthKey(Date.now());
   let ledgerFilter = 'all';
   let ledgerQuery = '';
+  // 升级模块状态
+  let voiceRec = null;
+  let budgetSuggestions = [];
+  let reviewPeriod = 'week';
 
   /* ---------- 温度 ---------- */
   function setTemp(t) { document.body.dataset.temp = t; }
@@ -58,7 +62,7 @@
     if (name === 'settings') fillSettings();
     updateTopStat();
   }
-  function $$(s) { return Array.prototype.slice.call(document.querySelectorAll(s)); }
+  function $$(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
 
   function updateTopStat() {
     const rk = S.rankOf(data);
@@ -76,6 +80,184 @@
     bar.style.strokeDashoffset = off;
     $('#piggyNote').textContent = S.piggyNote(p);
   }
+
+  /* ---------- 常用账模板 ---------- */
+  function applyDraft(draft) {
+    if (!draft) return;
+    editingId = null;
+    $('#btnAddLabel').textContent = '记下这一笔';
+    $('#btnCancelEdit').hidden = true;
+    $('#heroTitle').textContent = '记一笔';
+    setEntryKind(draft.kind === 'income' ? 'income' : 'expense');
+    const list = S.categories(data)[entryKind];
+    if (draft.category && list.some(c => c.id === draft.category)) {
+      entryCat = draft.category;
+      $$('.cat-chip').forEach(x => x.classList.toggle('is-on', x.dataset.cat === entryCat));
+    }
+    $('#amountInput').value = draft.amount;
+    $('#nameInput').value = draft.name || '';
+    $('#needQuick').hidden = true;
+    $('#amountInput').focus();
+  }
+  function renderTemplates() {
+    const row = $('#tplRow');
+    if (!row) return;
+    const saved = (data.templates || []).slice(0, 8);
+    const guessed = S.inferTemplates(data).filter(g => !saved.some(t => t.name === g.name)).slice(0, 3);
+    if (!saved.length && !guessed.length) { row.hidden = true; row.innerHTML = ''; return; }
+    row.hidden = false;
+    row.innerHTML =
+      saved.map(t => '<button class="tpl-chip" type="button" data-tpl="' + t.id + '">' + esc(t.name) + '</button>').join('') +
+      guessed.map((g, i) => '<button class="tpl-chip guess" type="button" data-guess="' + i + '">＋' + esc(g.name) + '</button>').join('');
+    $$('[data-tpl]', row).forEach(b => b.addEventListener('click', () => {
+      const t = (data.templates || []).find(x => x.id === b.dataset.tpl);
+      if (t) applyDraft(t);
+    }));
+    $$('[data-guess]', row).forEach(b => b.addEventListener('click', () => {
+      const g = S.inferTemplates(data).filter(x => !(data.templates || []).some(t => t.name === x.name)).slice(0, 3)[+b.dataset.guess];
+      if (!g) return;
+      const t = S.saveTemplate(data, g);
+      S.save(data);
+      renderTemplates(); renderTplManage();
+      if (t) applyDraft(t);
+    }));
+  }
+  function renderTplManage() {
+    const box = $('#tplManageList');
+    if (!box) return;
+    const list = data.templates || [];
+    box.innerHTML = list.length
+      ? list.map(t => '<div class="tpl-manage-row"><span>' + esc(t.name) + ' · ¥' + S.fmtNum(t.amount) + '</span><button type="button" data-tpl-del="' + t.id + '">×</button></div>').join('')
+      : '<p class="panel-empty">还没有常用账</p>';
+    $$('[data-tpl-del]', box).forEach(b => b.addEventListener('click', () => {
+      S.removeTemplate(data, b.dataset.tplDel); S.save(data);
+      renderTemplates(); renderTplManage();
+    }));
+  }
+  $('#btnSaveTpl').addEventListener('click', () => {
+    const amt = parseFloat($('#amountInput').value);
+    if (!amt || amt <= 0) { toast(S.line('toastEmptyAmount')); return; }
+    const name = ($('#nameInput').value || '').trim() || S.categoryName(entryCat, entryKind);
+    const t = S.saveTemplate(data, { name, amount: Math.round(amt * 100) / 100, kind: entryKind, category: entryCat });
+    if (!t) return;
+    S.save(data); renderTemplates(); renderTplManage(); toast(S.line('toastTpl'));
+  });
+
+  /* ---------- 语音记账（浏览器支持才露出按钮） ---------- */
+  function initVoice() {
+    const btn = $('#btnVoice');
+    if (!btn) return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    btn.hidden = false;
+    btn.addEventListener('click', () => {
+      if (voiceRec) {
+        try { voiceRec.stop(); } catch (e) {}
+        voiceRec = null; btn.classList.remove('is-listening');
+        return;
+      }
+      try {
+        voiceRec = new SR();
+        voiceRec.lang = 'zh-CN';
+        voiceRec.interimResults = false;
+        voiceRec.maxAlternatives = 1;
+        voiceRec.onresult = e => {
+          const txt = (e.results && e.results[0] && e.results[0][0] && e.results[0][0].transcript) || '';
+          const parsed = S.parseVoice(txt);
+          if (parsed) { applyDraft(parsed); toast(S.line('toastVoice')); }
+          else toast(S.line('toastVoiceFail'));
+        };
+        voiceRec.onerror = () => toast(S.line('toastVoiceFail'));
+        voiceRec.onend = () => { btn.classList.remove('is-listening'); voiceRec = null; };
+        voiceRec.start();
+        btn.classList.add('is-listening');
+      } catch (e) { voiceRec = null; btn.classList.remove('is-listening'); }
+    });
+  }
+
+  /* ---------- 冷静期清单 ---------- */
+  function renderWishes() {
+    const box = $('#wishList');
+    if (!box) return;
+    const list = (data.wishlist || []).filter(w => !w.decidedTs);
+    $('#wishCount').textContent = list.length;
+    if (!list.length) { box.innerHTML = '<p class="wish-empty">◌</p>'; return; }
+    box.innerHTML = list.map(w =>
+      '<div class="wish-row"><div class="wish-info"><b>' + esc(w.name) + '</b>' +
+      '<span>¥' + S.fmtNum(w.amount) + ' · 放了 ' + S.wishDays(w) + ' 天</span></div>' +
+      '<div class="wish-acts"><button type="button" data-wish-skip="' + w.id + '">算了</button>' +
+      '<button type="button" data-wish-buy="' + w.id + '">还是买</button>' +
+      '<button class="wish-x" type="button" data-wish-del="' + w.id + '">×</button></div></div>'
+    ).join('');
+    $$('[data-wish-del]', box).forEach(b => b.addEventListener('click', () => {
+      S.removeWish(data, b.dataset.wishDel); S.save(data); renderWishes();
+    }));
+    $$('[data-wish-skip]', box).forEach(b => b.addEventListener('click', () => decideWish(b.dataset.wishSkip, 'skip')));
+    $$('[data-wish-buy]', box).forEach(b => b.addEventListener('click', () => decideWish(b.dataset.wishBuy, 'buy')));
+  }
+  function decideWish(id, decision) {
+    const w = S.decideWish(data, id, decision);
+    if (!w) return;
+    S.save(data);
+    renderWishes(); renderPiggy(); updateTopStat(); renderHeld();
+    toast(S.line(decision === 'buy' ? 'toastWishBuy' : 'toastWishSkip'));
+  }
+  $('#btnWishToggle').addEventListener('click', () => {
+    const body = $('#wishBody');
+    body.hidden = !body.hidden;
+  });
+  $('#btnAddWish').addEventListener('click', () => {
+    const name = ($('#wishName').value || '').trim();
+    const amt = parseFloat($('#wishAmount').value);
+    if (!name || !amt || amt <= 0) { toast('写下想买什么和价钱'); return; }
+    S.addWish(data, name, amt); S.save(data);
+    $('#wishName').value = ''; $('#wishAmount').value = '';
+    renderWishes(); toast(S.line('toastWish'));
+  });
+
+  /* ---------- 前视预测 + 分类预算 ---------- */
+  function renderForecast() {
+    const card = $('#forecastCard');
+    if (!card) return;
+    if (ledgerMonth !== S.monthKey(Date.now())) { card.hidden = true; return; }
+    const f = S.forecast(data);
+    card.hidden = false;
+    card.classList.toggle('is-over', f.over);
+    $('#forecastText').textContent = f.text;
+  }
+  function renderBudgetTip() {
+    budgetSuggestions = S.catBudgetSuggestions(data);
+    const box = $('#budgetTipList');
+    if (!box) return;
+    box.innerHTML = budgetSuggestions.length
+      ? budgetSuggestions.map(x => '<div class="bt-row"><span>' + x.icon + ' ' + esc(x.name) + '</span>' +
+          '<span>往月 ¥' + S.fmtNum(x.avg) + '</span><b>¥' + S.fmtNum(x.suggested) + '</b></div>').join('')
+      : '<p class="panel-empty">还没有足够的历史数据</p>';
+    $('#btnApplyBudget').hidden = !budgetSuggestions.length;
+  }
+  $('#btnBudgetTip').addEventListener('click', () => { renderBudgetTip(); $('#budgetTip').hidden = false; });
+  $('#btnCloseBudget').addEventListener('click', () => { $('#budgetTip').hidden = true; });
+  $('#btnApplyBudget').addEventListener('click', () => {
+    const n = S.applyCatBudgets(data, budgetSuggestions);
+    S.save(data); $('#budgetTip').hidden = true;
+    renderHeld(); toast(n ? '上限定好了' : '没定成');
+  });
+
+  /* ---------- 周 / 月复盘 ---------- */
+  function renderReview() {
+    const box = $('#reviewBody');
+    if (!box) return;
+    const r = S.review(data, reviewPeriod);
+    box.innerHTML = '<div class="review-big">¥' + S.fmtNum(r.expense) + '</div>' +
+      '<div class="review-lines">' + r.lines.map(l => '<p>' + l + '</p>').join('') + '</div>';
+    $$('#reviewTabs button').forEach(b => b.classList.toggle('is-on', b.dataset.period === reviewPeriod));
+  }
+  $('#reviewTabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-period]');
+    if (!b) return;
+    reviewPeriod = b.dataset.period;
+    renderReview();
+  });
 
   /* ---------- 记一笔（第一功能） ---------- */
   function todayStr() {
@@ -154,7 +336,7 @@
     $('#amountInput').value = '';
     $('#nameInput').value = '';
     $('#dateInput').value = todayStr();
-    renderPiggy(); updateTopStat();
+    renderPiggy(); renderTemplates(); updateTopStat();
   }
   $('#btnQuickAdd').addEventListener('click', saveEntry);
   $('#amountInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveEntry(); });
@@ -328,6 +510,7 @@
     if (action === 'skip') data.lastDropSalt = (data.lastDropSalt || 0) + 1;
     if (action === 'buy') data.lastBadgeSalt = (data.lastBadgeSalt || 0) + 1;
     S.save(data);
+    renderTemplates();
     updateTopStat();
   }
   function resetAndHome() {
@@ -384,15 +567,20 @@
         : ('预算 ¥' + S.fmtNum(budget) + ' · 已用 ' + usedPct + '%');
     }
 
-    // 分类支出条
+    renderForecast();
+
+    // 分类支出条（当月且设过上限时，附上预算刻度）
     if (lg.cats.length) {
       const top = lg.cats.slice(0, 5);
+      const showBudget = ledgerMonth === S.monthKey(Date.now());
       $('#catBars').innerHTML = '<p class="cat-bars-title">钱花在哪了</p>' + top.map(c => {
         const pct = lg.catTotal ? Math.round(c.amount / lg.catTotal * 100) : 0;
+        const cap = showBudget ? S.catBudgetOf(data, c.id) : 0;
+        const over = cap && c.amount > cap;
         return '<div class="cat-bar"><span class="cb-ico">' + c.icon + '</span>' +
           '<span class="cb-name">' + c.name + '</span>' +
           '<span class="cb-track"><i style="width:' + pct + '%"></i></span>' +
-          '<span class="cb-num">¥' + S.fmtNum(c.amount) + '</span></div>';
+          '<span class="cb-num' + (over ? ' over' : '') + '">¥' + S.fmtNum(c.amount) + (cap ? ' / ' + S.fmtNum(cap) : '') + '</span></div>';
       }).join('');
     } else $('#catBars').innerHTML = '';
 
@@ -604,6 +792,7 @@
 
     const lines = S.cardLines(data);
     $('#insight').innerHTML = lines.map(l => '<p>' + l + '</p>').join('');
+    renderReview();
   }
 
   /* ---------- 分享卡 ---------- */
@@ -631,34 +820,70 @@
   $('#btnSaveCard').addEventListener('click', () => toast('长按卡片即可保存，或用手机截图'));
 
   /* ---------- 设置 ---------- */
+  function renderExportHint() {
+    const el = $('#exportHint');
+    if (!el) return;
+    const ts = Number(data.lastExportTs) || 0;
+    if (!ts) { el.textContent = ''; return; }
+    const days = Math.floor((Date.now() - ts) / 86400000);
+    el.textContent = days <= 0 ? '今天备份过' : (days === 1 ? '昨天备份过' : days + ' 天前备份过');
+  }
   function fillSettings() {
     $('#cfgWage').value = data.settings.wage || '';
     $('#cfgBudget').value = data.settings.budget || '';
+    $('#cfgPayday').value = data.settings.payday || '';
+    renderTplManage();
+    renderExportHint();
   }
-  function bindCfg(sel, key) {
+  function bindCfg(sel, key, def) {
     $(sel).addEventListener('change', e => {
       const v = parseFloat(e.target.value);
-      data.settings[key] = (v > 0) ? v : (key === 'wage' ? 50 : 2000);
+      let val = (isFinite(v) && v > 0 && (key !== 'payday' || v <= 31)) ? v : def;
+      if (key === 'payday') val = Math.floor(val);
+      data.settings[key] = val;
       S.save(data);
       toast('已保存');
     });
   }
-  bindCfg('#cfgWage', 'wage');
-  bindCfg('#cfgBudget', 'budget');
+  bindCfg('#cfgWage', 'wage', 50);
+  bindCfg('#cfgBudget', 'budget', 2000);
+  bindCfg('#cfgPayday', 'payday', 10);
 
   $('#btnExport').addEventListener('click', () => {
+    data.lastExportTs = Date.now(); S.save(data);
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = '缓一缓-我的记录.json';
     a.click(); URL.revokeObjectURL(url);
+    renderExportHint();
     toast('已导出');
+  });
+  $('#btnImport').addEventListener('click', () => $('#importFile').click());
+  $('#importFile').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = S.importData(String(reader.result || ''));
+      if (!res.ok) { toast(res.error); return; }
+      if (!confirm('用备份里的 ' + res.count + ' 条记录覆盖当前数据？')) return;
+      data = res.data; S.save(data);
+      ledgerMonth = S.monthKey(Date.now());
+      renderPiggy(); renderTemplates(); renderWishes(); renderTplManage(); renderExportHint(); updateTopStat();
+      renderHeld(); renderPortrait(); renderCodex(); fillSettings();
+      toast(S.line('toastImport'));
+    };
+    reader.readAsText(f);
+    e.target.value = '';
   });
   $('#btnClear').addEventListener('click', () => {
     if (!confirm('清空全部记录？此操作不可恢复。')) return;
     data = S.defaultData();
     S.save(data);
-    renderPiggy(); updateTopStat();
+    ledgerMonth = S.monthKey(Date.now());
+    renderPiggy(); renderTemplates(); renderWishes(); renderTplManage(); renderExportHint(); updateTopStat();
+    renderHeld(); renderPortrait();
     toast('已清空');
   });
 
@@ -688,6 +913,10 @@
   $('#dateInput').value = todayStr();
   renderCats();
   renderPiggy();
+  renderTemplates();
+  renderWishes();
+  renderExportHint();
+  initVoice();
   updateTopStat();
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
