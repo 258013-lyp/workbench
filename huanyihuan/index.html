@@ -6,12 +6,12 @@
 <meta name="theme-color" content="#FAF6EF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="缓一缓">
-<meta name="description" content="一瓶奶茶到一笔房租，每笔收支都记清楚。拿不准的消费，踩一脚刹车再决定。记账为主，冲动为辅。">
-<meta name="og:title" content="缓一缓 · 记好每一笔，冲动缓一缓">
-<meta name="og:description" content="一个把记账做扎实、再帮你识别消费冲动的小工具。收支、分类、预算、账本，一目了然。">
+<meta name="apple-mobile-web-app-title" content="笔笔清">
+<meta name="description" content="一瓶奶茶到一笔房租，每笔收支都记清楚。收支、分类、预算、账本一目了然，每一笔都清楚。">
+<meta name="og:title" content="笔笔清 · 记好每一笔，心里有数">
+<meta name="og:description" content="把收支、分类、预算、账本都记清楚，每一笔都清楚。">
 <meta name="og:type" content="website">
-<title>缓一缓 · 记好每一笔，冲动缓一缓</title>
+<title>笔笔清 · 记好每一笔，心里有数</title>
 <link rel="preload" href="fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -25,7 +25,7 @@
 <header class="topbar">
   <div class="brand">
     <span class="brand-mark" id="brandMark"></span>
-    <span class="brand-name">缓一缓</span>
+    <span class="brand-name">笔笔清</span>
   </div>
   <div class="top-stat" id="topStat"></div>
 </header>
@@ -56,6 +56,11 @@
         </div>
 
         <div class="tpl-row" id="tplRow" hidden></div>
+
+        <div class="cycle-card" id="cycleCard" hidden>
+          <p class="cycle-cap">这个月的固定账</p>
+          <div id="cycleList"></div>
+        </div>
 
         <div class="cat-block" id="catBlock">
           <p class="field-cap">花在哪了</p>
@@ -99,15 +104,11 @@
         </div>
       </div>
 
-      <div class="brake-entry" id="brakeEntry">
-        <div class="brake-entry-copy">
-          <p class="brake-entry-title">拿不准这该不该买？</p>
-          <p class="brake-entry-sub">踩一脚刹车，看看这一下值不值</p>
-        </div>
-        <button class="brake-orb brake-orb-sm" id="btnBrake" type="button">
-          <span class="orb-ring orb-ring-1"></span>
-          <span class="orb-ring orb-ring-2"></span>
-          <span class="orb-core">踩刹车</span>
+      <div class="brake-entry brake-entry-mini" id="brakeEntry">
+        <button class="brake-mini-btn" id="btnBrake" type="button">
+          <span class="brake-mini-ico">⏸</span>
+          <span>拿不准要不要买？踩一脚看看</span>
+          <span class="brake-mini-go">›</span>
         </button>
       </div>
 
@@ -118,14 +119,18 @@
             <circle class="piggy-bar" id="piggyBar" cx="50" cy="50" r="42"></circle>
           </svg>
           <div class="piggy-inner">
-            <span class="piggy-num" id="piggyNum">0</span>
-            <span class="piggy-unit">次忍住</span>
+            <span class="piggy-num" id="piggyNum">0%</span>
+            <span class="piggy-unit">攒下比例</span>
           </div>
         </div>
         <div class="piggy-info">
-          <p class="piggy-label">这个月没花出去的</p>
+          <p class="piggy-label">收入减支出，攒下来的</p>
           <p class="piggy-money" id="piggyMoney">¥ 0</p>
-          <p class="piggy-note" id="piggyNote">等你第一次说「算了」，这里就热闹了。</p>
+          <p class="piggy-note" id="piggyNote">记下收入支出，这里就是你这个月的底气。</p>
+          <div class="goal-strip" id="goalStrip" hidden>
+            <div class="gs-top"><span id="goalStripName"></span><b id="goalStripNum"></b></div>
+            <div class="gs-track"><i id="goalFill"></i></div>
+          </div>
         </div>
       </div>
     </div>
@@ -225,9 +230,23 @@
           <span class="month-label" id="monthLabel"></span>
           <button class="month-arrow" id="monthNext" type="button" aria-label="下个月">›</button>
         </div>
+        <button class="ledger-share" id="btnLedgerShare" type="button" aria-label="分享账单">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6"/></svg>
+        </button>
       </div>
 
       <div class="ledger-summary" id="heldSummary"></div>
+      <div class="ask-box" id="askBox">
+        <div class="ask-row">
+          <span class="ask-mark">⌕</span>
+          <input id="askInput" type="text" maxlength="40" placeholder="想查什么，问一句" autocomplete="off">
+          <button id="btnAsk" type="button">问</button>
+        </div>
+        <div class="ask-answer" id="askAnswer" hidden>
+          <p class="aa-text" id="askText"></p>
+          <p class="aa-detail" id="askDetail"></p>
+        </div>
+      </div>
       <div class="budget-strip" id="budgetStrip">
         <div class="bs-head">
           <span>本月预算还剩</span>
@@ -240,6 +259,10 @@
         <span class="fc-ico">◷</span><p id="forecastText"></p>
       </div>
       <div class="cat-bars" id="catBars"></div>
+      <div class="sub-card" id="subCard" hidden>
+        <p class="sub-cap">像是自动续费的</p>
+        <div id="subList"></div>
+      </div>
       <div class="budget-tip" id="budgetTip" hidden>
         <div class="bt-head"><span>按往月开销定上限</span><button id="btnCloseBudget" type="button">×</button></div>
         <div id="budgetTipList"></div>
@@ -249,15 +272,24 @@
 
       <div class="ledger-toolbar">
         <span class="ledger-section-title">流水明细</span>
-        <div class="ledger-filters" id="ledgerFilters">
-          <button class="lf is-on" data-filter="all" type="button">全部</button>
-          <button class="lf" data-filter="expense" type="button">支出</button>
-          <button class="lf" data-filter="income" type="button">收入</button>
+        <div class="ledger-modes" id="ledgerModes">
+          <button class="is-on" data-mode="list" type="button">列表</button>
+          <button data-mode="cal" type="button">日历</button>
         </div>
+      </div>
+      <div class="ledger-filters" id="ledgerFilters">
+        <button class="lf is-on" data-filter="all" type="button">全部</button>
+        <button class="lf" data-filter="expense" type="button">支出</button>
+        <button class="lf" data-filter="income" type="button">收入</button>
       </div>
       <div class="ledger-search">
         <span class="ls-icon">⌕</span>
         <input id="searchInput" type="search" placeholder="搜备注或分类" autocomplete="off">
+      </div>
+      <div class="cal-view" id="calView" hidden>
+        <div class="cal-head"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+        <div class="cal-grid" id="calGrid"></div>
+        <p class="cal-foot" id="calFoot"></p>
       </div>
       <div class="record-list" id="heldList"></div>
 
@@ -286,7 +318,7 @@
       <div id="portraitEmpty" class="portrait-empty">
         <div class="pe-mark">◌</div>
         <p>记录还不够，画像长不出来</p>
-        <p class="pe-sub">多踩几次刹车，我就摸清你什么时候最容易上头。</p>
+        <p class="pe-sub">多记几笔账，我就帮你看清钱都花去哪了。</p>
       </div>
       <div id="portraitBody" hidden>
         <div class="portrait-grid" id="portraitGrid"></div>
@@ -325,12 +357,12 @@
         <div class="rank-emblem" id="rankEmblem">🐣</div>
         <div class="rank-info">
           <p class="rank-overline">当前段位</p>
-          <p class="rank-name" id="rankName">刹车学徒</p>
-          <p class="rank-desc" id="rankDesc">第一次踩刹车，从这里开始</p>
+          <p class="rank-name" id="rankName">空空的钱包</p>
+          <p class="rank-desc" id="rankDesc">还没攒下，先记起来</p>
         </div>
         <div class="rank-progress">
           <div class="rank-progress-bar"><i id="rankProgressFill"></i></div>
-          <p class="rank-progress-text" id="rankProgressText">再忍 3 次升级</p>
+          <p class="rank-progress-text" id="rankProgressText">攒钱升级，一步一步来</p>
         </div>
       </div>
 
@@ -354,7 +386,7 @@
       </div>
 
       <div class="codex-grid" id="codexGrid"></div>
-      <p class="codex-foot">未解锁的卡片显示为剪影。继续踩刹车、继续记录，慢慢集齐。</p>
+      <p class="codex-foot">未解锁的卡片显示为剪影。多记几笔账，慢慢集齐。</p>
     </div>
   </section>
 
@@ -385,6 +417,21 @@
         <p class="panel-title">常用账</p>
         <div id="tplManageList"></div>
       </div>
+      <div class="panel" id="goalPanel">
+        <p class="panel-title">攒钱目标</p>
+        <div id="goalState"></div>
+        <div class="goal-form">
+          <input id="goalName" type="text" maxlength="20" placeholder="想攒什么" autocomplete="off">
+          <input id="goalTarget" type="number" min="1" step="1" inputmode="decimal" placeholder="目标金额" autocomplete="off">
+          <button id="btnSetGoal" type="button">设定</button>
+        </div>
+        <button class="btn btn-link" id="btnClearGoal" type="button" hidden>取消目标</button>
+      </div>
+      <div class="panel" id="billPanel">
+        <p class="panel-title">从账单导入</p>
+        <textarea id="billText" rows="4" placeholder="粘贴支付宝 / 微信账单文本或 CSV"></textarea>
+        <button class="btn btn-ghost btn-wide" id="btnImportBills" type="button">导入这些记录</button>
+      </div>
       <div class="panel">
         <div class="data-row"><span>数据只存在这台设备，不上传</span></div>
         <button class="btn btn-ghost btn-wide" id="btnExport">导出我的记录</button>
@@ -393,7 +440,7 @@
         <input id="importFile" type="file" accept="application/json,.json" hidden>
         <button class="btn btn-danger btn-wide" id="btnClear">清空全部记录</button>
       </div>
-      <p class="about">缓一缓 · 想买之前，先看见。</p>
+      <p class="about">笔笔清 · 每一笔，都清楚。</p>
     </div>
   </section>
 
