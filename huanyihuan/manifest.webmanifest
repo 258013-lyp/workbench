@@ -1,7 +1,7 @@
 {
-  "name": "缓一缓 · 记好每一笔，冲动缓一缓",
-  "short_name": "缓一缓",
-  "description": "收支、分类、预算、账本一目了然；拿不准的消费，踩一脚刹车再决定。 A calm ledger with a pause button.",
+  "name": "笔笔清 · 记好每一笔，心里有数",
+  "short_name": "笔笔清",
+  "description": "收支、分类、预算、账本一目了然，每一笔都清楚。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
