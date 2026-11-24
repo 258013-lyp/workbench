@@ -32,6 +32,19 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.hidden = true; }, 2000);
   }
+  function toastWithUndo(msg, undo) {
+    const t = $('#toast');
+    t.textContent = '';
+    const label = document.createElement('span');
+    label.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'toast-undo'; btn.textContent = '撤销';
+    btn.addEventListener('click', () => { clearTimeout(toastTimer); t.hidden = true; undo(); });
+    t.appendChild(label); t.appendChild(btn);
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 4000);
+  }
 
   /* ---------- 品牌 mark ---------- */
   function drawBrand() {
@@ -107,11 +120,17 @@
     if (!saved.length && !guessed.length) { row.hidden = true; row.innerHTML = ''; return; }
     row.hidden = false;
     row.innerHTML =
-      saved.map(t => '<button class="tpl-chip" type="button" data-tpl="' + t.id + '">' + esc(t.name) + '</button>').join('') +
+      saved.map(t => '<span class="tpl-item"><button class="tpl-chip" type="button" data-tpl="' + t.id + '">' + esc(t.name) + '</button>' +
+        '<button class="tpl-del" type="button" data-tpl-del-home="' + t.id + '" aria-label="删除常用账">×</button></span>').join('') +
       guessed.map((g, i) => '<button class="tpl-chip guess" type="button" data-guess="' + i + '">＋' + esc(g.name) + '</button>').join('');
     $$('[data-tpl]', row).forEach(b => b.addEventListener('click', () => {
       const t = (data.templates || []).find(x => x.id === b.dataset.tpl);
       if (t) applyDraft(t);
+    }));
+    $$('[data-tpl-del-home]', row).forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      S.removeTemplate(data, b.dataset.tplDelHome); S.save(data);
+      renderTemplates(); renderTplManage(); toast('常用账已删');
     }));
     $$('[data-guess]', row).forEach(b => b.addEventListener('click', () => {
       const g = S.inferTemplates(data).filter(x => !(data.templates || []).some(t => t.name === x.name)).slice(0, 3)[+b.dataset.guess];
@@ -302,7 +321,7 @@
     return {
       amount: Math.round(amt * 100) / 100,
       name: ($('#nameInput').value || '').trim(),
-      category: entryKind === 'income' ? '' : entryCat,
+      category: entryCat,
       kind: entryKind,
       ts
     };
@@ -558,7 +577,7 @@
       // 预算进度只看支出，收入是另一维度，不混进来（否则出现"已用-721%"）
       const spent = lg.expense;
       const left = Math.max(0, budget - spent);
-      const usedPct = Math.min(100, Math.round(spent / budget * 100));
+      const usedPct = Math.min(100, Math.round(spent / budget * 1000) / 10);
       $('#bsLeft').textContent = '¥ ' + S.fmtNum(left);
       $('#bsFill').style.width = usedPct + '%';
       $('#bsFill').classList.toggle('over', spent > budget);
@@ -631,6 +650,10 @@
       $('#needBlock').hidden = false;
       $('#needList').innerHTML = needs.map(r => recHtml(r, 'need')).join('');
     } else $('#needBlock').hidden = true;
+    if (skips.length) {
+      $('#skipBlock').hidden = false;
+      $('#skipList').innerHTML = skips.map(r => recHtml(r, 'calm')).join('');
+    } else $('#skipBlock').hidden = true;
 
     bindRecActions();
   }
@@ -646,16 +669,25 @@
     $$('.rec-del').forEach(b => b.addEventListener('click', e => {
       e.stopPropagation();
       const id = b.dataset.del;
-      data.records = data.records.filter(r => r.id !== id);
+      const idx = data.records.findIndex(r => r.id === id);
+      if (idx < 0) return;
+      const removed = data.records[idx];
+      data.records.splice(idx, 1);
       S.save(data);
-      renderHeld(); renderPiggy(); updateTopStat();
+      renderHeld(); renderPiggy(); renderTemplates(); updateTopStat();
+      toastWithUndo('删掉了', () => {
+        data.records.splice(Math.min(idx, data.records.length), 0, removed);
+        S.save(data);
+        renderHeld(); renderPiggy(); renderTemplates(); updateTopStat();
+        toast('回来了');
+      });
     }));
     $$('.record[data-edit]').forEach(row => row.addEventListener('click', () => {
       const r = data.records.find(x => x.id === row.dataset.edit);
       if (!r) return;
       editingId = r.id;
       setEntryKind(r.kind === 'income' ? 'income' : 'expense');
-      if (r.kind !== 'income' && r.category) {
+      if (r.category) {
         entryCat = r.category;
         $$('.cat-chip').forEach(x => x.classList.toggle('is-on', x.dataset.cat === entryCat));
       }
@@ -817,7 +849,59 @@
   });
   $('#cardClose').addEventListener('click', () => { $('#cardSheet').hidden = true; });
   $('#cardSheet').addEventListener('click', e => { if (e.target.id === 'cardSheet') $('#cardSheet').hidden = true; });
-  $('#btnSaveCard').addEventListener('click', () => toast('长按卡片即可保存，或用手机截图'));
+  function wrapCardText(ctx, text, x, y, maxW, lineH) {
+    let line = '', yy = y;
+    for (const ch of String(text || '')) {
+      const test = line + ch;
+      if (ctx.measureText(test).width > maxW && line) {
+        ctx.fillText(line, x, yy);
+        line = ch; yy += lineH;
+      } else line = test;
+    }
+    if (line) ctx.fillText(line, x, yy);
+    return yy + lineH;
+  }
+  function saveCardImage() {
+    const card = $('#shareCard');
+    if (!card) return;
+    try {
+      const W = 750, H = 1250;
+      const cv = document.createElement('canvas');
+      cv.width = W; cv.height = H;
+      const c = cv.getContext('2d');
+      const g = c.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0, '#FCE9E1'); g.addColorStop(.46, '#FBF8F2'); g.addColorStop(1, '#DCEFE8');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      const txt = s => { const el = card.querySelector(s); return el ? el.textContent : ''; };
+      c.textBaseline = 'top';
+      c.fillStyle = '#BB4526'; c.font = 'bold 26px sans-serif';
+      c.fillText(txt('.sc-brand'), 60, 64);
+      c.fillStyle = '#202725'; c.font = 'bold 60px sans-serif';
+      let y = wrapCardText(c, txt('.sc-title'), 60, 140, W - 120, 78) + 20;
+      c.fillStyle = '#0B6455'; c.font = 'bold 96px sans-serif';
+      c.fillText(txt('.sc-big-n'), 60, y); y += 122;
+      c.fillStyle = '#5E6663'; c.font = '26px sans-serif';
+      y = wrapCardText(c, txt('.sc-big-l'), 60, y, W - 120, 38) + 30;
+      c.strokeStyle = 'rgba(32,39,37,.1)'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(60, y); c.lineTo(W - 60, y); c.stroke(); y += 30;
+      c.fillStyle = '#5E6663'; c.font = '28px sans-serif';
+      $$('.sc-line', card).forEach(el => { y = wrapCardText(c, el.textContent, 60, y, W - 120, 44) + 14; });
+      c.fillStyle = '#9BA09C'; c.font = '24px sans-serif';
+      c.fillText(txt('.sc-foot'), 60, y + 56);
+      const out = document.createElement('canvas');
+      out.width = W; out.height = Math.max(900, Math.ceil(y + 130));
+      out.getContext('2d').drawImage(cv, 0, 0);
+      out.toBlob(blob => {
+        if (!blob) { toast('没存成，试试手机截图'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = '缓一缓-这个月的我.png';
+        a.click(); URL.revokeObjectURL(url);
+        toast('存好了');
+      }, 'image/png');
+    } catch (e) { toast('没存成，试试手机截图'); }
+  }
+  $('#btnSaveCard').addEventListener('click', saveCardImage);
 
   /* ---------- 设置 ---------- */
   function renderExportHint() {
@@ -854,7 +938,7 @@
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = '缓一缓-我的记录.json';
+    a.href = url; a.download = '缓一缓-备份-' + todayStr() + '.json';
     a.click(); URL.revokeObjectURL(url);
     renderExportHint();
     toast('已导出');
