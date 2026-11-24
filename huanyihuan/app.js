@@ -1,5 +1,5 @@
 /* ============================================================
-   缓一缓 · 交互层
+   笔笔清 · 交互层
    ============================================================ */
 (function () {
   'use strict';
@@ -20,6 +20,8 @@
   let voiceRec = null;
   let budgetSuggestions = [];
   let reviewPeriod = 'week';
+  let ledgerMode = 'list';
+  let ledgerDay = 0;
 
   /* ---------- 温度 ---------- */
   function setTemp(t) { document.body.dataset.temp = t; }
@@ -79,19 +81,26 @@
 
   function updateTopStat() {
     const rk = S.rankOf(data);
-    $('#topStat').textContent = rk.totalSkip ? (rk.icon + ' ' + rk.name) : '';
+    $('#topStat').textContent = rk.totalSaved > 0 ? (rk.icon + ' ' + rk.name) : '';
   }
 
-  /* ---------- 首页：存钱罐 ---------- */
+  /* ---------- 首页：攒钱罐（本月结余） ---------- */
   function renderPiggy() {
     const p = S.portrait(data);
-    $('#piggyNum').textContent = p.skipN;
-    $('#piggyMoney').textContent = '¥ ' + S.fmtNum(p.skipAmt);
+    const balance = p.monthBalance;
+    $('#piggyMoney').textContent = '¥ ' + S.fmtNum(Math.max(0, balance));
     const bar = $('#piggyBar');
-    const goal = Math.max(10, p.skipN + 3);
-    const off = 264 - Math.min(264, 264 * (p.skipN / goal));
-    bar.style.strokeDashoffset = off;
-    $('#piggyNote').textContent = S.piggyNote(p);
+    // 结余占收入的比例；没记收入时用记账笔数给个温和进度
+    let ratio;
+    if (p.monthIncome > 0) ratio = Math.max(0, Math.min(1, balance / p.monthIncome));
+    else ratio = Math.min(0.9, p.recordN / 10);
+    $('#piggyNum').textContent = (p.monthIncome > 0 ? Math.round(ratio * 100) : 0) + '%';
+    bar.style.strokeDashoffset = 264 - 264 * ratio;
+    $('#piggyNote').textContent = balance > 0
+      ? '收入减支出，这个月攒下这么多。'
+      : (p.recordN ? '这个月还没攒下，下月留意。' : '记下收入支出，这里就是你这个月的底气。');
+    renderGoal();
+    renderCycles();
   }
 
   /* ---------- 常用账模板 ---------- */
@@ -103,8 +112,10 @@
     $('#heroTitle').textContent = '记一笔';
     setEntryKind(draft.kind === 'income' ? 'income' : 'expense');
     const list = S.categories(data)[entryKind];
-    if (draft.category && list.some(c => c.id === draft.category)) {
-      entryCat = draft.category;
+    const learned = S.guessCategory(data, draft.name);
+    const cat = learned || draft.category;
+    if (cat && list.some(c => c.id === cat)) {
+      entryCat = cat;
       $$('.cat-chip').forEach(x => x.classList.toggle('is-on', x.dataset.cat === entryCat));
     }
     $('#amountInput').value = draft.amount;
@@ -146,11 +157,27 @@
     if (!box) return;
     const list = data.templates || [];
     box.innerHTML = list.length
-      ? list.map(t => '<div class="tpl-manage-row"><span>' + esc(t.name) + ' · ¥' + S.fmtNum(t.amount) + '</span><button type="button" data-tpl-del="' + t.id + '">×</button></div>').join('')
+      ? list.map(t => '<div class="tpl-manage-row"><span class="tm-name">' + esc(t.name) + ' · ¥' + S.fmtNum(t.amount) + '</span>' +
+          '<span class="tm-cycle"><button type="button" data-cycle-toggle="' + t.id + '" class="' + (t.cycle ? 'on' : '') + '">每月</button>' +
+          (t.cycle ? '<input type="number" min="1" max="31" value="' + t.cycleDay + '" data-cycle-day="' + t.id + '" aria-label="每月几号">' : '') +
+          '</span><button type="button" data-tpl-del="' + t.id + '">×</button></div>').join('')
       : '<p class="panel-empty">还没有常用账</p>';
     $$('[data-tpl-del]', box).forEach(b => b.addEventListener('click', () => {
       S.removeTemplate(data, b.dataset.tplDel); S.save(data);
-      renderTemplates(); renderTplManage();
+      renderTemplates(); renderTplManage(); renderCycles();
+    }));
+    $$('[data-cycle-toggle]', box).forEach(b => b.addEventListener('click', () => {
+      const t = (data.templates || []).find(x => x.id === b.dataset.cycleToggle);
+      if (!t) return;
+      S.saveTemplate(data, { id: t.id, name: t.name, amount: t.amount, kind: t.kind, category: t.category, note: t.note, cycle: t.cycle ? 0 : 1, cycleDay: t.cycleDay });
+      S.save(data); renderTplManage(); renderCycles();
+    }));
+    $$('[data-cycle-day]', box).forEach(inp => inp.addEventListener('change', () => {
+      const t = (data.templates || []).find(x => x.id === inp.dataset.cycleDay);
+      if (!t) return;
+      const day = Math.max(1, Math.min(31, parseInt(inp.value, 10) || 1));
+      S.saveTemplate(data, { id: t.id, name: t.name, amount: t.amount, kind: t.kind, category: t.category, note: t.note, cycle: 1, cycleDay: day });
+      S.save(data); renderTplManage(); renderCycles();
     }));
   }
   $('#btnSaveTpl').addEventListener('click', () => {
@@ -278,6 +305,103 @@
     renderReview();
   });
 
+  /* ---------- 周期账：到期给卡，点了才落账 ---------- */
+  function renderCycles() {
+    const box = $('#cycleCard');
+    if (!box) return;
+    const list = S.dueCycles(data);
+    box.hidden = !list.length;
+    if (!list.length) { $('#cycleList').innerHTML = ''; return; }
+    $('#cycleList').innerHTML = list.map(t =>
+      '<div class="cycle-row"><span class="cy-ico">' + S.categoryIcon(t.category, t.kind) + '</span>' +
+      '<div class="cy-info"><b>' + esc(t.name) + '</b><span>每月 ' + t.cycleDay + ' 号 · ¥' + S.fmtNum(t.amount) + '</span></div>' +
+      '<button type="button" data-cycle-ok="' + t.id + '">记好了</button></div>'
+    ).join('');
+    $$('[data-cycle-ok]', box).forEach(b => b.addEventListener('click', () => {
+      const rec = S.confirmCycle(data, b.dataset.cycleOk);
+      if (!rec) return;
+      S.save(data);
+      renderCycles(); renderPiggy(); renderTemplates(); updateTopStat();
+      toast('固定账记下了');
+    }));
+  }
+
+  /* ---------- 攒钱目标：忍住的钱流进目标 ---------- */
+  function renderGoal() {
+    const strip = $('#goalStrip');
+    if (!strip) return;
+    const g = S.goalProgress(data);
+    strip.hidden = !g;
+    if (!g) return;
+    $('#goalStripName').textContent = '攒来' + g.name;
+    $('#goalStripNum').textContent = '¥' + S.fmtNum(g.saved) + ' / ' + S.fmtNum(g.target);
+    $('#goalFill').style.width = g.pct + '%';
+  }
+
+  /* ---------- 账本工具：查账 / 订阅 / 日历 ---------- */
+  function renderSubscriptions() {
+    const card = $('#subCard');
+    if (!card) return;
+    const list = S.detectSubscriptions(data);
+    card.hidden = !list.length;
+    if (!list.length) { $('#subList').innerHTML = ''; return; }
+    $('#subList').innerHTML = list.map(x =>
+      '<div class="sub-row"><div class="sub-info"><b>' + esc(x.name) + '</b>' +
+      '<span>每月约 ¥' + S.fmtNum(x.amount) + ' · 出现 ' + x.months + ' 个月</span></div>' +
+      '<div class="sub-year"><b>¥' + S.fmtNum(x.yearly) + '</b><span>一年</span></div></div>'
+    ).join('');
+  }
+  function renderCalendar() {
+    const grid = $('#calGrid');
+    if (!grid) return;
+    const [y, m] = ledgerMonth.split('-').map(Number);
+    const days = new Date(y, m, 0).getDate();
+    const first = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    const trend = S.dailyTrend(data, ledgerMonth);
+    const max = Math.max.apply(null, trend.concat([1]));
+    let html = '';
+    for (let i = 0; i < first; i++) html += '<div class="cal-cell blank"></div>';
+    for (let d = 1; d <= days; d++) {
+      const v = trend[d - 1] || 0;
+      const lvl = v ? Math.min(4, Math.max(1, Math.ceil(v / max * 4))) : 0;
+      html += '<button class="cal-cell lv' + lvl + (ledgerDay === d ? ' is-on' : '') + '" data-day="' + d + '" type="button">' +
+        '<span>' + d + '</span>' + (v ? '<b>' + S.fmtNum(v) + '</b>' : '') + '</button>';
+    }
+    grid.innerHTML = html;
+    $$('[data-day]', grid).forEach(b => b.addEventListener('click', () => {
+      const day = +b.dataset.day;
+      ledgerDay = ledgerDay === day ? 0 : day;
+      ledgerMode = 'list';
+      renderHeld();
+    }));
+    const spendDays = trend.filter(v => v > 0).length;
+    $('#calFoot').textContent = spendDays
+      ? ('有 ' + spendDays + ' 天花了钱 · 最深那天 ¥' + S.fmtNum(max))
+      : '这个月还没有支出';
+  }
+  function renderLedgerModes() {
+    $$('#ledgerModes button').forEach(b => b.classList.toggle('is-on', b.dataset.mode === ledgerMode));
+    $('#calView').hidden = ledgerMode !== 'cal';
+    $('#heldList').hidden = ledgerMode === 'cal';
+  }
+  function doAsk() {
+    const q = ($('#askInput').value || '').trim();
+    if (!q) return;
+    const a = S.queryLedger(data, q);
+    if (!a) return;
+    $('#askText').textContent = a.text;
+    $('#askDetail').textContent = a.detail || '';
+    $('#askDetail').hidden = !a.detail;
+    $('#askAnswer').hidden = false;
+  }
+  $('#btnAsk').addEventListener('click', doAsk);
+  $('#askInput').addEventListener('keydown', e => { if (e.key === 'Enter') doAsk(); });
+  $('#ledgerModes').addEventListener('click', e => {
+    const b = e.target.closest('button[data-mode]');
+    if (!b) return;
+    ledgerMode = b.dataset.mode; ledgerDay = 0;
+    renderHeld();
+  });
   /* ---------- 记一笔（第一功能） ---------- */
   function todayStr() {
     const d = new Date();
@@ -333,6 +457,7 @@
       const idx = data.records.findIndex(r => r.id === editingId);
       if (idx >= 0) {
         data.records[idx] = Object.assign({}, data.records[idx], rec);
+        if (rec.name && rec.category) S.learnCategory(data, rec.name, rec.category);
         toast('改好了');
       }
       editingId = null;
@@ -386,7 +511,7 @@
     const name = ($('#nameInput').value || '').trim();
     const hit = name && S.isKnownNeed(name, data);
     $('#needQuick').hidden = !hit;
-    if (hit) $('#needQuickLabel').textContent = '「' + name + '」每次都买，不算冲动';
+    if (hit) $('#needQuickLabel').textContent = '「' + name + '」是你的固定开销';
   });
 
   function renderCost() {
@@ -475,17 +600,11 @@
     bc.style.animation = 'none'; void bc.offsetWidth; bc.style.animation = '';
   });
 
-  /* ---------- 忍住 ---------- */
+  /* ---------- 忍住（可选增强，不计入段位与目标） ---------- */
   $('#btnSkip').addEventListener('click', () => {
-    const before = S.rankOf(data).idx;
     addRecord('skip');
     renderSaved();
-    const after = S.rankOf(data);
-    $('#rankupBanner').hidden = after.idx <= before;
-    if (after.idx > before) {
-      $('#rankupIcon').textContent = after.icon;
-      $('#rankupName').textContent = after.name;
-    }
+    $('#rankupBanner').hidden = true;
     showSub('saved');
   });
   function renderSaved() {
@@ -607,6 +726,7 @@
     let recs = data.records.filter(r => r && r.ts != null && S.monthKey(r.ts) === ledgerMonth && r.action !== 'skip');
     if (ledgerFilter === 'income') recs = recs.filter(r => r.kind === 'income');
     if (ledgerFilter === 'expense') recs = recs.filter(r => r.kind !== 'income');
+    if (ledgerDay) recs = recs.filter(r => new Date(r.ts).getDate() === ledgerDay);
     if (ledgerQuery) {
       const q = ledgerQuery.toLowerCase();
       recs = recs.filter(r => {
@@ -655,6 +775,9 @@
       $('#skipList').innerHTML = skips.map(r => recHtml(r, 'calm')).join('');
     } else $('#skipBlock').hidden = true;
 
+    renderLedgerModes();
+    renderCalendar();
+    renderSubscriptions();
     bindRecActions();
   }
   function dayLabel(d) {
@@ -742,7 +865,7 @@
     $('#rankDesc').textContent = rk.desc;
     $('#rankProgressFill').style.width = rk.progress + '%';
     $('#rankProgressText').textContent = rk.nextName
-      ? ('再忍 ' + rk.need + ' 次 → ' + rk.nextName)
+      ? ('再攒 ¥' + S.fmtNum(rk.need) + ' → ' + rk.nextName)
       : '已满级，你就是传说本身';
 
     // 记账段位
@@ -802,8 +925,8 @@
       { wide: false, label: '这个月进账', value: '¥' + S.fmtNum(p.monthIncome), sub: p.incomeN ? (p.incomeN + ' 笔收入') : '还没记收入' },
       { wide: false, label: '花得最多的', value: p.topCat ? esc(p.topCat.name) : '还没摸清', sub: p.topCat ? ('¥' + S.fmtNum(p.topCat.amount) + ' 用在这') : '多记几笔就知道了' },
       { wide: false, label: '本月结余', value: '¥' + S.fmtNum(p.monthBalance), sub: p.monthBalance >= 0 ? '攒下来的底气' : '花超了，下月留意' },
-      { wide: true, label: p.total ? '心动拦截率' : '刹车成绩', value: p.total ? (p.rate + '<small>% 拦住了</small>') : (p.skipN + '<small> 次忍住</small>'),
-        sub: p.total ? (p.skipN + ' 次忍住 / ' + p.total + ' 次心动') : (p.peakLabel ? ('最容易上头：' + p.peakLabel) : '踩一次刹车，这里就活了') }
+      { wide: true, label: '记账坚持', value: S.streak(data) + '<small> 天连击</small>',
+        sub: p.recordN ? ('这个月记了 ' + p.recordN + ' 笔，接着记') : '从今天起，把日子记成账' }
     ];
     $('#portraitGrid').innerHTML = cards.map(c =>
       '<div class="pg-card' + (c.wide ? ' wide' : '') + '"><p class="pg-label">' + c.label + '</p>' +
@@ -830,16 +953,14 @@
   /* ---------- 分享卡 ---------- */
   $('#btnCard').addEventListener('click', () => {
     const p = S.portrait(data);
-    const seed = new Date().toDateString() + '|share|' + p.total + '|' + p.recordN;
+    const seed = new Date().toDateString() + '|share|' + p.recordN + '|' + p.monthBalance;
     const lines = S.cardLines(data).map(l => '<div class="sc-line">' + l + '</div>').join('');
-    // 有刹车数据用拦截率标题，纯记账用账本标题
-    const title = p.total
-      ? S.line('cardTitle', seed).replace('{v}', p.rate)
-      : '这个月，我记下了每一笔';
-    const bigNum = p.total ? S.fmtNum(p.skipAmt) : S.fmtNum(p.monthExpense);
-    const bigLabel = p.total ? S.line('cardMoneyLabel', seed + 'm') : '本月花了这么多，心里有数';
+    // 账本口径：攒下的结余为主角，没攒下就展示本月支出
+    const title = p.monthBalance > 0 ? '这个月，我攒下了这些' : '这个月，我记下了每一笔';
+    const bigNum = S.fmtNum(p.monthBalance > 0 ? p.monthBalance : p.monthExpense);
+    const bigLabel = p.monthBalance > 0 ? '收入减支出，都是我攒的' : '本月花了这么多，心里有数';
     $('#shareCard').innerHTML =
-      '<div class="sc-brand">缓一缓 · 这个月的我</div>' +
+      '<div class="sc-brand">笔笔清 · 这个月的我</div>' +
       '<div class="sc-title">' + title + '</div>' +
       '<div class="sc-big"><div class="sc-big-n">¥' + bigNum + '</div>' +
       '<div class="sc-big-l">' + bigLabel + '</div></div>' +
@@ -895,7 +1016,7 @@
         if (!blob) { toast('没存成，试试手机截图'); return; }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = '缓一缓-这个月的我.png';
+        a.href = url; a.download = '笔笔清-这个月的我.png';
         a.click(); URL.revokeObjectURL(url);
         toast('存好了');
       }, 'image/png');
@@ -918,6 +1039,11 @@
     $('#cfgPayday').value = data.settings.payday || '';
     renderTplManage();
     renderExportHint();
+    const g = S.goalProgress(data);
+    $('#goalState').innerHTML = g
+      ? '<div class="goal-state"><b>' + esc(g.name) + '</b><span>已攒 ¥' + S.fmtNum(g.saved) + ' / ¥' + S.fmtNum(g.target) + ' · ' + g.pct + '%</span></div>'
+      : '';
+    $('#btnClearGoal').hidden = !g;
   }
   function bindCfg(sel, key, def) {
     $(sel).addEventListener('change', e => {
@@ -938,10 +1064,35 @@
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = '缓一缓-备份-' + todayStr() + '.json';
+    a.href = url; a.download = '笔笔清-备份-' + todayStr() + '.json';
     a.click(); URL.revokeObjectURL(url);
     renderExportHint();
     toast('已导出');
+  });
+  $('#btnSetGoal').addEventListener('click', () => {
+    const name = ($('#goalName').value || '').trim();
+    const target = parseFloat($('#goalTarget').value);
+    if (!name || !isFinite(target) || target <= 0) { toast('写下目标名字和金额'); return; }
+    S.setGoal(data, name, target); S.save(data);
+    $('#goalName').value = ''; $('#goalTarget').value = '';
+    fillSettings(); renderGoal(); toast('目标定好了');
+  });
+  $('#btnClearGoal').addEventListener('click', () => {
+    S.clearGoal(data); S.save(data);
+    fillSettings(); renderGoal(); toast('目标取消了');
+  });
+  $('#btnImportBills').addEventListener('click', () => {
+    const text = ($('#billText').value || '').trim();
+    if (!text) { toast('先粘贴账单内容'); return; }
+    const rows = S.parseBillText(text);
+    if (!rows.length) { toast('没读到账单记录'); return; }
+    if (!confirm('读到 ' + rows.length + ' 条记录，导入到账本？')) return;
+    rows.forEach(r => data.records.push(Object.assign({ id: S.uid(), note: '', emotion: null }, r)));
+    S.save(data);
+    $('#billText').value = '';
+    renderPiggy(); renderTemplates(); renderWishes(); updateTopStat();
+    renderHeld(); renderPortrait();
+    toast('导进来了');
   });
   $('#btnImport').addEventListener('click', () => $('#importFile').click());
   $('#importFile').addEventListener('change', e => {
@@ -971,11 +1122,128 @@
     toast('已清空');
   });
 
+  /* ---------- 账本导出分享：带数据分析的月度账单 ---------- */
+  function roundRectPath(c, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+  function shareLedgerReport() {
+    const lg = S.ledger(data, ledgerMonth);
+    const prev = S.ledger(data, shiftMonth(ledgerMonth, -1));
+    const trend = S.dailyTrend(data, ledgerMonth);
+    const budget = Math.max(1, Number(data.settings.budget) || 2000);
+    const W = 750, X = 60, MW = W - 120;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = 1500;
+    const c = cv.getContext('2d');
+    const g = c.createLinearGradient(0, 0, W, 1500);
+    g.addColorStop(0, '#FBF8F2'); g.addColorStop(.55, '#FFFFFF'); g.addColorStop(1, '#DCEFE8');
+    c.fillStyle = g; c.fillRect(0, 0, W, 1500);
+    c.textBaseline = 'top';
+    c.fillStyle = '#BB4526'; c.font = 'bold 24px sans-serif';
+    c.fillText('笔笔清 · 月度账单', X, 56);
+    c.fillStyle = '#202725'; c.font = 'bold 64px sans-serif';
+    c.fillText(monthLabelText(ledgerMonth), X, 116);
+
+    const cardY = 226, cardW = (MW - 24) / 3, cardH = 168;
+    [
+      { label: '收入', val: '¥' + S.fmtNum(lg.income), color: '#12836F' },
+      { label: '支出', val: '¥' + S.fmtNum(lg.expense), color: '#E2603F' },
+      { label: '结余', val: '¥' + S.fmtNum(lg.balance), color: '#202725' }
+    ].forEach((s, i) => {
+      const x = X + i * (cardW + 12);
+      c.fillStyle = 'rgba(255,255,255,.92)';
+      roundRectPath(c, x, cardY, cardW, cardH, 18); c.fill();
+      c.fillStyle = '#9BA09C'; c.font = '22px sans-serif';
+      c.fillText(s.label, x + 20, cardY + 22);
+      c.fillStyle = s.color; c.font = 'bold 33px sans-serif';
+      c.fillText(s.val, x + 20, cardY + 68);
+    });
+
+    let y = cardY + cardH + 48;
+    const usedPct = Math.min(100, Math.round(lg.expense / budget * 1000) / 10);
+    c.fillStyle = '#5E6663'; c.font = '23px sans-serif';
+    c.fillText('月度预算 ¥' + S.fmtNum(budget) + ' · 已用 ' + usedPct + '%', X, y);
+    y += 40;
+    c.fillStyle = 'rgba(32,39,37,.08)';
+    roundRectPath(c, X, y, MW, 14, 7); c.fill();
+    c.fillStyle = lg.expense > budget ? '#E2603F' : '#12836F';
+    roundRectPath(c, X, y, Math.max(6, MW * Math.min(1, lg.expense / budget)), 14, 7); c.fill();
+    y += 60;
+
+    c.fillStyle = '#202725'; c.font = 'bold 30px sans-serif';
+    c.fillText('钱花在哪了', X, y); y += 52;
+    const top = lg.cats.slice(0, 5);
+    if (!top.length) {
+      c.fillStyle = '#9BA09C'; c.font = '24px sans-serif';
+      c.fillText('这个月还没有支出记录', X, y); y += 60;
+    }
+    top.forEach(cat => {
+      c.fillStyle = '#202725'; c.font = '25px sans-serif';
+      c.fillText(cat.name, X, y);
+      const amt = '¥' + S.fmtNum(cat.amount);
+      c.fillStyle = '#5E6663'; c.font = '23px sans-serif';
+      c.fillText(amt, X + MW - c.measureText(amt).width, y);
+      c.fillStyle = 'rgba(32,39,37,.07)';
+      roundRectPath(c, X, y + 38, MW, 12, 6); c.fill();
+      const pct = lg.catTotal ? Math.max(2, Math.round(cat.amount / lg.catTotal * 100)) : 0;
+      c.fillStyle = '#12836F';
+      roundRectPath(c, X, y + 38, Math.max(6, MW * pct / 100), 12, 6); c.fill();
+      y += 78;
+    });
+
+    y += 18;
+    c.fillStyle = '#202725'; c.font = 'bold 30px sans-serif';
+    c.fillText('每天的花钱节奏', X, y); y += 52;
+    const max = Math.max.apply(null, trend.concat([1]));
+    const bw = MW / trend.length;
+    const today = new Date().getDate();
+    trend.forEach((v, i) => {
+      const h = v ? Math.max(6, Math.round(v / max * 110)) : 0;
+      c.fillStyle = (i + 1 === today && ledgerMonth === S.monthKey(Date.now())) ? '#E2603F' : '#12836F';
+      c.fillRect(X + i * bw, y + 116 - h, Math.max(2, bw - 3), h);
+    });
+    y += 148;
+
+    const delta = prev.expense > 0 ? Math.round((lg.expense - prev.expense) / prev.expense * 100) : null;
+    const cmp = delta === null
+      ? '上个月没记录，从这份账单开始'
+      : (delta >= 0 ? ('比上个月多花了 ' + delta + '%') : ('比上个月少花了 ' + Math.abs(delta) + '%'));
+    c.fillStyle = '#5E6663'; c.font = '24px sans-serif';
+    c.fillText(cmp, X, y);
+    c.fillStyle = '#9BA09C'; c.font = '22px sans-serif';
+    c.fillText('每一笔，都清楚', X, y + 56);
+
+    const out = document.createElement('canvas');
+    out.width = W; out.height = Math.max(1000, Math.ceil(y + 130));
+    out.getContext('2d').drawImage(cv, 0, 0);
+    out.toBlob(async blob => {
+      if (!blob) { toast('没生成出来'); return; }
+      const file = new File([blob], '笔笔清-账单-' + ledgerMonth + '.png', { type: 'image/png' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: '笔笔清 · 月度账单' }); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = file.name;
+      a.click(); URL.revokeObjectURL(url);
+      toast('账单存好了');
+    }, 'image/png');
+  }
+  $('#btnLedgerShare').addEventListener('click', shareLedgerReport);
+
   /* ---------- 账本控件 ---------- */
-  $('#monthPrev').addEventListener('click', () => { ledgerMonth = shiftMonth(ledgerMonth, -1); renderHeld(); });
+  $('#monthPrev').addEventListener('click', () => { ledgerMonth = shiftMonth(ledgerMonth, -1); ledgerDay = 0; renderHeld(); });
   $('#monthNext').addEventListener('click', () => {
     if (ledgerMonth >= S.monthKey(Date.now())) return;
-    ledgerMonth = shiftMonth(ledgerMonth, 1); renderHeld();
+    ledgerMonth = shiftMonth(ledgerMonth, 1); ledgerDay = 0; renderHeld();
   });
   $('#ledgerFilters').addEventListener('click', e => {
     const b = e.target.closest('.lf');
