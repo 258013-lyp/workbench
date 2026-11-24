@@ -1,5 +1,5 @@
 /* ============================================================
-   缓一缓 · 核心逻辑层（无 DOM 依赖）
+   笔笔清 · 核心逻辑层（无 DOM 依赖）
    ============================================================ */
 (function () {
   'use strict';
@@ -13,9 +13,11 @@
       records: [],
       settings: { wage: 50, budget: 2000, categories: null, payday: 10 },
       collection: {},
-      templates: [],        // 固定账模板 [{id,name,kind,category,amount,note}]
+      templates: [],        // 固定账模板 [{id,name,kind,category,amount,note,cycle,cycleDay,lastDone}]
       wishlist: [],         // 冷静期清单 [{id,name,amount,addedTs,decidedTs,decision}]
       categoryBudgets: {},  // 分类预算 {catId: 金额}
+      nameCats: {},         // 分类学习 {备注名: 分类id}
+      goal: null,           // 存钱目标 {name,target,createdTs}
       lastExportTs: 0
     };
   }
@@ -109,9 +111,28 @@
         kind: t.kind === 'income' ? 'income' : 'expense',
         category: typeof t.category === 'string' && CAT_IDS.indexOf(t.category) >= 0 ? t.category : 'other',
         amount: isFinite(amt) && amt > 0 ? amt : 0,
-        note: typeof t.note === 'string' ? t.note.slice(0, 100) : ''
+        note: typeof t.note === 'string' ? t.note.slice(0, 100) : '',
+        cycle: t.cycle === 1 ? 1 : 0,
+        cycleDay: (isFinite(Number(t.cycleDay)) && Number(t.cycleDay) >= 1 && Number(t.cycleDay) <= 31) ? Math.floor(Number(t.cycleDay)) : 1,
+        lastDone: typeof t.lastDone === 'string' ? t.lastDone : ''
       };
     });
+  }
+  function sanitizeNameCats(o) {
+    const out = {};
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+    Object.keys(o).forEach(k => {
+      const v = o[k];
+      if (typeof v === 'string' && CAT_IDS.indexOf(v) >= 0 && k && k.length <= 40) out[k] = v;
+    });
+    return out;
+  }
+  function sanitizeGoal(g) {
+    if (!g || typeof g !== 'object' || Array.isArray(g) || !g.name) return null;
+    const t = Number(g.target);
+    if (!isFinite(t) || t <= 0) return null;
+    const ts = new Date(g.createdTs).getTime();
+    return { name: String(g.name).slice(0, 40), target: Math.round(t * 100) / 100, createdTs: isFinite(ts) ? ts : Date.now() };
   }
   function sanitizeWishlist(arr) {
     if (!Array.isArray(arr)) return [];
@@ -158,6 +179,8 @@
         templates: sanitizeTemplates(d.templates),
         wishlist: sanitizeWishlist(d.wishlist),
         categoryBudgets: sanitizeCatBudgets(d.categoryBudgets),
+        nameCats: sanitizeNameCats(d.nameCats),
+        goal: sanitizeGoal(d.goal),
         lastDropSalt: Number(d.lastDropSalt) || 0,
         lastBadgeSalt: Number(d.lastBadgeSalt) || 0,
         lastMilestone: Number(d.lastMilestone) || 0,
@@ -252,45 +275,45 @@
       '想要的东西会忘，省下的钱是真的。',
       '别心疼，你刚给自己发了笔奖金。'
     ],
-    // 忍住 · 掉落金句卡（三档稀有度，图鉴收集用；图标/配色/权重见 CARD_POOL）
+    // 记账 · 掉落金句卡（三档稀有度，每记满几笔解锁；图标/配色/权重见 CARD_POOL）
     dropCard: [
-      // —— 普通 · 克制日常 ——
-      { id:'c01', r:'common', icon:'🛑', t:'冷静特区', d:'冲动边缘成功刹住，授予「暂时清醒」勋章。' },
-      { id:'c02', r:'common', icon:'💰', t:'钱包的贵人', d:'你的钱包不知道，但它欠你一句谢谢。' },
-      { id:'c03', r:'common', icon:'🛒', t:'购物车减肥成功', d:'这一下没买，购物车又空了一格。' },
-      { id:'c04', r:'common', icon:'🤚', t:'手滑失败卡', d:'手伸向付款键那一刻，你硬生生收了回来。' },
-      { id:'c05', r:'common', icon:'🫧', t:'三秒清醒', d:'就这三秒，够你省下一顿火锅。' },
-      { id:'c06', r:'common', icon:'🌱', t:'克制界新星', d:'不管第几次，反正这一下你赢了。' },
-      { id:'c07', r:'common', icon:'🎯', t:'意志力在线', d:'今天的理智，暂时战胜了购物车。' },
-      { id:'c08', r:'common', icon:'🧊', t:'冷静 +1', d:'没上头，就是今天最大的胜利。' },
-      { id:'c09', r:'common', icon:'🐷', t:'小猪存钱罐', d:'又往里投了一枚，虽然它不会说话。' },
-      { id:'c10', r:'common', icon:'✋', t:'刹得住', d:'想买，没买。故事到这里就该鼓掌。' },
-      { id:'c11', r:'common', icon:'🪨', t:'稳如老狗', d:'这波情绪波动，没能带走你的钱包。' },
-      { id:'c12', r:'common', icon:'🧠', t:'理性短暂上线', d:'它来了，它看见了，它拦住了。' },
-      // —— 稀有 · 心态高手 ——
-      { id:'c13', r:'rare', icon:'🧘', t:'延迟满足大师', d:'把想要的先放一晚，这本事不是谁都有。' },
-      { id:'c14', r:'rare', icon:'🌊', t:'情绪冲浪选手', d:'浪打过来，你站住了，没被卷走。' },
-      { id:'c15', r:'rare', icon:'🔮', t:'未卜先知', d:'你躲过的这个冲动，未来会感谢你。' },
-      { id:'c16', r:'rare', icon:'⚖️', t:'内心天平校准师', d:'想要和需要之间，你这一次称对了。' },
-      { id:'c17', r:'rare', icon:'🎐', t:'心如止水 · 体验版', d:'这份平静是限时的，但此刻是真的。' },
-      { id:'c18', r:'rare', icon:'🛡️', t:'消费欲盾牌', d:'这一击，被你稳稳挡下了。' },
-      { id:'c19', r:'rare', icon:'🌙', t:'深夜清醒者', d:'这个点还能忍住，你比大多数人强。' },
-      { id:'c20', r:'rare', icon:'🎁', t:'给未来的自己送礼', d:'今天省下的，是明天多出来的选择权。' },
-      { id:'c21', r:'rare', icon:'🪞', t:'看见自己了', d:'你问了那句"能等吗"，然后真的等了。' },
-      { id:'c22', r:'rare', icon:'🔑', t:'掌控感 +1', d:'钱没花出去，主动权回到你手里。' },
+      // —— 普通 · 记账日常 ——
+      { id:'c01', r:'common', icon:'📒', t:'开本大吉', d:'第一笔落下去，日子就有了账。' },
+      { id:'c02', r:'common', icon:'✏️', t:'笔笔清', d:'钱花哪儿了，你比上个月更清楚。' },
+      { id:'c03', r:'common', icon:'🧾', t:'小票收集者', d:'别人扔小票，你把它变成了数据。' },
+      { id:'c04', r:'common', icon:'🔍', t:'明细在握', d:'每一笔都记，心里就不慌。' },
+      { id:'c05', r:'common', icon:'📌', t:'今日有数', d:'今天的账，今天清，不欠自己。' },
+      { id:'c06', r:'common', icon:'🌱', t:'记账新星', d:'习惯刚开始，慢慢就顺手了。' },
+      { id:'c07', r:'common', icon:'🎯', t:'分类精准', d:'这笔归哪类，你 eyes 都不用眨。' },
+      { id:'c08', r:'common', icon:'🗂️', t:'流水成册', d:'几笔连起来，就是你这个月的样子。' },
+      { id:'c09', r:'common', icon:'🐷', t:'小金库', d:'攒多少不知道，但你知道钱去哪了。' },
+      { id:'c10', r:'common', icon:'✋', t:'记得住', d:'花出去的没白花，至少你记住了。' },
+      { id:'c11', r:'common', icon:'🪨', t:'稳稳在记', d:'不追求完美，追求一直记。' },
+      { id:'c12', r:'common', icon:'🧠', t:'心里有本账', d:'数字一摆出来，很多事就不用想了。' },
+      // —— 稀有 · 洞察高手 ——
+      { id:'c13', r:'rare', icon:'🧘', t:'账本通透', d:'收支一摊开，钱的问题就没那么吓人。' },
+      { id:'c14', r:'rare', icon:'🌊', t:'现金流选手', d:'进多少出多少，你心里有张表。' },
+      { id:'c15', r:'rare', icon:'🔮', t:'未卜先知', d:'照这个记法，月底的事你早算到了。' },
+      { id:'c16', r:'rare', icon:'⚖️', t:'收支平衡师', d:'收入和支出，被你摆得明明白白。' },
+      { id:'c17', r:'rare', icon:'🎐', t:'清清楚楚', d:'账清了，心里那点乱也跟着清了。' },
+      { id:'c18', r:'rare', icon:'🛡️', t:'预算守门员', d:'预算还在安全线内，你守得住。' },
+      { id:'c19', r:'rare', icon:'🌙', t:'深夜记账人', d:'这个点还在记账，你对得起自己。' },
+      { id:'c20', r:'rare', icon:'🎁', t:'给未来的自己送礼', d:'今天记下的，是明天的参考书。' },
+      { id:'c21', r:'rare', icon:'🪞', t:'看见自己了', d:'翻翻账本，你的生活在里面。' },
+      { id:'c22', r:'rare', icon:'🔑', t:'掌控感 +1', d:'钱去哪了你说得清，这就是主动权。' },
       // —— 传说 · 稀有时刻 ——
-      { id:'c23', r:'legend', icon:'👑', t:'人间清醒', d:'传说级克制。这一下，值得刻进族谱。' },
-      { id:'c24', r:'legend', icon:'🐉', t:'剁手克星', d:'冲动见你绕道走，传说由此诞生。' },
-      { id:'c25', r:'legend', icon:'💎', t:'铁律加身', d:'你说不买，就真的没买。这叫说到做到。' },
-      { id:'c26', r:'legend', icon:'🌟', t:'消费界的定力天花板', d:'这一忍，已臻化境，受我一拜。' },
-      { id:'c27', r:'legend', icon:'🦅', t:'俯视购物车', d:'你在高处看了一眼欲望，然后转身走了。' },
-      { id:'c28', r:'legend', icon:'🏆', t:'本周最强刹车', d:'这种定力，建议写进年终总结。' }
+      { id:'c23', r:'legend', icon:'👑', t:'账本封神', d:'传说级记录，你的日子被记得明明白白。' },
+      { id:'c24', r:'legend', icon:'🐉', t:'细节狂魔', d:'连一杯水都记得，这份较真，成了本事。' },
+      { id:'c25', r:'legend', icon:'💎', t:'铁律加身', d:'说记就记，一天没落，这叫说到做到。' },
+      { id:'c26', r:'legend', icon:'🌟', t:'记账天花板', d:'把一件小事做到极致，也是了不起。' },
+      { id:'c27', r:'legend', icon:'🦅', t:'俯瞰账本', d:'别人被钱追着跑，你站高处看流向。' },
+      { id:'c28', r:'legend', icon:'🏆', t:'本月记账王', d:'这种坚持，建议写进年终总结。' }
     ],
     // 连击文案
     streakLine: [
-      '已经连着{n}天没乱花了',
+      '已经连着{n}天记账了',
       '连续{n}天，有点东西',
-      '{n}天连击，稳住别断',
+      '{n}天连击，别断啊',
       '第{n}天了，习惯正在长出来'
     ],
     // 买了 · 反向成就徽章（自嘲式幽默，化解羞耻；分主题带稀有度，图鉴收集用）
@@ -331,8 +354,8 @@
       { id:'b30', r:'legend', icon:'🕳️', theme:'行为', t:'月光族荣誉主席', d:'钱包空了，但故事很精彩。' }
     ],
     // 零食/轻提示 toast
-    toastNeed: ['记下了，这笔不算冲动', '行，刚需单独记', '收到，不影响你的刹车成绩'],
-    toastBuy: ['记下了，下回用得上', '存好了，下次刹车参考它', '收到，这才是真实的你'],
+    toastNeed: ['记下了，这笔是刚需', '行，刚需单独记', '收到，日子照常过'],
+    toastBuy: ['记下了，下回用得上', '存好了，账本又清楚一点', '收到，这才是真实的你'],
     toastEmptyAmount: ['先填个数呗', '多少钱？填一下'],
     toastEmptyEmotion: ['说说啥心情嘛', '挑一个最接近的'],
     // 分享卡 · 洞察句
@@ -349,7 +372,7 @@
     cardRecordN: ['记了 <strong>{v}</strong> 笔，把日子过成了账', '<strong>{v}</strong> 笔记录，一笔没落'],
     cardTitle: ['这个月，我按住了 {v}% 的冲动', '十次上头，我拦下 {v} 次', '我的 {v}%，没被冲动带走', '这个月，我赢了 {v}% 的心动'],
     cardMoneyLabel: ['这个月，我没花出去的', '兜里因此多出来的', '攒下的，是这些'],
-    cardFoot: ['想买之前，先看见', '慢三秒，再决定', '钱花在值得的地方'],
+    cardFoot: ['每一笔，都清楚', '记下来的日子，不算白过', '钱花在哪，心里有数'],
     // 前视预测
     forecastOver: [
       '照这个节奏，月底大概要花 ¥{v}，比预算多 ¥{d}。剩下的日子悠着点。',
@@ -369,7 +392,6 @@
       flat: ['这个{period}花了 ¥{v}，和上{period}差不多。'],
       noPrev: ['这个{period}花了 ¥{v}，已经记下了。'],
       topCat: ['钱主要去了{v}', '{v}是这{period}的开销大头'],
-      skip: ['忍住 {v} 次，钱包替你谢过了'],
       days: ['有{v}天记了账，日子没白过']
     },
     toastVoice: ['听清了，填好了', '识别到一笔，改改就能存', '记下了大概，你再看看'],
@@ -637,17 +659,17 @@
   }
   function line(scene, seed) { return pick(COPY[scene], seed); }
 
-  /* ---------- 连击：连续有「忍住」记录的天数（断签不清零，重新数） ---------- */
+  /* ---------- 连击：连续记账的天数（断签不清零，重新数） ---------- */
   function streak(d) {
     const days = new Set();
-    (d.records || []).filter(r => r.action === 'skip').forEach(r => {
+    (d.records || []).filter(r => r && r.ts != null && r.action !== 'skip' && r.kind !== 'income').forEach(r => {
       const dt = new Date(r.ts);
       days.add(dt.getFullYear() + '-' + (dt.getMonth() + 1) + '-' + dt.getDate());
     });
     if (!days.size) return 0;
     const key = dt => dt.getFullYear() + '-' + (dt.getMonth() + 1) + '-' + dt.getDate();
     const cur = new Date();
-    // 今天还没忍过，就从昨天起算，别把人家的连击抹了
+    // 今天还没记，就从昨天起算，别把人家的连击抹了
     if (!days.has(key(cur))) cur.setDate(cur.getDate() - 1);
     let n = 0;
     while (days.has(key(cur))) { n++; cur.setDate(cur.getDate() - 1); }
@@ -705,29 +727,39 @@
 
   const RANK_LABEL = { common: '普通', rare: '稀有', legend: '传说' };
 
-  /* ---------- 段位：按累计忍住次数进阶 ---------- */
+  /* ---------- 累计结余：收入减真实支出，忍住不参与 ---------- */
+  function totalSaved(d) {
+    let inc = 0, exp = 0;
+    (d.records || []).forEach(r => {
+      if (!r || r.ts == null) return;
+      if (r.kind === 'income') inc += Number(r.amount) || 0;
+      else if (r.action !== 'skip') exp += Number(r.amount) || 0;
+    });
+    return Math.max(0, Math.round(inc - exp));
+  }
+
+  /* ---------- 主段位：按累计结余进阶，攒出来的才是真本事 ---------- */
   const RANKS = [
-    { min: 0,   name: '刹车学徒',   icon: '🐣', desc: '第一次踩刹车，从这里开始' },
-    { min: 3,   name: '克制新人',   icon: '🌱', desc: '手开始听得进话了' },
-    { min: 8,   name: '冷静选手',   icon: '🧊', desc: '冲动来了，你能接住' },
-    { min: 15,  name: '延迟满足师', icon: '🧘', desc: '你懂得把快乐存到明天' },
-    { min: 25,  name: '情绪掌舵人', icon: '🧭', desc: '情绪再大，也带偏不了你' },
-    { min: 40,  name: '人间清醒',   icon: '👑', desc: '购物车对你失效了' },
-    { min: 60,  name: '消费禅师',   icon: '🪷', desc: '想要，但不被想要牵着走' },
-    { min: 100, name: '无欲则刚',   icon: '✨', desc: '传说级存在，已臻化境' }
+    { min: 0,     name: '空空的钱包', icon: '🐣', desc: '还没攒下，先记起来' },
+    { min: 100,   name: '小有存余',   icon: '🌱', desc: '开始有底气了' },
+    { min: 500,   name: '攒钱新星',   icon: '🌿', desc: '半个月的饭钱，稳稳的' },
+    { min: 1500,  name: '有底气一族', icon: '💪', desc: '遇事不慌，兜里有粮' },
+    { min: 4000,  name: '存钱老手',   icon: '🏦', desc: '攒钱这件事，你上手了' },
+    { min: 10000, name: '小金库主人', icon: '💰', desc: '五位数存款，能扛事了' },
+    { min: 25000, name: '金库管家',   icon: '🧮', desc: '钱在你手里，越来越听话' },
+    { min: 60000, name: '攒钱封神',   icon: '👑', desc: '传说级积累，你做到了' }
   ];
   function rankOf(d) {
-    const totalSkip = (d.records || []).filter(r => r.action === 'skip').length;
+    const saved = totalSaved(d);
     let idx = 0;
-    for (let i = 0; i < RANKS.length; i++) if (totalSkip >= RANKS[i].min) idx = i;
+    for (let i = 0; i < RANKS.length; i++) if (saved >= RANKS[i].min) idx = i;
     const cur = RANKS[idx], next = RANKS[idx + 1] || null;
-    const prevMin = cur.min;
-    const span = next ? next.min - prevMin : 1;
-    const progress = next ? Math.min(100, Math.round((totalSkip - prevMin) / span * 100)) : 100;
+    const span = next ? next.min - cur.min : 1;
+    const progress = next ? Math.min(100, Math.round((saved - cur.min) / span * 100)) : 100;
     return {
       idx, name: cur.name, icon: cur.icon, desc: cur.desc,
-      totalSkip, nextName: next ? next.name : null,
-      need: next ? next.min - totalSkip : 0, progress
+      totalSaved: saved, nextName: next ? next.name : null,
+      need: next ? next.min - saved : 0, progress
     };
   }
 
@@ -797,12 +829,9 @@
       if (p.recordN >= 3) lines.push(fill(pick(COPY.cardRecordN, seed + 'rn'), { v: p.recordN }));
     }
 
-    // 冲动维度：有踩刹车数据才出
-    if (p.peakLabel) lines.push(fill(pick(COPY.cardPeak, seed + 'p'), { v: p.peakLabel }));
-    if (p.topEmo) lines.push(fill(pick(COPY.cardEmo, seed + 'e'), { v: emotionLabel(p.topEmo) }));
-    if (p.topName) lines.push(fill(pick(COPY.cardName, seed + 'n'), { v: p.topName }));
-    if (p.rate > 0) lines.push(fill(pick(COPY.cardRate, seed + 'r'), { v: p.rate }));
-    if (p.needAmt > 0) lines.push(fill(pick(COPY.cardNeed, seed + 'd'), { v: fmtNum(p.needAmt) }));
+    // 坚持维度：连续记账才出，不靠刹车
+    const rs = streak(d);
+    if (rs >= 2) lines.push('连着记了 ' + rs + ' 天，这份坚持不多见');
 
     if (!lines.length) lines.push('你才开始记，故事还长着呢');
     return lines;
@@ -824,10 +853,16 @@
       kind: tpl.kind === 'income' ? 'income' : 'expense',
       category: CAT_IDS.indexOf(tpl.category) >= 0 ? tpl.category : 'other',
       amount: Math.round(amt * 100) / 100,
-      note: typeof tpl.note === 'string' ? tpl.note.slice(0, 100) : ''
+      note: typeof tpl.note === 'string' ? tpl.note.slice(0, 100) : '',
+      cycle: tpl.cycle === 1 ? 1 : 0,
+      cycleDay: (isFinite(Number(tpl.cycleDay)) && Number(tpl.cycleDay) >= 1 && Number(tpl.cycleDay) <= 31) ? Math.floor(Number(tpl.cycleDay)) : 1,
+      lastDone: ''
     };
     const idx = d.templates.findIndex(t => t.id === item.id || (t.name === item.name && t.kind === item.kind));
-    if (idx >= 0) d.templates[idx] = item;
+    if (idx >= 0) {
+      item.lastDone = d.templates[idx].lastDone || '';
+      d.templates[idx] = item;
+    }
     else { d.templates.unshift(item); d.templates = d.templates.slice(0, 50); }
     return item;
   }
@@ -1055,7 +1090,6 @@
     else base = pick(delta < 0 ? COPY.reviewLines.expenseDown : COPY.reviewLines.expenseUp, seed);
     const lines = [fill(base, { period: label, v: fmtNum(expense), d: fmtNum(Math.abs(delta || 0)) })];
     if (topCat) lines.push(fill(pick(COPY.reviewLines.topCat, seed + 'c'), { v: topCat.name, period: label }));
-    if (skipN) lines.push(fill(pick(COPY.reviewLines.skip, seed + 's'), { v: skipN }));
     if (days) lines.push(fill(pick(COPY.reviewLines.days, seed + 'd'), { v: days }));
     return { period: period || 'week', label, expense, prevExpense, delta, topCat, skipN, days, lines };
   }
@@ -1074,6 +1108,8 @@
         templates: sanitizeTemplates(src.templates),
         wishlist: sanitizeWishlist(src.wishlist),
         categoryBudgets: sanitizeCatBudgets(src.categoryBudgets),
+        nameCats: sanitizeNameCats(src.nameCats),
+        goal: sanitizeGoal(src.goal),
         lastDropSalt: Number(src.lastDropSalt) || 0,
         lastBadgeSalt: Number(src.lastBadgeSalt) || 0,
         lastMilestone: Number(src.lastMilestone) || 0,
@@ -1081,6 +1117,222 @@
       };
       return { ok: true, data: d, count: d.records.length };
     } catch (e) { return { ok: false, error: '读不出来，可能不是备份文件' }; }
+  }
+
+  /* ==========================================================
+     第二轮升级：周期账 / 分类学习 / 查账问答 / 订阅 / 目标 / 导入
+     ========================================================== */
+
+  /* ---------- 周期账：到期给卡，用户点了才落账，不替人做决定 ---------- */
+  function dueCycles(d) {
+    const key = monthKey(Date.now());
+    const day = new Date().getDate();
+    return (d.templates || []).filter(t =>
+      t && t.cycle === 1 && t.cycleDay >= 1 && t.cycleDay <= 31 &&
+      t.lastDone !== key && day >= t.cycleDay
+    );
+  }
+  function confirmCycle(d, id) {
+    const key = monthKey(Date.now());
+    const t = (d.templates || []).find(x => x && x.id === id);
+    if (!t || t.cycle !== 1 || t.lastDone === key) return null;
+    t.lastDone = key;
+    if (!Array.isArray(d.records)) d.records = [];
+    const rec = {
+      id: uid(), ts: Date.now(), action: 'normal', kind: t.kind,
+      category: t.category, amount: t.amount, name: t.name,
+      emotion: null, note: '周期账'
+    };
+    d.records.push(rec);
+    return rec;
+  }
+
+  /* ---------- 分类学习：你改过一次，下次就听你的 ---------- */
+  function learnCategory(d, name, category) {
+    if (!d || !name || !category || CAT_IDS.indexOf(category) < 0) return false;
+    const n = String(name).trim().slice(0, 40);
+    if (!n) return false;
+    if (!d.nameCats) d.nameCats = {};
+    d.nameCats[n] = category;
+    return true;
+  }
+  function guessCategory(d, name) {
+    if (!d || !name) return null;
+    const map = d.nameCats || {};
+    const n = String(name).trim();
+    if (map[n]) return map[n];
+    const keys = Object.keys(map).filter(k => n.indexOf(k) >= 0 || k.indexOf(n) >= 0)
+      .sort((a, b) => b.length - a.length);
+    return keys.length ? map[keys[0]] : null;
+  }
+  function guessCategoryByText(text) {
+    if (!text) return null;
+    const s = String(text);
+    const inc = VOICE_INCOME.find(x => x.re.test(s));
+    if (inc) return inc.id;
+    const cat = VOICE_CATS.find(x => x.re.test(s));
+    return cat ? cat.id : null;
+  }
+
+  /* ---------- 对话查账：本地规则，不联网不上传 ---------- */
+  function queryLedger(d, question) {
+    if (!question) return null;
+    const q = String(question).trim();
+    if (!q) return null;
+    const lg = ledger(d);
+    const now = new Date();
+    const prev = ledger(d, monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime()));
+    const allCats = DEFAULT_CATEGORIES.expense.concat(DEFAULT_CATEGORIES.income);
+    const hit = allCats.find(c => q.indexOf(c.name) >= 0);
+    if (hit) {
+      const c = lg.cats.find(x => x.id === hit.id);
+      const pct = lg.catTotal && c ? Math.round(c.amount / lg.catTotal * 100) : 0;
+      return {
+        text: '这个月' + hit.name + '花了 ¥' + fmtNum(c ? c.amount : 0),
+        detail: pct ? ('占本月支出 ' + pct + '%') : '还没记这类支出'
+      };
+    }
+    if (/预算/.test(q)) {
+      const b = Math.max(1, Number(d.settings && d.settings.budget) || 2000);
+      const left = Math.max(0, b - lg.expense);
+      return {
+        text: left > 0 ? ('这个月预算还剩 ¥' + fmtNum(left)) : ('这个月已经超了 ¥' + fmtNum(lg.expense - b)),
+        detail: '总预算 ¥' + fmtNum(b) + ' · 已花 ¥' + fmtNum(lg.expense)
+      };
+    }
+    if (/比上|上月|上个月/.test(q)) {
+      if (!prev.expense) return { text: '上个月还没记账，比不了', detail: '这个月花了 ¥' + fmtNum(lg.expense) };
+      const delta = Math.round((lg.expense - prev.expense) / prev.expense * 100);
+      return {
+        text: delta >= 0 ? ('比上个月多花了 ' + delta + '%') : ('比上个月少花了 ' + Math.abs(delta) + '%'),
+        detail: '上月 ¥' + fmtNum(prev.expense) + ' → 本月 ¥' + fmtNum(lg.expense)
+      };
+    }
+    if (/哪天|最高|最多的一天|爆/.test(q)) {
+      const t = dailyTrend(d);
+      const max = Math.max.apply(null, t.concat([0]));
+      if (!max) return { text: '这个月还没有支出记录', detail: '' };
+      const day = t.indexOf(max) + 1;
+      const n = (d.records || []).filter(r => r && r.ts != null && monthKey(r.ts) === lg.month &&
+        new Date(r.ts).getDate() === day && isRealExpense(r)).length;
+      return { text: (now.getMonth() + 1) + '月' + day + '日花得最多，¥' + fmtNum(max), detail: '那天记了 ' + n + ' 笔支出' };
+    }
+    if (/收入|进账|工资/.test(q)) return { text: '这个月进账 ¥' + fmtNum(lg.income), detail: lg.incomeN + ' 笔收入' };
+    if (/攒|结余|省下|剩多少/.test(q)) {
+      return { text: '这个月结余 ¥' + fmtNum(lg.balance),
+        detail: lg.balance >= 0 ? '收入减支出，攒下来的' : '花超了 ¥' + fmtNum(Math.abs(lg.balance)) };
+    }
+    if (/几笔|多少笔|笔数/.test(q)) {
+      return { text: '这个月记了 ' + (lg.incomeN + lg.expenseN) + ' 笔', detail: '支出 ' + lg.expenseN + ' 笔 · 收入 ' + lg.incomeN + ' 笔' };
+    }
+    if (/花|支出|用了/.test(q)) return { text: '这个月花了 ¥' + fmtNum(lg.expense), detail: lg.expenseN + ' 笔支出' };
+    return { text: '这个问题我还没学会，换个问法试试', detail: '' };
+  }
+
+  /* ---------- 订阅猎杀：同名同额跨月重复，只标疑似不替你取消 ---------- */
+  function detectSubscriptions(d) {
+    const map = {};
+    (d.records || []).forEach(r => {
+      if (!r || !isRealExpense(r) || !r.name) return;
+      const n = String(r.name).trim();
+      if (!n) return;
+      if (!map[n]) map[n] = { name: n, months: {}, amounts: [] };
+      map[n].months[monthKey(r.ts)] = (map[n].months[monthKey(r.ts)] || 0) + (Number(r.amount) || 0);
+      map[n].amounts.push(Number(r.amount) || 0);
+    });
+    const out = [];
+    Object.keys(map).forEach(n => {
+      const v = map[n];
+      if (Object.keys(v.months).length < 2) return;
+      const avg = v.amounts.reduce((a, b) => a + b, 0) / v.amounts.length;
+      if (!isFinite(avg) || avg <= 0) return;
+      const stable = v.amounts.filter(a => Math.abs(a - avg) / avg < 0.2).length / v.amounts.length;
+      if (stable < 0.6) return;
+      out.push({
+        name: n, months: Object.keys(v.months).length,
+        amount: Math.round(avg * 100) / 100,
+        yearly: Math.round(avg * 12 * 100) / 100
+      });
+    });
+    return out.sort((a, b) => b.yearly - a.yearly).slice(0, 8);
+  }
+
+  /* ---------- 存钱目标：设定之后的真实结余，攒下的才算数 ---------- */
+  function setGoal(d, name, target) {
+    if (!d || !name) return null;
+    const t = Number(target);
+    if (!isFinite(t) || t <= 0) return null;
+    d.goal = { name: String(name).slice(0, 40), target: Math.round(t * 100) / 100, createdTs: Date.now() };
+    return d.goal;
+  }
+  function clearGoal(d) { if (d) d.goal = null; }
+  function goalProgress(d) {
+    if (!d || !d.goal) return null;
+    const since = d.goal.createdTs || 0;
+    let inc = 0, exp = 0;
+    (d.records || []).forEach(r => {
+      if (!r || r.ts == null || r.ts < since) return;
+      if (r.kind === 'income') inc += Number(r.amount) || 0;
+      else if (r.action !== 'skip') exp += Number(r.amount) || 0;
+    });
+    // 没记收入时，结余为负；兜底按 0，不倒扣目标
+    const saved = Math.max(0, Math.round((inc - exp) * 100) / 100);
+    const target = d.goal.target;
+    return {
+      name: d.goal.name, target,
+      saved,
+      pct: Math.min(100, Math.round(saved / target * 100)),
+      left: Math.max(0, Math.round((target - saved) * 100) / 100)
+    };
+  }
+
+  /* ---------- 账单文本导入：纯前端解析支付宝/微信导出，不联网 ---------- */
+  function parseBillText(text) {
+    if (!text) return [];
+    const lines = String(text).split(/\r?\n/).filter(l => l && l.trim());
+    const out = [];
+    const SKIP = /^(支付宝|微信支付|财付通|零钱|银行卡|储蓄卡|信用卡|余额宝|花呗|支出|收入|付款|收款|转账|商户消费|扫二维码付款|消费|成功|已支付|交易成功)$/;
+    lines.forEach(line => {
+      if (/交易时间|交易创建时间|收\/支|交易号/.test(line)) return;
+      const cells = line.split(/[,\t]/).map(s => s.replace(/^["']+|["']+$/g, '').trim()).filter(s => s !== '');
+      let amount = 0;
+      for (let i = cells.length - 1; i >= 0; i--) {
+        const m = cells[i].match(/^[¥￥]?\s*(\d+(?:\.\d+)?)\s*$/);
+        if (m) { amount = Number(m[1]); break; }
+      }
+      if (!amount) {
+        const m = line.match(/[¥￥]\s*(\d+(?:\.\d+)?)/) || line.match(/\b(\d+(?:\.\d{1,2})?)\s*(?:元|块)?/);
+        if (m) amount = Number(m[1]);
+      }
+      if (!isFinite(amount) || amount <= 0) return;
+      let ts = Date.now();
+      for (const cell of cells) {
+        const dm = cell.match(/(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})/);
+        if (dm) {
+          const dt = new Date(+dm[1], +dm[2] - 1, +dm[3], 12);
+          if (!isNaN(dt.getTime())) { ts = dt.getTime(); break; }
+        }
+      }
+      const isInc = /收入|收款|入账|退款/.test(line) && !/支出|付款|消费/.test(line);
+      let name = '';
+      for (const cell of cells) {
+        if (!cell || /^[\d¥￥.\-\s]+$/.test(cell) || /^\d{4}[-/]/.test(cell)) continue;
+        if (SKIP.test(cell)) continue;
+        if (cell.length < 2 || cell.length > 30) continue;
+        name = cell; break;
+      }
+      if (!name) {
+        name = line.replace(/[¥￥]?\s*\d+(?:\.\d+)?\s*(?:块钱|块|元)?/g, '')
+          .replace(/\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?/g, '')
+          .replace(/[,\t]/g, ' ').trim().slice(0, 30) || '账单导入';
+      }
+      const cat = guessCategoryByText(line) || (isInc ? 'in_other' : 'other');
+      out.push({
+        kind: isInc ? 'income' : 'expense', category: cat, amount,
+        name: String(name).slice(0, 40), ts, action: 'normal'
+      });
+    });
+    return out.slice(0, 500);
   }
 
   /* ---------- 导出 ---------- */
@@ -1095,6 +1347,11 @@
     saveTemplate, removeTemplate, inferTemplates,
     parseVoice, forecast, catBudgetSuggestions, applyCatBudgets, catBudgetOf,
     addWish, removeWish, wishDays, decideWish,
-    review, importData
+    review, importData,
+    dueCycles, confirmCycle,
+    learnCategory, guessCategory, guessCategoryByText,
+    queryLedger, detectSubscriptions,
+    setGoal, clearGoal, goalProgress,
+    parseBillText
   };
 })();
