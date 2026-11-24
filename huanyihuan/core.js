@@ -9,7 +9,15 @@
 
   /* ---------- 存储 ---------- */
   function defaultData() {
-    return { records: [], settings: { wage: 50, budget: 2000, categories: null }, collection: {} };
+    return {
+      records: [],
+      settings: { wage: 50, budget: 2000, categories: null, payday: 10 },
+      collection: {},
+      templates: [],        // 固定账模板 [{id,name,kind,category,amount,note}]
+      wishlist: [],         // 冷静期清单 [{id,name,amount,addedTs,decidedTs,decision}]
+      categoryBudgets: {},  // 分类预算 {catId: 金额}
+      lastExportTs: 0
+    };
   }
 
   /* ---------- 记账分类 ---------- */
@@ -82,11 +90,51 @@
     const custom = s.categories;
     const validCats = custom && Array.isArray(custom.expense) && Array.isArray(custom.income)
       && custom.expense.length && custom.income.length ? custom : null;
+    const payday = Number(s.payday);
     return {
       wage: isFinite(wage) && wage > 0 ? wage : def.wage,
       budget: isFinite(budget) && budget > 0 ? budget : def.budget,
-      categories: validCats
+      categories: validCats,
+      payday: isFinite(payday) && payday >= 1 && payday <= 31 ? Math.floor(payday) : def.payday
     };
+  }
+  const CAT_IDS = DEFAULT_CATEGORIES.expense.concat(DEFAULT_CATEGORIES.income).map(c => c.id);
+  function sanitizeTemplates(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(t => t && typeof t === 'object' && t.name).slice(0, 50).map(t => {
+      const amt = Number(t.amount);
+      return {
+        id: typeof t.id === 'string' ? t.id : uid(),
+        name: String(t.name).slice(0, 40),
+        kind: t.kind === 'income' ? 'income' : 'expense',
+        category: typeof t.category === 'string' && CAT_IDS.indexOf(t.category) >= 0 ? t.category : 'other',
+        amount: isFinite(amt) && amt > 0 ? amt : 0,
+        note: typeof t.note === 'string' ? t.note.slice(0, 100) : ''
+      };
+    });
+  }
+  function sanitizeWishlist(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(w => w && typeof w === 'object' && w.name).slice(0, 100).map(w => {
+      const amt = Number(w.amount);
+      return {
+        id: typeof w.id === 'string' ? w.id : uid(),
+        name: String(w.name).slice(0, 60),
+        amount: isFinite(amt) && amt > 0 ? amt : 0,
+        addedTs: new Date(w.addedTs).getTime() || Date.now(),
+        decidedTs: w.decidedTs ? (new Date(w.decidedTs).getTime() || null) : null,
+        decision: w.decision === 'buy' || w.decision === 'skip' ? w.decision : null
+      };
+    });
+  }
+  function sanitizeCatBudgets(o) {
+    const out = {};
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return out;
+    Object.keys(o).forEach(k => {
+      const n = Number(o[k]);
+      if (isFinite(n) && n > 0 && CAT_IDS.indexOf(k) >= 0) out[k] = n;
+    });
+    return out;
   }
   function sanitizeCollection(c) {
     const out = {};
@@ -106,7 +154,14 @@
       return {
         records: sanitizeRecords(d.records),
         settings: sanitizeSettings(d.settings),
-        collection: sanitizeCollection(d.collection)
+        collection: sanitizeCollection(d.collection),
+        templates: sanitizeTemplates(d.templates),
+        wishlist: sanitizeWishlist(d.wishlist),
+        categoryBudgets: sanitizeCatBudgets(d.categoryBudgets),
+        lastDropSalt: Number(d.lastDropSalt) || 0,
+        lastBadgeSalt: Number(d.lastBadgeSalt) || 0,
+        lastMilestone: Number(d.lastMilestone) || 0,
+        lastExportTs: Number(d.lastExportTs) || 0
       };
     } catch (e) { return defaultData(); }
   }
@@ -285,7 +340,7 @@
     cardEmo: ['<strong>{v}</strong>的时候，你最容易掏钱', '让你破防的是<strong>{v}</strong>', '「<strong>{v}</strong>」几乎每次都能得手'],
     cardName: ['<strong>{v}</strong>，你买得最勤', '对你来说，<strong>{v}</strong>没有抵抗力', '<strong>{v}</strong>是你的固定心头好'],
     cardRate: ['{v}%的心动，被你按住了', '十次里有{v}次，你赢了', '拦下{v}%——你比自己以为的能扛'],
-    cardNeed: ['另有<strong>¥{v}</strong>是生活必需，花得坦荡', '<strong>¥{v}</strong>花在刀刃上，不心虚', '其中<strong>¥{v}</strong>是刚需，该花'],
+    cardNeed: ['另有<strong>¥{v}</strong>是生活必需，该花', '<strong>¥{v}</strong>花在刀刃上，不亏', '其中<strong>¥{v}</strong>是刚需，没毛病'],
     // 账本洞察（让只记账不踩刹车的用户也有画像）
     cardTopCat: ['这个月，<strong>{v}</strong>花得最多', '<strong>{v}</strong>是你的开销大头', '钱主要流向了<strong>{v}</strong>'],
     cardExpense: ['这个月花了 <strong>¥{v}</strong>，心里有数了', '<strong>¥{v}</strong>的去向，你都记下来了', '本月支出 <strong>¥{v}</strong>，笔笔清楚'],
@@ -294,7 +349,36 @@
     cardRecordN: ['记了 <strong>{v}</strong> 笔，把日子过成了账', '<strong>{v}</strong> 笔记录，一笔没落'],
     cardTitle: ['这个月，我按住了 {v}% 的冲动', '十次上头，我拦下 {v} 次', '我的 {v}%，没被冲动带走', '这个月，我赢了 {v}% 的心动'],
     cardMoneyLabel: ['这个月，我没花出去的', '兜里因此多出来的', '攒下的，是这些'],
-    cardFoot: ['想买之前，先看见', '慢三秒，再决定', '钱花在值得的地方']
+    cardFoot: ['想买之前，先看见', '慢三秒，再决定', '钱花在值得的地方'],
+    // 前视预测
+    forecastOver: [
+      '照这个节奏，月底大概要花 ¥{v}，比预算多 ¥{d}。剩下的日子悠着点。',
+      '按眼下的速度，月底估计 ¥{v}，预算会超 ¥{d}。',
+      '再这么花下去，月底 ¥{v}，超出预算 ¥{d}。'
+    ],
+    forecastUnder: [
+      '照这个节奏，月底大概花 ¥{v}，预算里还能剩 ¥{d}。',
+      '按眼下的速度，月底估计 ¥{v}，还有 ¥{d} 余量。',
+      '再这么花下去，月底 ¥{v}，预算内稳得住。'
+    ],
+    forecastFew: ['这个月才刚开始，再记几笔就能估出月底的数。', '数据还太少，先记着，月底前我会给你个数。'],
+    // 周月复盘
+    reviewLines: {
+      expenseDown: ['比上{period}少花了 ¥{d}，这点值得记一笔。', '花了 ¥{v}，比上{period}省下 ¥{d}。'],
+      expenseUp: ['这个{period}花了 ¥{v}，比上{period}多 ¥{d}。', '花了 ¥{v}，比上{period}多了 ¥{d}，回头看看值不值。'],
+      flat: ['这个{period}花了 ¥{v}，和上{period}差不多。'],
+      noPrev: ['这个{period}花了 ¥{v}，已经记下了。'],
+      topCat: ['钱主要去了{v}', '{v}是这{period}的开销大头'],
+      skip: ['忍住 {v} 次，钱包替你谢过了'],
+      days: ['有{v}天记了账，日子没白过']
+    },
+    toastVoice: ['听清了，填好了', '识别到一笔，改改就能存', '记下了大概，你再看看'],
+    toastVoiceFail: ['没听清，再说一次', '这句没识别出来，手打吧'],
+    toastWish: ['放进清单了，过几天再看', '先存着，冷静两天再说'],
+    toastWishBuy: ['想清楚了就买，不算冲动'],
+    toastWishSkip: ['漂亮，这东西你不需要'],
+    toastTpl: ['存成常用了', '下次一点就来'],
+    toastImport: ['备份恢复了，账都回来了']
   };
 
   /* ---------- 等价物表：把抽象金额翻译成具体的生活物件 ---------- */
@@ -724,6 +808,281 @@
     return lines;
   }
 
+  /* ==========================================================
+     升级模块：固定账 / 语音 / 预测 / 分类预算 / 冷静期 / 复盘 / 迁移
+     ========================================================== */
+
+  /* ---------- 固定账模板 ---------- */
+  function saveTemplate(d, tpl) {
+    if (!d || !tpl || !tpl.name) return null;
+    const amt = Number(tpl.amount);
+    if (!isFinite(amt) || amt <= 0) return null;
+    if (!Array.isArray(d.templates)) d.templates = [];
+    const item = {
+      id: typeof tpl.id === 'string' && tpl.id ? tpl.id : uid(),
+      name: String(tpl.name).slice(0, 40),
+      kind: tpl.kind === 'income' ? 'income' : 'expense',
+      category: CAT_IDS.indexOf(tpl.category) >= 0 ? tpl.category : 'other',
+      amount: Math.round(amt * 100) / 100,
+      note: typeof tpl.note === 'string' ? tpl.note.slice(0, 100) : ''
+    };
+    const idx = d.templates.findIndex(t => t.id === item.id || (t.name === item.name && t.kind === item.kind));
+    if (idx >= 0) d.templates[idx] = item;
+    else { d.templates.unshift(item); d.templates = d.templates.slice(0, 50); }
+    return item;
+  }
+  function removeTemplate(d, id) {
+    if (d && Array.isArray(d.templates)) d.templates = d.templates.filter(t => t.id !== id);
+  }
+  /* 从历史里找出现≥2 次、名字相同的账，作为「一键存常用」的候选 */
+  function inferTemplates(d) {
+    const map = {};
+    (d.records || []).forEach(r => {
+      if (!r || r.action === 'skip' || !r.name) return;
+      const n = String(r.name).trim().slice(0, 40);
+      if (!n) return;
+      const k = (r.kind === 'income' ? 'i' : 'e') + '|' + n;
+      if (!map[k]) map[k] = { name: n, kind: r.kind === 'income' ? 'income' : 'expense', category: r.category || 'other', amount: 0, n: 0 };
+      map[k].n++;
+      if (map[k].n === 1) map[k].amount = Number(r.amount) || 0;
+      else map[k].amount = Math.round((map[k].amount + (Number(r.amount) || 0)) / 2 * 100) / 100;
+    });
+    return Object.keys(map).map(k => map[k])
+      .filter(x => x.n >= 2 && x.amount > 0)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 6)
+      .map(x => ({ name: x.name, kind: x.kind, category: x.category, amount: x.amount, guessed: true }));
+  }
+
+  /* ---------- 语音记账：把口语翻成一条账 ---------- */
+  const CN_DIGIT = { 零: 0, '〇': 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  function cnNumber(s) {
+    if (!s) return 0;
+    if (/^\d+$/.test(s)) return Number(s);
+    let section = 0, num = 0;
+    for (const ch of s) {
+      if (CN_DIGIT[ch] != null) num = CN_DIGIT[ch];
+      else if (ch === '十') { section += (num || 1) * 10; num = 0; }
+      else if (ch === '百') { section += (num || 1) * 100; num = 0; }
+      else if (ch === '千') { section += (num || 1) * 1000; num = 0; }
+      else return 0;
+    }
+    return section + num;
+  }
+  const VOICE_CATS = [
+    { id: 'drink', re: /奶茶|咖啡|饮料|可乐|果茶|拿铁/ },
+    { id: 'food', re: /饭|外卖|食堂|火锅|烧烤|面条|米粉|早茶|吃饭|买菜|水果|零食/ },
+    { id: 'transport', re: /打车|地铁|公交|车费|油费|高铁|机票|单车|停车/ },
+    { id: 'home', re: /房租|水电|物业|电费|水费|燃气|房贷|宽带/ },
+    { id: 'fun', re: /电影|游戏|唱歌|门票|娱乐|会员|演唱会|按摩/ },
+    { id: 'health', re: /药|医院|看病|体检|挂号|牙/ },
+    { id: 'study', re: /书|课程|学费|培训|考试/ },
+    { id: 'social', re: /送礼|人情|份子|随礼/ },
+    { id: 'shop', re: /衣服|鞋|购物|快递|淘宝|拼多多|日用品|化妆|买/ }
+  ];
+  const VOICE_INCOME = [
+    { id: 'salary', re: /工资|薪水|发薪/ },
+    { id: 'bonus', re: /奖金|年终/ },
+    { id: 'side', re: /兼职|外快|接单/ },
+    { id: 'invest', re: /理财|基金|股票|收益/ },
+    { id: 'redpack', re: /红包|压岁钱/ }
+  ];
+  function parseVoice(text) {
+    if (!text) return null;
+    let s = String(text).replace(/[\s,，。！？!?]/g, '');
+    if (!s) return null;
+    let amount = 0, amountText = '';
+    const arab = s.match(/(\d+(?:\.\d+)?)(?:块钱|块|元|圆)/);
+    const chinese = s.match(/([一二三四五六七八九十百千零〇两]+)(?:块钱|块|元|圆)/);
+    if (arab) { amount = parseFloat(arab[1]); amountText = arab[0]; }
+    else if (chinese) { amount = cnNumber(chinese[1]); amountText = chinese[0]; }
+    else {
+      const only = s.match(/\d+(?:\.\d+)?/g);
+      if (only && only.length === 1) { amount = parseFloat(only[0]); amountText = only[0]; }
+    }
+    if (!isFinite(amount) || amount <= 0) return null;
+
+    let kind = 'expense', category = 'other';
+    const inc = VOICE_INCOME.find(x => x.re.test(s));
+    if (inc) { kind = 'income'; category = inc.id; }
+    else {
+      const cat = VOICE_CATS.find(x => x.re.test(s));
+      if (cat) category = cat.id;
+    }
+    let name = s.replace(amountText, '')
+      .replace(/^(我|刚刚?|今天|昨天|早上|中午|晚上|上午|下午|花了|买了|支出|人民币|一共|总共|支付|进账)+/, '')
+      .replace(/(花了|买了|支出|块钱|块|元|圆)$/, '')
+      .trim().slice(0, 24);
+    if (!name) name = categoryName(category, kind);
+    return { amount: Math.round(amount * 100) / 100, name, kind, category };
+  }
+
+  /* ---------- 前视预测：按已有节奏估月底 ---------- */
+  function forecast(d) {
+    const key = monthKey(Date.now());
+    const [y, m] = key.split('-').map(Number);
+    const days = new Date(y, m, 0).getDate();
+    const day = new Date().getDate();
+    const lg = ledger(d, key);
+    const prevKeys = [1, 2, 3].map(i => monthKey(new Date(y, m - 1 - i, 1).getTime()));
+    const prevVals = prevKeys.map(k => ledger(d, k).expense).filter(v => v > 0);
+    const basis = prevVals.length ? prevVals.reduce((a, b) => a + b, 0) / prevVals.length : 0;
+    const pace = day > 0 ? lg.expense / day * days : 0;
+    const enough = lg.expense > 0 && day >= 4;
+    const raw = basis && pace ? basis * 0.4 + pace * 0.6 : (pace || basis);
+    const projected = Math.round(raw * 100) / 100;
+    const budget = Math.max(1, Number(d.settings && d.settings.budget) || 2000);
+    const diff = Math.round(Math.abs(projected - budget) * 100) / 100;
+    const pool = projected > budget ? COPY.forecastOver : COPY.forecastUnder;
+    const text = enough
+      ? fill(pick(pool, daySeed() + '|fc|' + Math.round(projected)), { v: fmtNum(projected), d: fmtNum(diff) })
+      : pick(COPY.forecastFew, daySeed() + '|fc|few');
+    return {
+      projected, budget, diff, over: projected > budget, enough,
+      daysLeft: Math.max(0, days - day),
+      daily: day > 0 ? Math.round(lg.expense / day * 100) / 100 : 0,
+      text
+    };
+  }
+
+  /* ---------- 洞察转预算：把花得多的分类变成上限 ---------- */
+  function catBudgetSuggestions(d) {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth() + 1;
+    const keys = [1, 2, 3].map(i => monthKey(new Date(y, m - i, 1).getTime()));
+    const usable = keys.filter(k => ledger(d, k).expense > 0);
+    const list = usable.length ? usable : [monthKey(now.getTime())];
+    const map = {};
+    list.forEach(k => ledger(d, k).cats.forEach(c => {
+      map[c.id] = (map[c.id] || 0) + c.amount / list.length;
+    }));
+    const cur = d.categoryBudgets || {};
+    return Object.keys(map).map(id => {
+      const avg = map[id];
+      return {
+        id, name: categoryName(id, 'expense'), icon: categoryIcon(id, 'expense'),
+        avg: Math.round(avg * 100) / 100,
+        suggested: Math.max(50, Math.ceil(avg / 50) * 50),
+        current: Number(cur[id]) || 0
+      };
+    }).filter(x => x.avg >= 20).sort((a, b) => b.avg - a.avg).slice(0, 6);
+  }
+  function applyCatBudgets(d, items) {
+    if (!d.categoryBudgets || typeof d.categoryBudgets !== 'object') d.categoryBudgets = {};
+    let n = 0;
+    (Array.isArray(items) ? items : []).forEach(x => {
+      const v = Number(x && x.suggested);
+      if (x && CAT_IDS.indexOf(x.id) >= 0 && isFinite(v) && v > 0) { d.categoryBudgets[x.id] = v; n++; }
+    });
+    return n;
+  }
+  function catBudgetOf(d, id) {
+    const v = Number(d.categoryBudgets && d.categoryBudgets[id]);
+    return isFinite(v) && v > 0 ? v : 0;
+  }
+
+  /* ---------- 冷静期清单 ---------- */
+  function addWish(d, name, amount) {
+    if (!d || !name || !amount || amount <= 0) return null;
+    if (!Array.isArray(d.wishlist)) d.wishlist = [];
+    const w = {
+      id: uid(), name: String(name).slice(0, 60), amount: Math.round(Number(amount) * 100) / 100,
+      addedTs: Date.now(), decidedTs: null, decision: null
+    };
+    d.wishlist.unshift(w);
+    d.wishlist = d.wishlist.slice(0, 100);
+    return w;
+  }
+  function removeWish(d, id) {
+    if (d && Array.isArray(d.wishlist)) d.wishlist = d.wishlist.filter(w => w.id !== id);
+  }
+  function wishDays(w) {
+    if (!w || !w.addedTs) return 0;
+    return Math.max(0, Math.floor((Date.now() - w.addedTs) / 86400000));
+  }
+  function decideWish(d, id, decision) {
+    if (!d || !Array.isArray(d.wishlist)) return null;
+    const w = d.wishlist.find(x => x.id === id);
+    if (!w || w.decidedTs) return null;
+    w.decision = decision === 'buy' ? 'buy' : 'skip';
+    w.decidedTs = Date.now();
+    if (!Array.isArray(d.records)) d.records = [];
+    d.records.push({
+      id: uid(), ts: Date.now(), action: w.decision === 'buy' ? 'normal' : 'skip', kind: 'expense',
+      category: 'shop', amount: w.amount, name: w.name,
+      emotion: null, note: '冷静期后决定' + (w.decision === 'buy' ? '买' : '不买')
+    });
+    if (w.decision === 'skip') d.lastDropSalt = (d.lastDropSalt || 0) + 1;
+    return w;
+  }
+
+  /* ---------- 周 / 月复盘 ---------- */
+  function review(d, period) {
+    const isWeek = period !== 'month';
+    const now = new Date();
+    const y = now.getFullYear(), mo = now.getMonth(), da = now.getDate();
+    let start, prevStart, prevEnd, label;
+    if (isWeek) {
+      const back = (now.getDay() + 6) % 7;
+      start = new Date(y, mo, da - back);
+      prevStart = new Date(start.getTime() - 7 * 86400000);
+      prevEnd = start;
+      label = '周';
+    } else {
+      start = new Date(y, mo, 1);
+      prevStart = new Date(y, mo - 1, 1);
+      prevEnd = start;
+      label = '月';
+    }
+    const end = new Date(y, mo, da + 1);
+    const between = (r, a, b) => r && r.ts != null && r.ts >= a.getTime() && r.ts < b.getTime();
+    const recs = (d.records || []).filter(r => between(r, start, end));
+    const prev = (d.records || []).filter(r => between(r, prevStart, prevEnd));
+    const expenseOf = arr => arr.filter(isRealExpense).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const expense = Math.round(expenseOf(recs) * 100) / 100;
+    const prevExpense = Math.round(expenseOf(prev) * 100) / 100;
+    const delta = prevExpense > 0 ? Math.round((expense - prevExpense) * 100) / 100 : null;
+    const byCat = {};
+    recs.filter(isRealExpense).forEach(r => { const c = r.category || 'other'; byCat[c] = (byCat[c] || 0) + (Number(r.amount) || 0); });
+    const catIds = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]);
+    const topCat = catIds.length ? { id: catIds[0], name: categoryName(catIds[0], 'expense'), amount: Math.round(byCat[catIds[0]] * 100) / 100 } : null;
+    const skipN = recs.filter(r => r.action === 'skip').length;
+    const days = new Set(recs.filter(isRealExpense).map(r => new Date(r.ts).getDate())).size;
+    const seed = daySeed() + '|rv|' + period + '|' + Math.round(expense);
+    let base;
+    if (delta === null) base = pick(COPY.reviewLines.noPrev, seed);
+    else if (Math.abs(delta) < 1) base = pick(COPY.reviewLines.flat, seed);
+    else base = pick(delta < 0 ? COPY.reviewLines.expenseDown : COPY.reviewLines.expenseUp, seed);
+    const lines = [fill(base, { period: label, v: fmtNum(expense), d: fmtNum(Math.abs(delta || 0)) })];
+    if (topCat) lines.push(fill(pick(COPY.reviewLines.topCat, seed + 'c'), { v: topCat.name, period: label }));
+    if (skipN) lines.push(fill(pick(COPY.reviewLines.skip, seed + 's'), { v: skipN }));
+    if (days) lines.push(fill(pick(COPY.reviewLines.days, seed + 'd'), { v: days }));
+    return { period: period || 'week', label, expense, prevExpense, delta, topCat, skipN, days, lines };
+  }
+
+  /* ---------- 备份导入 / 换机迁移 ---------- */
+  function importData(raw) {
+    try {
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { ok: false, error: '文件格式不对' };
+      const src = obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data) ? obj.data : obj;
+      if (!Array.isArray(src.records)) return { ok: false, error: '文件里没有账目记录' };
+      const d = {
+        records: sanitizeRecords(src.records),
+        settings: sanitizeSettings(src.settings),
+        collection: sanitizeCollection(src.collection),
+        templates: sanitizeTemplates(src.templates),
+        wishlist: sanitizeWishlist(src.wishlist),
+        categoryBudgets: sanitizeCatBudgets(src.categoryBudgets),
+        lastDropSalt: Number(src.lastDropSalt) || 0,
+        lastBadgeSalt: Number(src.lastBadgeSalt) || 0,
+        lastMilestone: Number(src.lastMilestone) || 0,
+        lastExportTs: Number(src.lastExportTs) || 0
+      };
+      return { ok: true, data: d, count: d.records.length };
+    } catch (e) { return { ok: false, error: '读不出来，可能不是备份文件' }; }
+  }
+
   /* ---------- 导出 ---------- */
   window.SY = {
     $, load, save, uid, defaultData,
@@ -732,6 +1091,10 @@
     EMOTIONS, translate, portrait, judge, cardLines,
     piggyNote, savedCopy, line, streak, streakLine, dropCard, buyBadge,
     rankOf, codex, RANKS, RANK_LABEL, collect, saveRankOf, SAVE_RANKS, milestoneDrop,
-    knownNeeds, isKnownNeed, emotionLabel, monthKey, inThisMonth, fmtNum
+    knownNeeds, isKnownNeed, emotionLabel, monthKey, inThisMonth, fmtNum,
+    saveTemplate, removeTemplate, inferTemplates,
+    parseVoice, forecast, catBudgetSuggestions, applyCatBudgets, catBudgetOf,
+    addWish, removeWish, wishDays, decideWish,
+    review, importData
   };
 })();
